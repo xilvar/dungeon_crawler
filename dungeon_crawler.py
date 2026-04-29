@@ -317,6 +317,7 @@ class Game:
         self.player_armor_bonus = 0
         self.player_gold = 0
         self.player_name = "Hero"
+        self.consecutive_waits = 0
 
         self._init_curses()
         self.new_dungeon()
@@ -336,6 +337,7 @@ class Game:
         self.player_x, self.player_y, self.enemies, self.items = place_entities(rooms, self.dungeon, self.depth)
         self.visible = compute_fov(self.dungeon, self.player_x, self.player_y, FOV_RADIUS)
         self._update_explored()
+        self.consecutive_waits = 0
         if not from_stairs_up:
             self.msg(f"You descend into the dungeon. (Depth: {self.depth + 1})")
         else:
@@ -387,6 +389,7 @@ class Game:
             return
         nx, ny = self.player_x + dx, self.player_y + dy
         if not self.is_passable(nx, ny):
+            self.consecutive_waits = 0
             return
 
         enemy = self.get_enemy_at(nx, ny)
@@ -394,14 +397,16 @@ class Game:
             self.combat_attack(enemy)
         else:
             self.player_x, self.player_y = nx, ny
+            self.consecutive_waits = 0
 
         self.visible = compute_fov(self.dungeon, self.player_x, self.player_y, FOV_RADIUS)
         self._update_explored()
         self._enemy_turn()
 
     def combat_attack(self, enemy):
+        self.consecutive_waits = 0
         damage = self.do_attack(self.player_name, self.player_attack_total(),
-                                 enemy["name"], enemy["defense"])
+                                  enemy["name"], enemy["defense"])
         enemy["hp"] -= damage
         self.msg(f"You hit the {enemy['name']} for {damage} damage!", curses.COLOR_WHITE)
         if enemy["hp"] <= 0:
@@ -472,6 +477,7 @@ class Game:
                 break
 
     def go_down_stairs(self):
+        self.consecutive_waits = 0
         if self.dungeon[self.player_y][self.player_x] == TILE_STAIRS_DOWN:
             self.depth += 1
             if self.depth >= MAX_DEPTH:
@@ -483,6 +489,7 @@ class Game:
             self.msg("No stairs here.", curses.COLOR_CYAN)
 
     def go_up_stairs(self):
+        self.consecutive_waits = 0
         if self.dungeon[self.player_y][self.player_x] == TILE_STAIRS_UP and self.depth > 0:
             self.depth -= 1
             self.new_dungeon(from_stairs_up=True)
@@ -493,6 +500,7 @@ class Game:
             self.msg("Can't go up further.", curses.COLOR_CYAN)
 
     def grab_item(self):
+        self.consecutive_waits = 0
         idx, item = self.get_item_at(self.player_x, self.player_y)
         if item is None:
             self.msg("Nothing to grab here.", curses.COLOR_CYAN)
@@ -518,11 +526,54 @@ class Game:
         self.items.pop(idx)
 
     def wait_turn(self):
-        """Wait a turn (rest). Heal 1 HP."""
+        """Wait a turn (rest). Heal 1 HP. Risk spawning monsters."""
+        self.consecutive_waits += 1
         if self.player_hp < self.player_max_hp:
             self.player_hp += 1
-            self.msg("You rest for a moment. (+1 HP)", curses.COLOR_GREEN)
+            self.msg(f"You rest for a moment. (+1 HP)", curses.COLOR_GREEN)
+        else:
+            self.msg("You rest for a moment.", curses.COLOR_GREEN)
+        chance = 0.05 * self.consecutive_waits + 0.02 * self.depth
+        chance = min(chance, 0.7)
+        if random.random() < chance:
+            self._spawn_nearby_enemy()
         self._enemy_turn()
+
+    def _spawn_nearby_enemy(self):
+        """Spawn a random enemy near the player."""
+        for _ in range(10):
+            sx = self.player_x + random.randint(-5, 5)
+            sy = self.player_y + random.randint(-5, 5)
+            if sx == self.player_x and sy == self.player_y:
+                continue
+            if not (0 <= sx < MAP_WIDTH and 0 <= sy < MAP_HEIGHT):
+                continue
+            if not self.is_passable(sx, sy):
+                continue
+            if self.get_enemy_at(sx, sy):
+                continue
+            dist = abs(sx - self.player_x) + abs(sy - self.player_y)
+            if dist < 4:
+                continue
+            etypes = list(ENEMY_PROPS.keys())
+            etype = random.choice(etypes)
+            prop = ENEMY_PROPS[etype]
+            scale = 1 + self.depth * 0.15
+            enemy = {
+                "x": sx, "y": sy,
+                "kind": etype,
+                "name": prop["name"],
+                "char": prop["char"],
+                "color": prop["color"],
+                "hp": int(prop["hp"] * scale),
+                "max_hp": int(prop["hp"] * scale),
+                "attack": int(prop["attack"] * scale),
+                "defense": int(prop["defense"] * scale),
+                "xp": int(prop["xp"] * scale),
+            }
+            self.enemies.append(enemy)
+            self.msg(f"A {prop['name']} appears!", curses.COLOR_RED)
+            return
 
     def handle_input(self, key):
         if self.game_over or self.game_win:
