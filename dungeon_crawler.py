@@ -335,6 +335,13 @@ class Game:
         self.dungeon, rooms = create_dungeon(self.depth)
         self.explored = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
         self.player_x, self.player_y, self.enemies, self.items = place_entities(rooms, self.dungeon, self.depth)
+        if self.depth > 0:
+            start_room = rooms[0]
+            ux = start_room.center_x
+            uy = start_room.center_y
+            if ux == self.player_x and uy == self.player_y:
+                uy = start_room.center_y + 1
+            self.dungeon[uy][ux] = TILE_STAIRS_UP
         self.visible = compute_fov(self.dungeon, self.player_x, self.player_y, FOV_RADIUS)
         self._update_explored()
         self.consecutive_waits = 0
