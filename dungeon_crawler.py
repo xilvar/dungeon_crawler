@@ -589,7 +589,6 @@ class Game:
             return
 
         actions = {
-            ord('h'): (-1, 0), ord('j'): (0, 1), ord('k'): (0, -1), ord('l'): (1, 0),
             ord('y'): (-1, -1), ord('u'): (1, -1), ord('b'): (-1, 1), ord('n'): (1, 1),
             curses.KEY_LEFT: (-1, 0), curses.KEY_DOWN: (0, 1), curses.KEY_UP: (0, -1),
             curses.KEY_RIGHT: (1, 0),
@@ -653,7 +652,7 @@ class Game:
 
         for msg_text, _ in self.message_log[-3:]:
             print(msg_text[:view_w])
-        print(f"WASD/HJKL:Move  >:Down  <:Up  g:Grab  /:Wait  q:Quit")
+        print(f"WASD/Arrows:Move  >:Down  <:Up  g:Grab  /:Wait  q:Quit")
         print(f"{'=' * view_w}")
 
     def render(self):
@@ -667,11 +666,14 @@ class Game:
         for sy in range(view_h):
             row_chars = []
             enemy_positions = []
+            player_pos = None
             for sx in range(view_w):
                 mx = sx + start_x
                 my = sy + start_y
                 ch = self.get_char_at(mx, my)
                 row_chars.append(ch)
+                if mx == self.player_x and my == self.player_y:
+                    player_pos = (sx, sy)
                 enemy = self.get_enemy_at(mx, my)
                 if enemy and self.visible[my][mx]:
                     enemy_positions.append((sx, ch, enemy["color"]))
@@ -685,6 +687,13 @@ class Game:
                 attr = curses.color_pair(ecolor + 1) | curses.A_BOLD
                 try:
                     self.stdscr.addch(sy, ex, ord(ech), attr)
+                except curses.error:
+                    pass
+            if player_pos:
+                px, psy = player_pos
+                attr = curses.color_pair(curses.COLOR_WHITE + 1) | curses.A_BOLD
+                try:
+                    self.stdscr.addch(psy, px, ord('@'), attr)
                 except curses.error:
                     pass
 
@@ -704,7 +713,7 @@ class Game:
             except curses.error:
                 pass
 
-        help_text = "WASD/HJKL:Move  >:Down  <:Up  g:Grab  /:Wait  q:Quit"
+        help_text = "WASD/Arrows:Move  >:Down  <:Up  g:Grab  /:Wait  q:Quit"
         try:
             self.stdscr.addstr(MAX_SCREEN_Y - 1, 0, help_text.ljust(view_w))
         except curses.error:
