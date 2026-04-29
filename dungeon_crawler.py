@@ -598,12 +598,21 @@ class Game:
             for sx in range(view_w):
                 mx = sx + start_x
                 my = sy + start_y
-                row_chars.append(self.get_char_at(mx, my))
-            line = ''.join(row_chars)
-            try:
-                self.stdscr.addstr(sy, 0, line)
-            except curses.error:
-                pass
+                ch = self.get_char_at(mx, my)
+                row_chars.append(ch)
+                enemy = self.get_enemy_at(mx, my)
+                if enemy and self.visible[my][mx]:
+                    color = enemy["color"]
+                    attr = curses.color_pair(color + 1) | curses.A_BOLD
+                    try:
+                        self.stdscr.addch(sy, sx, ord(ch), attr)
+                    except curses.error:
+                        pass
+                else:
+                    try:
+                        self.stdscr.addch(sy, sx, ch)
+                    except curses.error:
+                        pass
 
         bar = (f"{self.player_name} | Lv{self.player_level} | "
                f"HP {self.player_hp}/{self.player_max_hp} | "
