@@ -424,15 +424,11 @@ class Game:
         for enemy in self.enemies:
             if enemy["hp"] <= 0:
                 continue
-            if not self.visible[enemy["y"]][enemy["x"]]:
-                continue  # Only act if visible to player (simple AI)
 
             ex, ey = enemy["x"], enemy["y"]
             px, py = self.player_x, self.player_y
             dist = abs(px - ex) + abs(py - ey)
-
-            if dist > FOV_RADIUS + 2:
-                continue
+            can_see = self.visible[enemy["y"]][enemy["x"]] and dist <= FOV_RADIUS + 2
 
             if dist == 1:
                 # Adjacent - attack player
@@ -445,8 +441,9 @@ class Game:
                     self.msg("You have died!", curses.COLOR_RED)
                     self.game_over = True
                     return
-            else:
-                # Move toward player (simple chase)
+            elif can_see:
+                # Chase player
+                moved = False
                 dx = 0
                 dy = 0
                 if abs(px - ex) > abs(py - ey):
@@ -457,6 +454,22 @@ class Game:
                 nx, ny = ex + dx, ey + dy
                 if self.is_passable(nx, ny) and not self.get_enemy_at(nx, ny) and (nx != px or ny != py):
                     enemy["x"], enemy["y"] = nx, ny
+                    moved = True
+                if not moved:
+                    self._enemy_wander(enemy)
+            else:
+                # Wander randomly
+                self._enemy_wander(enemy)
+
+    def _enemy_wander(self, enemy):
+        ex, ey = enemy["x"], enemy["y"]
+        moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        random.shuffle(moves)
+        for dx, dy in moves:
+            nx, ny = ex + dx, ey + dy
+            if self.is_passable(nx, ny) and not self.get_enemy_at(nx, ny) and (nx != self.player_x or ny != self.player_y):
+                enemy["x"], enemy["y"] = nx, ny
+                break
 
     def go_down_stairs(self):
         if self.dungeon[self.player_y][self.player_x] == TILE_STAIRS_DOWN:
