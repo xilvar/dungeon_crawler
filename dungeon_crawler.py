@@ -49,6 +49,34 @@ TILE_COLOR = {
 }
 
 # Entity types
+ENEMY_RAT = "rat"
+ENEMY_BAT = "bat"
+ENEMY_SPIDER = "spider"
+ENEMY_KOBOLD = "kobold"
+ENEMY_GNOME = "gnome"
+ENEMY_IMP = "imp"
+ENEMY_SKELETON = "skeleton"
+ENEMY_ZOMBIE = "zombie"
+ENEMY_WOLF = "wolf"
+ENEMY_HYDRA = "hydra"
+ENEMY_MUMMY = "mummy"
+ENEMY_WRAITH = "wraith"
+ENEMY_TROLL = "troll"
+ENEMY_MINOTAUR = "minotaur"
+ENEMY_MEDUSA = "medusa"
+ENEMY_OWLBEAR = "owlbear"
+ENEMY_HOOK_HORROR = "hook_horror"
+ENEMY_PHASE_SPIDER = "phase_spider"
+ENEMY_BASILISK = "basilisk"
+ENEMY_WYVERN = "wyvern"
+ENEMY_PHOENIX = "phoenix"
+ENEMY_GRUE = "grue"
+ENEMY_GELATINOUS_CUBE = "gelatinous_cube"
+ENEMY_REMORHAZ = "remorhaz"
+ENEMY_ICE_DEVIL = "ice_devil"
+ENEMY_LICH = "lich"
+ENEMY_BEHOLDER = "beholder"
+ENEMY_BALOR = "balor"
 ENEMY_ORC = "orc"
 ENEMY_GOLEM = "golem"
 ENEMY_SNAKE = "snake"
@@ -56,11 +84,48 @@ ENEMY_DEMON = "demon"
 ENEMY_DRAGON = "dragon"
 
 ENEMY_PROPS = {
+    # Tier 1 - vermin/scavengers
+    ENEMY_RAT: {"char": "r", "color": curses.COLOR_YELLOW, "name": "Rat", "hp": 3, "attack": 1, "defense": 0, "xp": 1},
+    ENEMY_BAT: {"char": "b", "color": curses.COLOR_YELLOW, "name": "Bat", "hp": 2, "attack": 1, "defense": 0, "xp": 1},
+    ENEMY_SPIDER: {"char": "S", "color": curses.COLOR_YELLOW, "name": "Spider", "hp": 4, "attack": 2, "defense": 0, "xp": 2},
+    ENEMY_KOBOLD: {"char": "k", "color": curses.COLOR_YELLOW, "name": "Kobold", "hp": 5, "attack": 2, "defense": 0, "xp": 2},
+    ENEMY_GNOME: {"char": "g", "color": curses.COLOR_YELLOW, "name": "Goblin", "hp": 7, "attack": 2, "defense": 0, "xp": 2},
+    # Tier 2 - common threats
+    ENEMY_IMP: {"char": "i", "color": curses.COLOR_RED, "name": "Imp", "hp": 6, "attack": 3, "defense": 0, "xp": 4},
+    ENEMY_SKELETON: {"char": "s", "color": curses.COLOR_WHITE, "name": "Skeleton", "hp": 8, "attack": 3, "defense": 1, "xp": 4},
+    ENEMY_ZOMBIE: {"char": "Z", "color": curses.COLOR_GREEN, "name": "Zombie", "hp": 12, "attack": 2, "defense": 0, "xp": 3},
+    ENEMY_WOLF: {"char": "W", "color": curses.COLOR_WHITE, "name": "Wolf", "hp": 8, "attack": 4, "defense": 0, "xp": 3},
+    # Tier 3 - undead/horrors
+    ENEMY_HYDRA: {"char": "H", "color": curses.COLOR_GREEN, "name": "Hydra", "hp": 35, "attack": 8, "defense": 3, "xp": 30},
+    ENEMY_MUMMY: {"char": "M", "color": curses.COLOR_YELLOW, "name": "Mummy", "hp": 18, "attack": 4, "defense": 2, "xp": 10},
+    ENEMY_WRAITH: {"char": "W", "color": curses.COLOR_CYAN, "name": "Wraith", "hp": 15, "attack": 5, "defense": 2, "xp": 12},
+    ENEMY_TROLL: {"char": "T", "color": curses.COLOR_GREEN, "name": "Troll", "hp": 25, "attack": 6, "defense": 2, "xp": 20},
+    # Tier 4 - formidable beasts
+    ENEMY_MINOTAUR: {"char": "N", "color": curses.COLOR_YELLOW, "name": "Minotaur", "hp": 25, "attack": 7, "defense": 2, "xp": 20},
+    ENEMY_MEDUSA: {"char": "m", "color": curses.COLOR_GREEN, "name": "Medusa", "hp": 24, "attack": 6, "defense": 2, "xp": 20},
+    ENEMY_OWLBEAR: {"char": "O", "color": curses.COLOR_YELLOW, "name": "Owlbear", "hp": 22, "attack": 6, "defense": 1, "xp": 15},
+    ENEMY_HOOK_HORROR: {"char": "h", "color": curses.COLOR_YELLOW, "name": "Hook Horror", "hp": 26, "attack": 7, "defense": 2, "xp": 20},
+    # Tier 5 - exotic threats
+    ENEMY_PHASE_SPIDER: {"char": "P", "color": curses.COLOR_RED, "name": "Phase Spider", "hp": 18, "attack": 5, "defense": 1, "xp": 12},
+    ENEMY_BASILISK: {"char": "B", "color": curses.COLOR_GREEN, "name": "Basilisk", "hp": 20, "attack": 6, "defense": 3, "xp": 18},
+    ENEMY_WYVERN: {"char": "Y", "color": curses.COLOR_GREEN, "name": "Wyvern", "hp": 32, "attack": 9, "defense": 3, "xp": 25},
+    # Tier 6 - powerful creatures
+    ENEMY_PHOENIX: {"char": "F", "color": curses.COLOR_RED, "name": "Phoenix", "hp": 28, "attack": 8, "defense": 2, "xp": 22},
+    ENEMY_GRUE: {"char": "X", "color": curses.COLOR_MAGENTA, "name": "Grue", "hp": 15, "attack": 5, "defense": 1, "xp": 12},
+    ENEMY_GELATINOUS_CUBE: {"char": "C", "color": curses.COLOR_CYAN, "name": "Gelatinous Cube", "hp": 28, "attack": 4, "defense": 1, "xp": 15},
+    ENEMY_REMORHAZ: {"char": "R", "color": curses.COLOR_RED, "name": "Remorhaz", "hp": 40, "attack": 10, "defense": 4, "xp": 35},
+    ENEMY_ICE_DEVIL: {"char": "I", "color": curses.COLOR_CYAN, "name": "Ice Devil", "hp": 35, "attack": 9, "defense": 3, "xp": 30},
+    # Tier 7 - legendary threats
+    ENEMY_LICH: {"char": "L", "color": curses.COLOR_WHITE, "name": "Lich", "hp": 45, "attack": 10, "defense": 4, "xp": 45},
+    ENEMY_BEHOLDER: {"char": "E", "color": curses.COLOR_YELLOW, "name": "Beholder", "hp": 40, "attack": 9, "defense": 4, "xp": 40},
+    # Tier 8 - ultimate bosses
+    ENEMY_BALOR: {"char": "B", "color": curses.COLOR_RED, "name": "Balor", "hp": 60, "attack": 14, "defense": 5, "xp": 60},
+    # Keep old enemies for compatibility
     ENEMY_ORC: {"char": "o", "color": curses.COLOR_GREEN, "name": "Orc", "hp": 10, "attack": 3, "defense": 1, "xp": 5},
     ENEMY_GOLEM: {"char": "G", "color": curses.COLOR_CYAN, "name": "Golem", "hp": 20, "attack": 5, "defense": 4, "xp": 15},
-    ENEMY_SNAKE: {"char": "s", "color": curses.COLOR_RED, "name": "Snake", "hp": 5, "attack": 2, "defense": 0, "xp": 3},
+    ENEMY_SNAKE: {"char": "n", "color": curses.COLOR_RED, "name": "Snake", "hp": 5, "attack": 2, "defense": 0, "xp": 3},
     ENEMY_DEMON: {"char": "D", "color": curses.COLOR_RED, "name": "Demon", "hp": 30, "attack": 8, "defense": 3, "xp": 30},
-    ENEMY_DRAGON: {"char": "D", "color": curses.COLOR_RED, "name": "Dragon", "hp": 50, "attack": 12, "defense": 5, "xp": 50},
+    ENEMY_DRAGON: {"char": "d", "color": curses.COLOR_RED, "name": "Dragon", "hp": 50, "attack": 12, "defense": 5, "xp": 50},
 }
 
 ITEM_POTION = "potion"
@@ -189,16 +254,16 @@ def place_entities(rooms, dungeon, depth):
 
     # Populate intermediate rooms
     enemy_types_by_depth = {
-        0: [ENEMY_SNAKE, ENEMY_SNAKE, ENEMY_ORC],
-        1: [ENEMY_SNAKE, ENEMY_ORC, ENEMY_ORC],
-        2: [ENEMY_ORC, ENEMY_ORC, ENEMY_GOLEM],
-        3: [ENEMY_ORC, ENEMY_GOLEM, ENEMY_GOLEM],
-        4: [ENEMY_GOLEM, ENEMY_DEMON],
-        5: [ENEMY_GOLEM, ENEMY_DEMON, ENEMY_DEMON],
-        6: [ENEMY_DEMON, ENEMY_DEMON, ENEMY_DRAGON],
-        7: [ENEMY_DEMON, ENEMY_DRAGON],
-        8: [ENEMY_DRAGON, ENEMY_DRAGON],
-        9: [ENEMY_DRAGON, ENEMY_DRAGON],
+        0: [ENEMY_RAT, ENEMY_RAT, ENEMY_BAT, ENEMY_SPIDER, ENEMY_SNAKE],
+        1: [ENEMY_RAT, ENEMY_SPIDER, ENEMY_KOBOLD, ENEMY_GNOME, ENEMY_SNAKE],
+        2: [ENEMY_KOBOLD, ENEMY_GNOME, ENEMY_IMP, ENEMY_SKELETON, ENEMY_ZOMBIE, ENEMY_WOLF],
+        3: [ENEMY_GNOME, ENEMY_SKELETON, ENEMY_ZOMBIE, ENEMY_WOLF, ENEMY_MUMMY, ENEMY_WRAITH],
+        4: [ENEMY_SKELETON, ENEMY_WOLF, ENEMY_MUMMY, ENEMY_TROLL, ENEMY_MINOTAUR, ENEMY_MEDUSA],
+        5: [ENEMY_MUMMY, ENEMY_TROLL, ENEMY_MINOTAUR, ENEMY_OWLBEAR, ENEMY_HOOK_HORROR, ENEMY_PHASE_SPIDER],
+        6: [ENEMY_TROLL, ENEMY_MEDUSA, ENEMY_BASILISK, ENEMY_WYVERN, ENEMY_GELATINOUS_CUBE, ENEMY_REMORHAZ],
+        7: [ENEMY_MINOTAUR, ENEMY_WYVERN, ENEMY_PHOENIX, ENEMY_ICE_DEVIL, ENEMY_LICH, ENEMY_BEHOLDER],
+        8: [ENEMY_LICH, ENEMY_BEHOLDER, ENEMY_BALOR, ENEMY_HYDRA],
+        9: [ENEMY_LICH, ENEMY_BEHOLDER, ENEMY_BALOR, ENEMY_DRAGON],
     }
 
     for i, room in enumerate(rooms):
