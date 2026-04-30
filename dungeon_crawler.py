@@ -383,6 +383,7 @@ class Game:
         self.player_gold = 0
         self.player_name = "Hero"
         self.consecutive_waits = 0
+        self.levels = {}
 
         self._init_curses()
         self.new_dungeon()
@@ -396,23 +397,44 @@ class Game:
         self.stdscr.nodelay(False)
         self.stdscr.keypad(True)
 
+    def _save_current_level(self):
+        """Save the current state of the level to cache."""
+        self.levels[self.depth] = {
+            "dungeon": copy.deepcopy(self.dungeon),
+            "explored": copy.deepcopy(self.explored),
+            "enemies": copy.deepcopy(self.enemies),
+            "items": copy.deepcopy(self.items),
+            "start_x": self.player_x,
+            "start_y": self.player_y,
+            "stairs_x": self.player_x,
+            "stairs_y": self.player_y,
+        }
+
     def new_dungeon(self, from_stairs_up=False):
-        self.dungeon, rooms = create_dungeon(self.depth)
-        self.explored = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
-        self.player_x, self.player_y, self.enemies, self.items = place_entities(rooms, self.dungeon, self.depth)
-        if not from_stairs_up and self.depth == 0:
-            # Don't place up stairs on the first level
-            pass
+        if self.depth in self.levels:
+            level = self.levels[self.depth]
+            self.dungeon = copy.deepcopy(level["dungeon"])
+            self.explored = copy.deepcopy(level.get("explored", [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]))
+            self.enemies = copy.deepcopy(level["enemies"])
+            self.items = copy.deepcopy(level["items"])
+            if from_stairs_up:
+                self.player_x, self.player_y = level["stairs_x"], level["stairs_y"]
+            else:
+                self.player_x, self.player_y = level["start_x"], level["start_y"]
         else:
+            self.dungeon, rooms = create_dungeon(self.depth)
+            self.explored = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+            self.player_x, self.player_y, self.enemies, self.items = place_entities(rooms, self.dungeon, self.depth)
             start_room = rooms[0]
             ux = start_room.center_x
             uy = start_room.center_y
             if ux == self.player_x and uy == self.player_y:
                 uy = start_room.center_y + 1
-            if from_stairs_up:
+            if from_stairs_up and self.depth > 0:
                 self.dungeon[uy][ux] = TILE_STAIRS_DOWN
-            else:
+            elif not from_stairs_up and self.depth > 0:
                 self.dungeon[uy][ux] = TILE_STAIRS_UP
+            self._save_current_level()
         self.visible = compute_fov(self.dungeon, self.player_x, self.player_y, FOV_RADIUS)
         self._update_explored()
         self.consecutive_waits = 0
@@ -557,6 +579,7 @@ class Game:
     def go_down_stairs(self):
         self.consecutive_waits = 0
         if self.dungeon[self.player_y][self.player_x] == TILE_STAIRS_DOWN:
+            self._save_current_level()
             self.depth += 1
             if self.depth >= MAX_DEPTH:
                 self.msg("You have conquered the dungeon!", curses.COLOR_YELLOW)
@@ -568,10 +591,8 @@ class Game:
 
     def go_up_stairs(self):
         self.consecutive_waits = 0
-        if self.dungeon[self.player_y][self.player_x] == TILE_STAIRS_UP and self.depth > 0:
-            self.depth -= 1
-            self.new_dungeon(from_stairs_up=True)
-        elif self.depth > 0:
+        if self.depth > 0:
+            self._save_current_level()
             self.depth -= 1
             self.new_dungeon(from_stairs_up=True)
         else:
