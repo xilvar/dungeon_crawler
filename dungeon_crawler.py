@@ -23,6 +23,10 @@ MAX_ENEMIES_PER_ROOM = 3
 MAX_MSGS = 6
 MAX_DEPTH = 10
 FOV_RADIUS = 8
+TICKS_PER_SECOND = 100
+TICK_MOVE = 50
+TICK_ATTACK = 100
+TICK_WAIT = 50
 
 # Tile types
 TILE_WALL = 0
@@ -384,6 +388,9 @@ class Game:
         self.player_name = "Hero"
         self.consecutive_waits = 0
         self.levels = {}
+        self.tick = 0
+        self.player_next_tick = random.randint(0, 99)
+        self.player_queued_action = None
 
         self._init_curses()
         self.new_dungeon()
@@ -396,7 +403,7 @@ class Game:
             curses.init_pair(i + 1, i, -1)
         self.stdscr.nodelay(False)
         self.stdscr.keypad(True)
-        self.stdscr.timeout(1000)
+        self.stdscr.timeout(100)
 
     def _save_current_level(self):
         """Save the current state of the level to cache."""
@@ -436,6 +443,10 @@ class Game:
             elif not from_stairs_up and self.depth > 0:
                 self.dungeon[uy][ux] = TILE_STAIRS_UP
             self._save_current_level()
+        for e in self.enemies:
+            e["next_tick"] = self.tick + random.randint(0, 99)
+        self.player_next_tick = self.tick + random.randint(0, 99)
+        self.player_queued_action = None
         self.visible = compute_fov(self.dungeon, self.player_x, self.player_y, FOV_RADIUS)
         self._update_explored()
         self.consecutive_waits = 0
@@ -485,26 +496,49 @@ class Game:
         damage = max(1, attacker_atk - defender_def + random.randint(-damage_variance, damage_variance))
         return damage
 
-    def move_player(self, dx, dy):
+    def queue_player_action(self, action):
         if self.game_over or self.game_win:
             return
+        self.player_queued_action = action
+
+    def execute_player_action(self):
+        action = self.player_queued_action
+        self.player_queued_action = None
+        if action is None:
+            return
+        action_type = action["type"]
+        if action_type == "move":
+            self._do_move(action["dx"], action["dy"])
+            self.player_next_tick = self.tick + TICK_MOVE
+        elif action_type == "attack":
+            self._do_combat_attack(action["enemy"])
+            self.player_next_tick = self.tick + TICK_ATTACK
+        elif action_type == "grab":
+            self._do_grab_item()
+            self.player_next_tick = self.tick + TICK_MOVE
+        elif action_type == "stairs_down":
+            self._do_go_down_stairs()
+            self.player_next_tick = self.tick + TICK_MOVE
+        elif action_type == "stairs_up":
+            self._do_go_up_stairs()
+            self.player_next_tick = self.tick + TICK_MOVE
+        elif action_type == "wait":
+            self.player_next_tick = self.tick + TICK_WAIT
+
+    def _do_move(self, dx, dy):
         nx, ny = self.player_x + dx, self.player_y + dy
         if not self.is_passable(nx, ny):
-            self.consecutive_waits = 0
+            self.player_next_tick = self.tick + TICK_WAIT
             return
-
         enemy = self.get_enemy_at(nx, ny)
         if enemy:
-            self.combat_attack(enemy)
+            self._do_combat_attack(enemy)
+            self.player_next_tick = self.tick + TICK_ATTACK
         else:
             self.player_x, self.player_y = nx, ny
             self.consecutive_waits = 0
 
-        self.visible = compute_fov(self.dungeon, self.player_x, self.player_y, FOV_RADIUS)
-        self._update_explored()
-        self._enemy_turn()
-
-    def combat_attack(self, enemy):
+    def _do_combat_attack(self, enemy):
         self.consecutive_waits = 0
         damage = self.do_attack(self.player_name, self.player_attack_total(),
                                   enemy["name"], enemy["defense"])
@@ -526,61 +560,69 @@ class Game:
             self.player_next_level_xp = int(self.player_next_level_xp * 1.5)
             self.msg(f"Congratulations! You are now level {self.player_level}!", curses.COLOR_YELLOW)
 
-    def _enemy_turn(self):
+    def _process_tick(self):
+        if self.game_over or self.game_win:
+            return
+        if self.tick >= self.player_next_tick and self.player_queued_action is not None:
+            self.execute_player_action()
+            self.visible = compute_fov(self.dungeon, self.player_x, self.player_y, FOV_RADIUS)
+            self._update_explored()
         for enemy in self.enemies:
             if enemy["hp"] <= 0:
                 continue
+            if self.tick >= enemy["next_tick"]:
+                self._process_enemy_action(enemy)
 
-            ex, ey = enemy["x"], enemy["y"]
-            px, py = self.player_x, self.player_y
-            dist = abs(px - ex) + abs(py - ey)
-            can_see = self.visible[enemy["y"]][enemy["x"]] and dist <= FOV_RADIUS + 2
-
-            if dist == 1:
-                # Adjacent - attack player
-                damage = self.do_attack(enemy["name"], enemy["attack"],
-                                         self.player_name, self.player_defense_total(), 1)
-                self.player_hp -= damage
-                self.msg(f"The {enemy['name']} hits you for {damage} damage!", enemy["color"])
-                if self.player_hp <= 0:
-                    self.player_hp = 0
-                    self.msg("You have died!", curses.COLOR_RED)
-                    self.game_over = True
-                    return
-            elif can_see:
-                # Chase player
-                moved = False
-                dx = 0
-                dy = 0
-                if abs(px - ex) > abs(py - ey):
-                    dx = 1 if px > ex else -1
-                else:
-                    dy = 1 if py > ey else -1
-
-                nx, ny = ex + dx, ey + dy
-                if self.is_passable(nx, ny) and not self.get_enemy_at(nx, ny) and (nx != px or ny != py):
-                    enemy["x"], enemy["y"] = nx, ny
-                    moved = True
-                if not moved:
-                    self._enemy_wander(enemy)
-            else:
-                # Wander randomly
-                self._enemy_wander(enemy)
-
-    def _enemy_wander(self, enemy):
+    def _process_enemy_action(self, enemy):
         ex, ey = enemy["x"], enemy["y"]
-        moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-        random.shuffle(moves)
-        for dx, dy in moves:
+        px, py = self.player_x, self.player_y
+        dist = abs(px - ex) + abs(py - ey)
+        can_see = self.visible[enemy["y"]][enemy["x"]] and dist <= FOV_RADIUS + 2
+
+        if dist == 1:
+            damage = self.do_attack(enemy["name"], enemy["attack"],
+                                     self.player_name, self.player_defense_total(), 1)
+            self.player_hp -= damage
+            self.msg(f"The {enemy['name']} hits you for {damage} damage!", enemy["color"])
+            enemy["next_tick"] = self.tick + TICK_ATTACK
+            if self.player_hp <= 0:
+                self.player_hp = 0
+                self.msg("You have died!", curses.COLOR_RED)
+                self.game_over = True
+                return
+        elif can_see:
+            dx = 0
+            dy = 0
+            if abs(px - ex) > abs(py - ey):
+                dx = 1 if px > ex else -1
+            else:
+                dy = 1 if py > ey else -1
             nx, ny = ex + dx, ey + dy
-            if self.is_passable(nx, ny) and not self.get_enemy_at(nx, ny) and (nx != self.player_x or ny != self.player_y):
+            if self.is_passable(nx, ny) and not self.get_enemy_at(nx, ny) and (nx != px or ny != py):
                 enemy["x"], enemy["y"] = nx, ny
-                break
+                enemy["next_tick"] = self.tick + TICK_MOVE
+            else:
+                moved = False
+                moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+                random.shuffle(moves)
+                for wdx, wdy in moves:
+                    wx, wy = ex + wdx, ey + wdy
+                    if self.is_passable(wx, wy) and not self.get_enemy_at(wx, wy) and (wx != px or wy != py):
+                        enemy["x"], enemy["y"] = wx, wy
+                        moved = True
+                        break
+                enemy["next_tick"] = self.tick + TICK_MOVE
+        else:
+            moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+            random.shuffle(moves)
+            for wdx, wdy in moves:
+                wx, wy = ex + wdx, ey + wdy
+                if self.is_passable(wx, wy) and not self.get_enemy_at(wx, wy) and (wx != px or wy != py):
+                    enemy["x"], enemy["y"] = wx, wy
+                    break
+            enemy["next_tick"] = self.tick + TICK_MOVE
 
-    def _idle_turn(self):
-        self._enemy_turn()
-
-    def go_down_stairs(self):
+    def _do_go_down_stairs(self):
         self.consecutive_waits = 0
         if self.dungeon[self.player_y][self.player_x] == TILE_STAIRS_DOWN:
             self._save_current_level()
@@ -593,7 +635,7 @@ class Game:
         else:
             self.msg("No stairs here.", curses.COLOR_CYAN)
 
-    def go_up_stairs(self):
+    def _do_go_up_stairs(self):
         self.consecutive_waits = 0
         if self.depth > 0:
             self._save_current_level()
@@ -602,45 +644,33 @@ class Game:
         else:
             self.msg("Can't go up further.", curses.COLOR_CYAN)
 
-    def grab_item(self):
+    def _do_grab_item(self):
         self.consecutive_waits = 0
         idx, item = self.get_item_at(self.player_x, self.player_y)
         if item is None:
             self.msg("Nothing to grab here.", curses.COLOR_CYAN)
             return
-
         kind = item["kind"]
         if kind == ITEM_POTION:
             heal = random.randint(5, 10)
             self.player_hp = min(self.player_hp + heal, self.player_max_hp)
             self.msg(f"You drink a potion. Recovered {heal} HP.", curses.COLOR_RED)
         elif kind == ITEM_SWORD:
-            old = self.player_weapon_bonus
             self.player_weapon_bonus += item["bonus"]
             self.msg(f"You equip a sword (+{item['bonus']} attack).", curses.COLOR_WHITE)
         elif kind == ITEM_SHIELD:
-            old = self.player_armor_bonus
             self.player_armor_bonus += item["bonus"]
             self.msg(f"You equip a shield (+{item['bonus']} defense).", curses.COLOR_CYAN)
         elif kind == ITEM_GOLD:
             self.player_gold += item["value"]
             self.msg(f"You pick up {item['value']} gold.", curses.COLOR_YELLOW)
-
         self.items.pop(idx)
 
+    def    grab_item(self):
+        pass
+
     def wait_turn(self):
-        """Wait a turn (rest). Heal 1 HP. Risk spawning monsters."""
-        self.consecutive_waits += 1
-        if self.player_hp < self.player_max_hp:
-            self.player_hp += 1
-            self.msg(f"You rest for a moment. (+1 HP)", curses.COLOR_GREEN)
-        else:
-            self.msg("You rest for a moment.", curses.COLOR_GREEN)
-        chance = 0.05 * self.consecutive_waits + 0.02 * self.depth
-        chance = min(chance, 0.7)
-        if random.random() < chance:
-            self._spawn_nearby_enemy()
-        self._enemy_turn()
+        pass
 
     def _spawn_nearby_enemy(self):
         """Spawn a random enemy near the player."""
@@ -673,6 +703,7 @@ class Game:
                 "attack": int(prop["attack"] * scale),
                 "defense": int(prop["defense"] * scale),
                 "xp": int(prop["xp"] * scale),
+                "next_tick": self.tick + random.randint(0, 99),
             }
             self.enemies.append(enemy)
             self.msg(f"A {prop['name']} appears!", curses.COLOR_RED)
@@ -680,30 +711,27 @@ class Game:
 
     def handle_input(self, key):
         if self.game_over or self.game_win:
-            if key in (ord('q'), ord('Q'), 27):  # q or Escape
+            if key in (ord('q'), ord('Q'), 27):
                 sys.exit(0)
             return
-
+        if key == -1:
+            return
         actions = {
             ord('y'): (-1, -1), ord('u'): (1, -1), ord('b'): (-1, 1), ord('n'): (1, 1),
             curses.KEY_LEFT: (-1, 0), curses.KEY_DOWN: (0, 1), curses.KEY_UP: (0, -1),
             curses.KEY_RIGHT: (1, 0),
             ord('a'): (-1, 0), ord('s'): (0, 1), ord('w'): (0, -1), ord('d'): (1, 0),
         }
-
-        if key == -1:
-            self._idle_turn()
-            return
         if key in actions:
-            self.move_player(*actions[key])
+            self.queue_player_action({"type": "move", "dx": actions[key][0], "dy": actions[key][1]})
         elif key in (ord('>'), ord('=')):
-            self.go_down_stairs()
+            self.queue_player_action({"type": "stairs_down"})
         elif key in (ord('<'), ord('-')):
-            self.go_up_stairs()
+            self.queue_player_action({"type": "stairs_up"})
         elif key in (ord('g'),):
-            self.grab_item()
+            self.queue_player_action({"type": "grab"})
         elif key in (ord('/'),):
-            self.wait_turn()
+            self.queue_player_action({"type": "wait"})
         elif key in (ord('q'), ord('Q'), 27):
             sys.exit(0)
 
@@ -838,6 +866,8 @@ class Game:
             self.render()
             key = self.stdscr.getch()
             self.handle_input(key)
+            self.tick += 10
+            self._process_tick()
 
 
 def main(stdscr):
