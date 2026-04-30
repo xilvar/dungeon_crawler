@@ -396,6 +396,7 @@ class Game:
             curses.init_pair(i + 1, i, -1)
         self.stdscr.nodelay(False)
         self.stdscr.keypad(True)
+        self.stdscr.timeout(1000)
 
     def _save_current_level(self):
         """Save the current state of the level to cache."""
@@ -576,6 +577,9 @@ class Game:
                 enemy["x"], enemy["y"] = nx, ny
                 break
 
+    def _idle_turn(self):
+        self._enemy_turn()
+
     def go_down_stairs(self):
         self.consecutive_waits = 0
         if self.dungeon[self.player_y][self.player_x] == TILE_STAIRS_DOWN:
@@ -687,6 +691,9 @@ class Game:
             ord('a'): (-1, 0), ord('s'): (0, 1), ord('w'): (0, -1), ord('d'): (1, 0),
         }
 
+        if key == -1:
+            self._idle_turn()
+            return
         if key in actions:
             self.move_player(*actions[key])
         elif key in (ord('>'), ord('=')):
