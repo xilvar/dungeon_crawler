@@ -27,6 +27,8 @@ TICKS_PER_SECOND = 100
 TICK_MOVE = 50
 TICK_ATTACK = 100
 TICK_WAIT = 50
+TICK_PLAYER_MOVE = 25
+TICK_PLAYER_REST = 200
 
 # Tile types
 TILE_WALL = 0
@@ -391,6 +393,8 @@ class Game:
         self.tick = 0
         self.player_next_tick = random.randint(0, 99)
         self.player_queued_action = None
+        self.rest_end_tick = None
+        self.rest_progress_shown = 0
 
         self._init_curses()
         self.new_dungeon()
@@ -447,6 +451,8 @@ class Game:
             e["next_tick"] = self.tick + random.randint(0, 99)
         self.player_next_tick = self.tick + random.randint(0, 99)
         self.player_queued_action = None
+        self.rest_end_tick = None
+        self.rest_progress_shown = 0
         self.visible = compute_fov(self.dungeon, self.player_x, self.player_y, FOV_RADIUS)
         self._update_explored()
         self.consecutive_waits = 0
@@ -509,7 +515,6 @@ class Game:
         action_type = action["type"]
         if action_type == "move":
             self._do_move(action["dx"], action["dy"])
-            self.player_next_tick = self.tick + TICK_MOVE
         elif action_type == "attack":
             self._do_combat_attack(action["enemy"])
             self.player_next_tick = self.tick + TICK_ATTACK
@@ -522,8 +527,11 @@ class Game:
         elif action_type == "stairs_up":
             self._do_go_up_stairs()
             self.player_next_tick = self.tick + TICK_MOVE
-        elif action_type == "wait":
-            self.player_next_tick = self.tick + TICK_WAIT
+        elif action_type == "rest":
+            self._do_rest()
+            self.rest_end_tick = self.tick + TICK_PLAYER_REST
+            self.rest_progress_shown = 0
+            self.player_next_tick = self.rest_end_tick
 
     def _do_move(self, dx, dy):
         nx, ny = self.player_x + dx, self.player_y + dy
@@ -537,6 +545,7 @@ class Game:
         else:
             self.player_x, self.player_y = nx, ny
             self.consecutive_waits = 0
+            self.player_next_tick = self.tick + TICK_PLAYER_MOVE
 
     def _do_combat_attack(self, enemy):
         self.consecutive_waits = 0
@@ -563,8 +572,11 @@ class Game:
     def _process_tick(self):
         if self.game_over or self.game_win:
             return
-        if self.tick >= self.player_next_tick and self.player_queued_action is not None:
-            self.execute_player_action()
+        if self.tick >= self.player_next_tick:
+            if self.player_queued_action is not None:
+                self.execute_player_action()
+            else:
+                self.player_next_tick = self.tick + 1
             self.visible = compute_fov(self.dungeon, self.player_x, self.player_y, FOV_RADIUS)
             self._update_explored()
         for enemy in self.enemies:
@@ -666,11 +678,17 @@ class Game:
             self.msg(f"You pick up {item['value']} gold.", curses.COLOR_YELLOW)
         self.items.pop(idx)
 
-    def    grab_item(self):
-        pass
-
-    def wait_turn(self):
-        pass
+    def _do_rest(self):
+        self.consecutive_waits += 1
+        if self.player_hp < self.player_max_hp:
+            self.player_hp += 1
+            self.msg(f"You rest for a moment. (+1 HP)", curses.COLOR_GREEN)
+        else:
+            self.msg("You rest for a moment.", curses.COLOR_GREEN)
+        chance = 0.05 * self.consecutive_waits + 0.02 * self.depth
+        chance = min(chance, 0.7)
+        if random.random() < chance:
+            self._spawn_nearby_enemy()
 
     def _spawn_nearby_enemy(self):
         """Spawn a random enemy near the player."""
@@ -731,7 +749,7 @@ class Game:
         elif key in (ord('g'),):
             self.queue_player_action({"type": "grab"})
         elif key in (ord('/'),):
-            self.queue_player_action({"type": "wait"})
+            self.queue_player_action({"type": "rest"})
         elif key in (ord('q'), ord('Q'), 27):
             sys.exit(0)
 
@@ -779,7 +797,7 @@ class Game:
 
         for msg_text, _ in self.message_log[-3:]:
             print(msg_text[:view_w])
-        print(f"WASD/Arrows:Move  >:Down  <:Up  g:Grab  /:Wait  q:Quit")
+        print(f"WASD/Arrows:Move  >:Down  <:Up  g:Grab  /:Rest  q:Quit")
         print(f"{'=' * view_w}")
 
     def render(self):
@@ -823,12 +841,22 @@ class Game:
                     self.stdscr.addch(psy, px, ord('@'), attr)
                 except curses.error:
                     pass
-
-        bar = (f"{self.player_name} | Lv{self.player_level} | "
-               f"HP {self.player_hp}/{self.player_max_hp} | "
-               f"ATK {self.player_attack_total()} | DEF {self.player_defense_total()} | "
-               f"XP {self.player_xp}/{self.player_next_level_xp} | "
-               f"Gold {self.player_gold} | Depth {self.depth + 1}/{MAX_DEPTH}")
+                rest_str = ""
+                if self.rest_end_tick and self.tick < self.rest_end_tick:
+                    remaining = self.rest_end_tick - self.tick
+                    if remaining <= TICK_PLAYER_REST // 3 and self.rest_progress_shown < 1:
+                        rest_str = f" | Resting ({TICK_PLAYER_REST - remaining}/{TICK_PLAYER_REST})"
+                        self.rest_progress_shown = 1
+                    elif remaining <= 2 * TICK_PLAYER_REST // 3 and self.rest_progress_shown < 2:
+                        rest_str = f" | Resting ({TICK_PLAYER_REST - remaining}/{TICK_PLAYER_REST})"
+                        self.rest_progress_shown = 2
+                    elif self.rest_progress_shown < 2:
+                        rest_str = f" | Resting ({TICK_PLAYER_REST - remaining}/{TICK_PLAYER_REST})"
+                bar = (f"{self.player_name} | Lv{self.player_level} | "
+                       f"HP {self.player_hp}/{self.player_max_hp} | "
+                       f"ATK {self.player_attack_total()} | DEF {self.player_defense_total()} | "
+                       f"XP {self.player_xp}/{self.player_next_level_xp} | "
+                       f"Gold {self.player_gold} | Depth {self.depth + 1}/{MAX_DEPTH}{rest_str}")
         try:
             self.stdscr.addstr(view_h, 0, bar.ljust(view_w))
         except curses.error:
@@ -840,7 +868,7 @@ class Game:
             except curses.error:
                 pass
 
-        help_text = "WASD/Arrows:Move  >:Down  <:Up  g:Grab  /:Wait  q:Quit"
+        help_text = "WASD/Arrows:Move  >:Down  <:Up  g:Grab  /:Rest  q:Quit"
         try:
             self.stdscr.addstr(MAX_SCREEN_Y - 1, 0, help_text.ljust(view_w))
         except curses.error:
