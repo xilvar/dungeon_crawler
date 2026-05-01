@@ -464,7 +464,6 @@ class Game:
                     p.x = px + i
                     p.y = py
                     p.dead = False
-                    p.hp = p.max_hp
             start_room = rooms[0]
             ux = start_room.center_x
             uy = start_room.center_y
