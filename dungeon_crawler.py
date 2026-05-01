@@ -6,9 +6,8 @@ Press > or . to go down stairs. g to grab items.
 """
 
 import curses
-import random
 import copy
-import math
+import random
 import sys
 
 # --- Constants ---
@@ -179,8 +178,9 @@ def create_dungeon(depth):
         # Check overlap
         failed = False
         for other in rooms:
-            if (new_room.x1 <= other.x2 and new_room.x2 >= other.x1 and
-                new_room.y1 <= other.y2 and new_room.y2 >= other.y1):
+            if new_room.x1 <= other.x2 and new_room.x2 >= other.x1 and \
+                    new_room.y1 <= other.y2 and \
+                    new_room.y2 >= other.y1:
                 failed = True
                 break
         if failed:
@@ -235,8 +235,15 @@ def create_dungeon(depth):
                             neighbors_wall += 1
                 # If exactly 2 wall neighbors in a line, it's a corridor opening
                 if neighbors_wall == 2:
-                    if ((y - 1 >= 0 and dungeon[y-1][x] == TILE_WALL and y + 1 < MAP_HEIGHT and dungeon[y+1][x] == TILE_WALL) or
-                        (x - 1 >= 0 and dungeon[y][x-1] == TILE_WALL and x + 1 < MAP_WIDTH and dungeon[y][x+1] == TILE_WALL)):
+                    vertical = y - 1 >= 0 and \
+                        dungeon[y - 1][x] == TILE_WALL and \
+                        y + 1 < MAP_HEIGHT and \
+                        dungeon[y + 1][x] == TILE_WALL
+                    horizontal = x - 1 >= 0 and \
+                        dungeon[y][x - 1] == TILE_WALL and \
+                        x + 1 < MAP_WIDTH and \
+                        dungeon[y][x + 1] == TILE_WALL
+                    if vertical or horizontal:
                         dungeon[y][x] = TILE_DOOR
 
     return dungeon, rooms
@@ -578,8 +585,9 @@ class Game:
 
     def _do_combat_attack(self, player, enemy):
         self.consecutive_waits = 0
-        damage = self.do_attack(player.name, player.attack_total(),
-                                  enemy["name"], enemy["defense"])
+        damage = self.do_attack(
+            player.name, player.attack_total(),
+            enemy["name"], enemy["defense"])
         enemy["hp"] -= damage
         self.msg(f"{player.name} hits the {enemy['name']} for {damage} damage!", curses.COLOR_WHITE)
         if enemy["hp"] <= 0:
@@ -651,8 +659,9 @@ class Game:
         can_see = self.visible[enemy["y"]][enemy["x"]] and dist <= FOV_RADIUS + 2
 
         if dist == 1:
-            damage = self.do_attack(enemy["name"], enemy["attack"],
-                                     target.name, target.defense_total(), 1)
+            damage = self.do_attack(
+                enemy["name"], enemy["attack"],
+                target.name, target.defense_total(), 1)
             target.hp -= damage
             self.msg(f"The {enemy['name']} hits {target.name} for {damage} damage!", enemy["color"])
             enemy["next_tick"] = self.tick + TICK_ATTACK
@@ -872,7 +881,7 @@ class Game:
 
         for msg_text, _ in self.message_log[-3:]:
             print(msg_text[:view_w])
-        print(f"P1:Arrows  P2:WASD  >:Down  <:Up  g/G:Grab  /*:Rest  q:Quit")
+        print("P1:Arrows  P2:WASD  >:Down  <:Up  g/G:Grab  /*:Rest  q:Quit")
         print(f"{'=' * view_w}")
 
     def render(self):
@@ -964,8 +973,13 @@ class Game:
         if self.game_over:
             self._show_overlay("YOU HAVE DIED", "Press q to quit.", curses.COLOR_RED)
         elif self.game_win:
-            self._show_overlay("YOU CONQUERED THE DUNGEON!", f"Final: {', '.join(f'{p.name} Lv{p.level} Gold:{p.gold}' for p in self.players)}. Press q to quit.",
-                                curses.COLOR_GREEN)
+            stats = ', '.join(
+                f'{p.name} Lv{p.level} Gold:{p.gold}'
+                for p in self.players)
+            self._show_overlay(
+                "YOU CONQUERED THE DUNGEON!",
+                f"Final: {stats}. Press q to quit.",
+                curses.COLOR_GREEN)
 
         self.stdscr.refresh()
 
