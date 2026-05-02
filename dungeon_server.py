@@ -9,6 +9,7 @@ import http.server
 import socketserver
 import sys
 import os
+from urllib.parse import urlparse, parse_qs
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -45,11 +46,12 @@ class GameServer:
         """Initialize game in headless mode."""
         self.game = Game()
         self.game.tick = 0
-        # Remove auto-created players
+        # Clear auto-created players and stale state
         self.game.players = []
+        self.game.message_log = []
+        self.game.player_visible = []
         # Create a default dungeon for player 1
         self.game.dungeon, rooms = create_dungeon(0)
-        self.game.explored = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
         _, _, self.game.enemies, self.game.items = \
             place_entities(rooms, self.game.dungeon, 0)
         # Initialize enemy ticks
@@ -148,7 +150,7 @@ class GameServer:
                 return {"ok": True}
             return {"error": "player not found"}
 
-    def get_state(self):
+    def get_state(self, player_id=0):
         with self.lock:
             g = self.game
             if not g.players:
@@ -168,7 +170,8 @@ class GameServer:
                     "game_win": False,
                     "max_depth": MAX_DEPTH,
                 }
-            p = g.players[0]
+            pid = min(player_id, len(g.players) - 1)
+            p = g.players[pid]
             view_h = MAX_SCREEN_Y - 4
             view_w = MAX_SCREEN_X
             start_x = max(0, min(p.x - view_w // 2, MAP_WIDTH - view_w))
@@ -180,12 +183,13 @@ class GameServer:
                 for sx in range(view_w):
                     mx = sx + start_x
                     my = sy + start_y
-                    row.append(g.get_char_at(mx, my))
+                    row.append(g.get_char_at(mx, my, pid))
                 chars.append(''.join(row))
 
+            p_visible = g.player_visible[pid] if 0 <= pid < len(g.player_visible) else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
             enemies = []
             for e in g.enemies:
-                if e["hp"] > 0 and g.visible[e["y"]][e["x"]]:
+                if e["hp"] > 0 and p_visible[e["y"]][e["x"]]:
                     enemies.append({
                         "x": e["x"], "y": e["y"],
                         "name": e["name"], "char": e["char"],
@@ -268,11 +272,14 @@ class GameHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path == '/state':
+        if self.path.startswith('/state'):
             if self.server_side is None:
                 self._send_json({"error": "no server"}, 500)
                 return
-            state = self.server_side.get_state()
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            player_id = int(params.get("player_id", [0])[0])
+            state = self.server_side.get_state(player_id)
             self._send_json(state)
         elif self.path == '/health':
             self._send_json({"status": "ok"})

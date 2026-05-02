@@ -44,9 +44,9 @@ COLOR_MAP = {
 }
 
 
-def fetch_state(url):
+def fetch_state(url, player_id=0):
     """Fetch game state from server."""
-    req = urllib.request.Request(url + '/state')
+    req = urllib.request.Request(f"{url}/state?player_id={player_id}")
     with urllib.request.urlopen(req, timeout=1) as resp:
         return json.loads(resp.read())
 
@@ -233,7 +233,7 @@ def main(stdscr):
 
     while True:
         try:
-            state = fetch_state(url)
+            state = fetch_state(url, player_id)
         except Exception:
             state = {
                 "map": [" " * 80 for _ in range(20)],

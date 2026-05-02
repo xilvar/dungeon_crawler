@@ -405,6 +405,8 @@ class Player:
         self.rest_end_tick = None
         self.rest_progress_shown = 0
         self.dead = False
+        # Per-depth explored grids: {depth: 2D boolean grid}
+        self.explored = {}
 
     def attack_total(self):
         return self.attack + self.weapon_bonus
@@ -446,7 +448,6 @@ class Game:
         """Save the current state of the level to cache."""
         self.levels[self.depth] = {
             "dungeon": copy.deepcopy(self.dungeon),
-            "explored": copy.deepcopy(self.explored),
             "enemies": copy.deepcopy(self.enemies),
             "items": copy.deepcopy(self.items),
             "players": copy.deepcopy(self.players),
@@ -454,17 +455,20 @@ class Game:
             "stairs_y": self.players[0].y,
         }
 
+    def _ensure_player_explored(self, player):
+        """Ensure a player has an explored grid for the current depth."""
+        if self.depth not in player.explored:
+            player.explored[self.depth] = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+
     def new_dungeon(self, from_stairs_up=False):
         if self.depth in self.levels:
             level = self.levels[self.depth]
             self.dungeon = copy.deepcopy(level["dungeon"])
-            self.explored = copy.deepcopy(level.get("explored", [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]))
             self.enemies = copy.deepcopy(level["enemies"])
             self.items = copy.deepcopy(level["items"])
             self.players = copy.deepcopy(level.get("players", []))
         else:
             self.dungeon, rooms = create_dungeon(self.depth)
-            self.explored = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
             px, py, self.enemies, self.items = place_entities(rooms, self.dungeon, self.depth)
             if not self.players:
                 p1 = Player("Hero1", "@", px, py, COLOR_YELLOW)
@@ -495,6 +499,7 @@ class Game:
             if p.dead:
                 p.dead = False
                 p.hp = p.max_hp
+            self._ensure_player_explored(p)
         self._update_visibility()
         self._update_explored()
         self.consecutive_waits = 0
@@ -504,20 +509,37 @@ class Game:
             self.msg(f"You go back up. (Depth: {self.depth + 1})")
 
     def _update_visibility(self):
+        self.player_visible = []
         self.visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
         for p in self.players:
             if not p.dead:
                 fov = compute_fov(self.dungeon, p.x, p.y, FOV_RADIUS)
+                self.player_visible.append(fov)
                 for y in range(MAP_HEIGHT):
                     for x in range(MAP_WIDTH):
                         if fov[y][x]:
                             self.visible[y][x] = True
+            else:
+                self.player_visible.append([[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
 
     def _update_explored(self):
+        for i, p in enumerate(self.players):
+            if p.dead:
+                continue
+            self._ensure_player_explored(p)
+            explored_grid = p.explored[self.depth]
+            p_visible = self.player_visible[i]
+            for y in range(MAP_HEIGHT):
+                for x in range(MAP_WIDTH):
+                    if p_visible[y][x]:
+                        explored_grid[y][x] = True
+        # Maintain combined explored for curses rendering
+        if not hasattr(self, '_combined_explored') or self._combined_explored is None:
+            self._combined_explored = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
         for y in range(MAP_HEIGHT):
             for x in range(MAP_WIDTH):
                 if self.visible[y][x]:
-                    self.explored[y][x] = True
+                    self._combined_explored[y][x] = True
 
     def msg(self, text, color=COLOR_WHITE):
         self.message_log.append((text, color))
@@ -566,11 +588,11 @@ class Game:
             self._do_grab_item(player)
             player.next_tick = self.tick + TICK_MOVE
         elif action_type == "stairs_down":
-            self._do_go_down_stairs()
+            self._do_go_down_stairs(player)
             for p in self.players:
                 p.next_tick = self.tick + TICK_MOVE
         elif action_type == "stairs_up":
-            self._do_go_up_stairs()
+            self._do_go_up_stairs(player)
             for p in self.players:
                 p.next_tick = self.tick + TICK_MOVE
         elif action_type == "rest":
@@ -713,10 +735,9 @@ class Game:
                     break
             enemy["next_tick"] = self.tick + TICK_MOVE
 
-    def _do_go_down_stairs(self):
+    def _do_go_down_stairs(self, player):
         self.consecutive_waits = 0
-        p = self.players[0]
-        if self.dungeon[p.y][p.x] == TILE_STAIRS_DOWN:
+        if self.dungeon[player.y][player.x] == TILE_STAIRS_DOWN:
             self._save_current_level()
             self.depth += 1
             if self.depth >= MAX_DEPTH:
@@ -725,16 +746,19 @@ class Game:
                 return
             self.new_dungeon()
         else:
-            self.msg("No stairs here.", COLOR_CYAN)
+            self.msg(f"{player.name}: no stairs here.", COLOR_CYAN)
 
-    def _do_go_up_stairs(self):
+    def _do_go_up_stairs(self, player):
         self.consecutive_waits = 0
-        if self.depth > 0:
-            self._save_current_level()
-            self.depth -= 1
-            self.new_dungeon(from_stairs_up=True)
+        if self.dungeon[player.y][player.x] == TILE_STAIRS_UP:
+            if self.depth > 0:
+                self._save_current_level()
+                self.depth -= 1
+                self.new_dungeon(from_stairs_up=True)
+            else:
+                self.msg(f"{player.name}: can't go up further.", COLOR_CYAN)
         else:
-            self.msg("Can't go up further.", COLOR_CYAN)
+            self.msg(f"{player.name}: no stairs here.", COLOR_CYAN)
 
     def _do_grab_item(self, player):
         self.consecutive_waits = 0
@@ -843,12 +867,17 @@ class Game:
         elif key in (ord('q'), ord('Q'), 27):
             sys.exit(0)
 
-    def get_char_at(self, mx, my):
+    def get_char_at(self, mx, my, player_idx=0):
         """Return the character to display at map position (mx, my)."""
         if mx < 0 or mx >= MAP_WIDTH or my < 0 or my >= MAP_HEIGHT:
             return ' '
-        is_explored = self.explored[my][mx]
-        is_visible = self.visible[my][mx]
+        player = self.players[player_idx] if 0 <= player_idx < len(self.players) else None
+        if player is None:
+            return ' '
+        explored_grid = player.explored.get(self.depth, [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
+        p_visible = self.player_visible[player_idx] if 0 <= player_idx < len(self.player_visible) else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+        is_explored = explored_grid[my][mx]
+        is_visible = p_visible[my][mx]
         if not is_explored:
             return ' '
         enemy = self.get_enemy_at(mx, my)
