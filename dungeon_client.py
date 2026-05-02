@@ -120,7 +120,7 @@ def render(stdscr, state, my_player_id):
 
     # Overlay players with color
     for pl in players:
-        if pl["dead"]:
+        if pl["dead"] or not pl.get("visible", True):
             continue
         px = pl["x"] - start_x
         py = pl["y"] - start_y

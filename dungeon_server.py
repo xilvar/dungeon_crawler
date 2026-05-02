@@ -207,6 +207,7 @@ class GameServer:
 
             player_stats = []
             for pl in g.players:
+                visible_to_me = p_visible[pl.y][pl.x]
                 ps = {
                     "id": g.players.index(pl),
                     "name": pl.name, "char": pl.char,
@@ -219,6 +220,7 @@ class GameServer:
                     "gold": pl.gold, "dead": pl.dead,
                     "weapon_bonus": pl.weapon_bonus,
                     "armor_bonus": pl.armor_bonus,
+                    "visible": visible_to_me,
                 }
                 if pl.rest_end_tick and g.tick < pl.rest_end_tick:
                     remaining = pl.rest_end_tick - g.tick

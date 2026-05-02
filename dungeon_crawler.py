@@ -884,7 +884,7 @@ class Game:
         if enemy and is_visible:
             return enemy["char"]
         for p in self.players:
-            if mx == p.x and my == p.y and not p.dead:
+            if mx == p.x and my == p.y and not p.dead and is_visible:
                 return p.char
         _, item = self.get_item_at(mx, my)
         if item and is_visible:
