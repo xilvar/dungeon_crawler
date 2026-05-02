@@ -417,8 +417,7 @@ class Player:
 
 # --- Game State ---
 class Game:
-    def __init__(self, stdscr=None):
-        self.stdscr = stdscr
+    def __init__(self):
         self.depth = 0
         self.messages = []
         self.game_over = False
@@ -429,20 +428,7 @@ class Game:
         self.levels = {}
         self.tick = 0
 
-        if stdscr is not None:
-            self._init_curses()
         self.new_dungeon()
-
-    def _init_curses(self):
-        import curses
-        curses.curs_set(0)
-        curses.start_color()
-        curses.use_default_colors()
-        for i in range(16):
-            curses.init_pair(i + 1, i, -1)
-        self.stdscr.nodelay(False)
-        self.stdscr.keypad(True)
-        self.stdscr.timeout(100)
 
     def _save_current_level(self):
         """Save the current state of the level to cache."""
@@ -832,41 +818,6 @@ class Game:
             self.msg(f"A {prop['name']} appears!", COLOR_RED)
             return
 
-    def handle_input(self, key):
-        import curses
-        if self.game_over or self.game_win:
-            if key in (ord('q'), ord('Q'), 27):
-                sys.exit(0)
-            return
-        if key == -1:
-            return
-        p1_moves = {
-            curses.KEY_LEFT: (-1, 0), curses.KEY_DOWN: (0, 1), curses.KEY_UP: (0, -1),
-            curses.KEY_RIGHT: (1, 0),
-            ord('y'): (-1, -1), ord('u'): (1, -1), ord('b'): (-1, 1), ord('n'): (1, 1),
-        }
-        p2_moves = {
-            ord('a'): (-1, 0), ord('s'): (0, 1), ord('w'): (0, -1), ord('d'): (1, 0),
-        }
-        if key in p1_moves:
-            self.queue_player_action(0, {"type": "move", "dx": p1_moves[key][0], "dy": p1_moves[key][1]})
-        elif key in p2_moves:
-            self.queue_player_action(1, {"type": "move", "dx": p2_moves[key][0], "dy": p2_moves[key][1]})
-        elif key in (ord('>'), ord('=')):
-            self.queue_player_action(0, {"type": "stairs_down"})
-        elif key in (ord('<'), ord('-')):
-            self.queue_player_action(0, {"type": "stairs_up"})
-        elif key in (ord('g'),):
-            self.queue_player_action(0, {"type": "grab"})
-        elif key in (ord('/'),):
-            self.queue_player_action(0, {"type": "rest"})
-        elif key in (ord('G'),):
-            self.queue_player_action(1, {"type": "grab"})
-        elif key in (ord('*'),):
-            self.queue_player_action(1, {"type": "rest"})
-        elif key in (ord('q'), ord('Q'), 27):
-            sys.exit(0)
-
     def get_char_at(self, mx, my, player_idx=0):
         """Return the character to display at map position (mx, my)."""
         if mx < 0 or mx >= MAP_WIDTH or my < 0 or my >= MAP_HEIGHT:
@@ -923,128 +874,6 @@ class Game:
             print(msg_text[:view_w])
         print("P1:Arrows  P2:WASD  >:Down  <:Up  g/G:Grab  /*:Rest  q:Quit")
         print(f"{'=' * view_w}")
-
-    def render(self):
-        import curses
-        self.stdscr.erase()
-
-        view_h = MAX_SCREEN_Y - 4
-        view_w = MAX_SCREEN_X
-        p = self.players[0] if self.players else None
-        if p is None:
-            self.stdscr.refresh()
-            return
-        start_x = max(0, min(p.x - view_w // 2, MAP_WIDTH - view_w))
-        start_y = max(0, min(p.y - view_h // 2, MAP_HEIGHT - view_h))
-
-        for sy in range(view_h):
-            row_chars = []
-            enemy_positions = []
-            player_positions = []
-            for sx in range(view_w):
-                mx = sx + start_x
-                my = sy + start_y
-                ch = self.get_char_at(mx, my)
-                row_chars.append(ch)
-                for pi, pl in enumerate(self.players):
-                    if mx == pl.x and my == pl.y and not pl.dead:
-                        player_positions.append((sx, sy, pi))
-                enemy = self.get_enemy_at(mx, my)
-                if enemy and self.visible[my][mx]:
-                    enemy_positions.append((sx, ch, enemy["color"]))
-
-            line = ''.join(row_chars)
-            try:
-                self.stdscr.addstr(sy, 0, line)
-            except curses.error:
-                pass
-            for ex, ech, ecolor in enemy_positions:
-                attr = curses.color_pair(ecolor + 1) | curses.A_BOLD
-                try:
-                    self.stdscr.addch(sy, ex, ord(ech), attr)
-                except curses.error:
-                    pass
-            for px, psy, pi in player_positions:
-                pl = self.players[pi]
-                attr = curses.color_pair(pl.color + 1) | curses.A_BOLD
-                try:
-                    self.stdscr.addch(psy, px, ord('@'), attr)
-                except curses.error:
-                    pass
-
-        bars = []
-        for pl in self.players:
-            bar = (f"{pl.name} | Lv{pl.level} | HP {pl.hp}/{pl.max_hp} | "
-                   f"ATK {pl.attack_total()} | DEF {pl.defense_total()} | "
-                   f"XP {pl.xp}/{pl.next_level_xp} | Gold {pl.gold} {'[DEAD]' if pl.dead else ''}")
-            rest_str = ""
-            if pl.rest_end_tick and self.tick < pl.rest_end_tick:
-                remaining = pl.rest_end_tick - self.tick
-                if remaining <= TICK_PLAYER_REST // 3 and pl.rest_progress_shown < 1:
-                    rest_str = f" | Resting ({TICK_PLAYER_REST - remaining}/{TICK_PLAYER_REST})"
-                    pl.rest_progress_shown = 1
-                elif remaining <= 2 * TICK_PLAYER_REST // 3 and pl.rest_progress_shown < 2:
-                    rest_str = f" | Resting ({TICK_PLAYER_REST - remaining}/{TICK_PLAYER_REST})"
-                    pl.rest_progress_shown = 2
-                elif pl.rest_progress_shown < 2:
-                    rest_str = f" | Resting ({TICK_PLAYER_REST - remaining}/{TICK_PLAYER_REST})"
-            bars.append(bar + rest_str)
-
-        try:
-            self.stdscr.addstr(view_h, 0, bars[0][:view_w])
-        except curses.error:
-            pass
-        try:
-            self.stdscr.addstr(view_h + 1, 0, bars[1][:view_w])
-        except curses.error:
-            pass
-
-        for i, (msg_text, _) in enumerate(self.message_log[-1:]):
-            try:
-                self.stdscr.addstr(view_h + 2, 0, msg_text.ljust(view_w))
-            except curses.error:
-                pass
-
-        help_text = "P1:Arrows  P2:WASD  >:Down  <:Up  g/G:Grab  /*:Rest  q:Quit"
-        try:
-            self.stdscr.addstr(MAX_SCREEN_Y - 1, 0, help_text.ljust(view_w))
-        except curses.error:
-            pass
-
-        if self.game_over:
-            self._show_overlay("YOU HAVE DIED", "Press q to quit.", COLOR_RED)
-        elif self.game_win:
-            stats = ', '.join(
-                f'{p.name} Lv{p.level} Gold:{p.gold}'
-                for p in self.players)
-            self._show_overlay(
-                "YOU CONQUERED THE DUNGEON!",
-                f"Final: {stats}. Press q to quit.",
-                COLOR_GREEN)
-
-        self.stdscr.refresh()
-
-    def _show_overlay(self, title, subtitle, color):
-        import curses
-        try:
-            self.stdscr.addstr(10, 25, title, curses.color_pair(color + 1) | curses.A_BOLD)
-            self.stdscr.addstr(12, 20, subtitle, curses.color_pair(COLOR_WHITE + 1))
-        except curses.error:
-            pass
-
-    def run(self):
-        while True:
-            self.render()
-            key = self.stdscr.getch()
-            self.handle_input(key)
-            self.tick += 10
-            self._process_tick()
-
-
-def main(stdscr):
-    game = Game(stdscr)
-    game.run()
-
 
 def run_text_mode():
     """Run a single frame in text mode for debugging."""
@@ -1114,8 +943,4 @@ def run_text_mode():
 
 
 if __name__ == "__main__":
-    if '--text' in sys.argv:
-        run_text_mode()
-    else:
-        import curses
-        curses.wrapper(main)
+    run_text_mode()
