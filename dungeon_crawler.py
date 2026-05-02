@@ -5,12 +5,21 @@ Use arrow keys or WASD to move. Bump into enemies to attack.
 Press > or . to go down stairs. g to grab items.
 """
 
-import curses
 import copy
 import random
 import sys
 
 # --- Constants ---
+# Color constants (match curses.COLOR_* values for compatibility)
+COLOR_BLACK = 0
+COLOR_RED = 1
+COLOR_GREEN = 2
+COLOR_YELLOW = 3
+COLOR_BLUE = 4
+COLOR_MAGENTA = 5
+COLOR_CYAN = 6
+COLOR_WHITE = 7
+
 MAX_SCREEN_X = 80
 MAX_SCREEN_Y = 24
 MAP_WIDTH = 80
@@ -46,11 +55,11 @@ TILE_CHAR = {
 }
 
 TILE_COLOR = {
-    TILE_WALL: curses.COLOR_BLUE,
-    TILE_FLOOR: curses.COLOR_BLUE,
-    TILE_DOOR: curses.COLOR_YELLOW,
-    TILE_STAIRS_DOWN: curses.COLOR_YELLOW,
-    TILE_STAIRS_UP: curses.COLOR_YELLOW,
+    TILE_WALL: COLOR_BLUE,
+    TILE_FLOOR: COLOR_BLUE,
+    TILE_DOOR: COLOR_YELLOW,
+    TILE_STAIRS_DOWN: COLOR_YELLOW,
+    TILE_STAIRS_UP: COLOR_YELLOW,
 }
 
 # Entity types
@@ -90,47 +99,47 @@ ENEMY_DRAGON = "dragon"
 
 ENEMY_PROPS = {
     # Tier 1 - vermin/scavengers
-    ENEMY_RAT: {"char": "r", "color": curses.COLOR_YELLOW, "name": "Rat", "hp": 3, "attack": 1, "defense": 0, "xp": 1},
-    ENEMY_BAT: {"char": "b", "color": curses.COLOR_YELLOW, "name": "Bat", "hp": 2, "attack": 1, "defense": 0, "xp": 1},
-    ENEMY_SPIDER: {"char": "S", "color": curses.COLOR_YELLOW, "name": "Spider", "hp": 4, "attack": 2, "defense": 0, "xp": 2},
-    ENEMY_KOBOLD: {"char": "k", "color": curses.COLOR_YELLOW, "name": "Kobold", "hp": 5, "attack": 2, "defense": 0, "xp": 2},
-    ENEMY_GNOME: {"char": "g", "color": curses.COLOR_YELLOW, "name": "Goblin", "hp": 7, "attack": 2, "defense": 0, "xp": 2},
+    ENEMY_RAT: {"char": "r", "color": COLOR_YELLOW, "name": "Rat", "hp": 3, "attack": 1, "defense": 0, "xp": 1},
+    ENEMY_BAT: {"char": "b", "color": COLOR_YELLOW, "name": "Bat", "hp": 2, "attack": 1, "defense": 0, "xp": 1},
+    ENEMY_SPIDER: {"char": "S", "color": COLOR_YELLOW, "name": "Spider", "hp": 4, "attack": 2, "defense": 0, "xp": 2},
+    ENEMY_KOBOLD: {"char": "k", "color": COLOR_YELLOW, "name": "Kobold", "hp": 5, "attack": 2, "defense": 0, "xp": 2},
+    ENEMY_GNOME: {"char": "g", "color": COLOR_YELLOW, "name": "Goblin", "hp": 7, "attack": 2, "defense": 0, "xp": 2},
     # Tier 2 - common threats
-    ENEMY_IMP: {"char": "i", "color": curses.COLOR_RED, "name": "Imp", "hp": 6, "attack": 3, "defense": 0, "xp": 4},
-    ENEMY_SKELETON: {"char": "s", "color": curses.COLOR_WHITE, "name": "Skeleton", "hp": 8, "attack": 3, "defense": 1, "xp": 4},
-    ENEMY_ZOMBIE: {"char": "Z", "color": curses.COLOR_GREEN, "name": "Zombie", "hp": 12, "attack": 2, "defense": 0, "xp": 3},
-    ENEMY_WOLF: {"char": "W", "color": curses.COLOR_WHITE, "name": "Wolf", "hp": 8, "attack": 4, "defense": 0, "xp": 3},
+    ENEMY_IMP: {"char": "i", "color": COLOR_RED, "name": "Imp", "hp": 6, "attack": 3, "defense": 0, "xp": 4},
+    ENEMY_SKELETON: {"char": "s", "color": COLOR_WHITE, "name": "Skeleton", "hp": 8, "attack": 3, "defense": 1, "xp": 4},
+    ENEMY_ZOMBIE: {"char": "Z", "color": COLOR_GREEN, "name": "Zombie", "hp": 12, "attack": 2, "defense": 0, "xp": 3},
+    ENEMY_WOLF: {"char": "W", "color": COLOR_WHITE, "name": "Wolf", "hp": 8, "attack": 4, "defense": 0, "xp": 3},
     # Tier 3 - undead/horrors
-    ENEMY_HYDRA: {"char": "H", "color": curses.COLOR_GREEN, "name": "Hydra", "hp": 35, "attack": 8, "defense": 3, "xp": 30},
-    ENEMY_MUMMY: {"char": "M", "color": curses.COLOR_YELLOW, "name": "Mummy", "hp": 18, "attack": 4, "defense": 2, "xp": 10},
-    ENEMY_WRAITH: {"char": "W", "color": curses.COLOR_CYAN, "name": "Wraith", "hp": 15, "attack": 5, "defense": 2, "xp": 12},
-    ENEMY_TROLL: {"char": "T", "color": curses.COLOR_GREEN, "name": "Troll", "hp": 25, "attack": 6, "defense": 2, "xp": 20},
+    ENEMY_HYDRA: {"char": "H", "color": COLOR_GREEN, "name": "Hydra", "hp": 35, "attack": 8, "defense": 3, "xp": 30},
+    ENEMY_MUMMY: {"char": "M", "color": COLOR_YELLOW, "name": "Mummy", "hp": 18, "attack": 4, "defense": 2, "xp": 10},
+    ENEMY_WRAITH: {"char": "W", "color": COLOR_CYAN, "name": "Wraith", "hp": 15, "attack": 5, "defense": 2, "xp": 12},
+    ENEMY_TROLL: {"char": "T", "color": COLOR_GREEN, "name": "Troll", "hp": 25, "attack": 6, "defense": 2, "xp": 20},
     # Tier 4 - formidable beasts
-    ENEMY_MINOTAUR: {"char": "N", "color": curses.COLOR_YELLOW, "name": "Minotaur", "hp": 25, "attack": 7, "defense": 2, "xp": 20},
-    ENEMY_MEDUSA: {"char": "m", "color": curses.COLOR_GREEN, "name": "Medusa", "hp": 24, "attack": 6, "defense": 2, "xp": 20},
-    ENEMY_OWLBEAR: {"char": "O", "color": curses.COLOR_YELLOW, "name": "Owlbear", "hp": 22, "attack": 6, "defense": 1, "xp": 15},
-    ENEMY_HOOK_HORROR: {"char": "h", "color": curses.COLOR_YELLOW, "name": "Hook Horror", "hp": 26, "attack": 7, "defense": 2, "xp": 20},
+    ENEMY_MINOTAUR: {"char": "N", "color": COLOR_YELLOW, "name": "Minotaur", "hp": 25, "attack": 7, "defense": 2, "xp": 20},
+    ENEMY_MEDUSA: {"char": "m", "color": COLOR_GREEN, "name": "Medusa", "hp": 24, "attack": 6, "defense": 2, "xp": 20},
+    ENEMY_OWLBEAR: {"char": "O", "color": COLOR_YELLOW, "name": "Owlbear", "hp": 22, "attack": 6, "defense": 1, "xp": 15},
+    ENEMY_HOOK_HORROR: {"char": "h", "color": COLOR_YELLOW, "name": "Hook Horror", "hp": 26, "attack": 7, "defense": 2, "xp": 20},
     # Tier 5 - exotic threats
-    ENEMY_PHASE_SPIDER: {"char": "P", "color": curses.COLOR_RED, "name": "Phase Spider", "hp": 18, "attack": 5, "defense": 1, "xp": 12},
-    ENEMY_BASILISK: {"char": "B", "color": curses.COLOR_GREEN, "name": "Basilisk", "hp": 20, "attack": 6, "defense": 3, "xp": 18},
-    ENEMY_WYVERN: {"char": "Y", "color": curses.COLOR_GREEN, "name": "Wyvern", "hp": 32, "attack": 9, "defense": 3, "xp": 25},
+    ENEMY_PHASE_SPIDER: {"char": "P", "color": COLOR_RED, "name": "Phase Spider", "hp": 18, "attack": 5, "defense": 1, "xp": 12},
+    ENEMY_BASILISK: {"char": "B", "color": COLOR_GREEN, "name": "Basilisk", "hp": 20, "attack": 6, "defense": 3, "xp": 18},
+    ENEMY_WYVERN: {"char": "Y", "color": COLOR_GREEN, "name": "Wyvern", "hp": 32, "attack": 9, "defense": 3, "xp": 25},
     # Tier 6 - powerful creatures
-    ENEMY_PHOENIX: {"char": "F", "color": curses.COLOR_RED, "name": "Phoenix", "hp": 28, "attack": 8, "defense": 2, "xp": 22},
-    ENEMY_GRUE: {"char": "X", "color": curses.COLOR_MAGENTA, "name": "Grue", "hp": 15, "attack": 5, "defense": 1, "xp": 12},
-    ENEMY_GELATINOUS_CUBE: {"char": "C", "color": curses.COLOR_CYAN, "name": "Gelatinous Cube", "hp": 28, "attack": 4, "defense": 1, "xp": 15},
-    ENEMY_REMORHAZ: {"char": "R", "color": curses.COLOR_RED, "name": "Remorhaz", "hp": 40, "attack": 10, "defense": 4, "xp": 35},
-    ENEMY_ICE_DEVIL: {"char": "I", "color": curses.COLOR_CYAN, "name": "Ice Devil", "hp": 35, "attack": 9, "defense": 3, "xp": 30},
+    ENEMY_PHOENIX: {"char": "F", "color": COLOR_RED, "name": "Phoenix", "hp": 28, "attack": 8, "defense": 2, "xp": 22},
+    ENEMY_GRUE: {"char": "X", "color": COLOR_MAGENTA, "name": "Grue", "hp": 15, "attack": 5, "defense": 1, "xp": 12},
+    ENEMY_GELATINOUS_CUBE: {"char": "C", "color": COLOR_CYAN, "name": "Gelatinous Cube", "hp": 28, "attack": 4, "defense": 1, "xp": 15},
+    ENEMY_REMORHAZ: {"char": "R", "color": COLOR_RED, "name": "Remorhaz", "hp": 40, "attack": 10, "defense": 4, "xp": 35},
+    ENEMY_ICE_DEVIL: {"char": "I", "color": COLOR_CYAN, "name": "Ice Devil", "hp": 35, "attack": 9, "defense": 3, "xp": 30},
     # Tier 7 - legendary threats
-    ENEMY_LICH: {"char": "L", "color": curses.COLOR_WHITE, "name": "Lich", "hp": 45, "attack": 10, "defense": 4, "xp": 45},
-    ENEMY_BEHOLDER: {"char": "E", "color": curses.COLOR_YELLOW, "name": "Beholder", "hp": 40, "attack": 9, "defense": 4, "xp": 40},
+    ENEMY_LICH: {"char": "L", "color": COLOR_WHITE, "name": "Lich", "hp": 45, "attack": 10, "defense": 4, "xp": 45},
+    ENEMY_BEHOLDER: {"char": "E", "color": COLOR_YELLOW, "name": "Beholder", "hp": 40, "attack": 9, "defense": 4, "xp": 40},
     # Tier 8 - ultimate bosses
-    ENEMY_BALOR: {"char": "B", "color": curses.COLOR_RED, "name": "Balor", "hp": 60, "attack": 14, "defense": 5, "xp": 60},
+    ENEMY_BALOR: {"char": "B", "color": COLOR_RED, "name": "Balor", "hp": 60, "attack": 14, "defense": 5, "xp": 60},
     # Keep old enemies for compatibility
-    ENEMY_ORC: {"char": "o", "color": curses.COLOR_GREEN, "name": "Orc", "hp": 10, "attack": 3, "defense": 1, "xp": 5},
-    ENEMY_GOLEM: {"char": "G", "color": curses.COLOR_CYAN, "name": "Golem", "hp": 20, "attack": 5, "defense": 4, "xp": 15},
-    ENEMY_SNAKE: {"char": "n", "color": curses.COLOR_RED, "name": "Snake", "hp": 5, "attack": 2, "defense": 0, "xp": 3},
-    ENEMY_DEMON: {"char": "D", "color": curses.COLOR_RED, "name": "Demon", "hp": 30, "attack": 8, "defense": 3, "xp": 30},
-    ENEMY_DRAGON: {"char": "d", "color": curses.COLOR_RED, "name": "Dragon", "hp": 50, "attack": 12, "defense": 5, "xp": 50},
+    ENEMY_ORC: {"char": "o", "color": COLOR_GREEN, "name": "Orc", "hp": 10, "attack": 3, "defense": 1, "xp": 5},
+    ENEMY_GOLEM: {"char": "G", "color": COLOR_CYAN, "name": "Golem", "hp": 20, "attack": 5, "defense": 4, "xp": 15},
+    ENEMY_SNAKE: {"char": "n", "color": COLOR_RED, "name": "Snake", "hp": 5, "attack": 2, "defense": 0, "xp": 3},
+    ENEMY_DEMON: {"char": "D", "color": COLOR_RED, "name": "Demon", "hp": 30, "attack": 8, "defense": 3, "xp": 30},
+    ENEMY_DRAGON: {"char": "d", "color": COLOR_RED, "name": "Dragon", "hp": 50, "attack": 12, "defense": 5, "xp": 50},
 }
 
 ITEM_POTION = "potion"
@@ -139,10 +148,10 @@ ITEM_SHIELD = "shield"
 ITEM_GOLD = "gold"
 
 ITEM_PROPS = {
-    ITEM_POTION: {"char": "!", "color": curses.COLOR_RED, "name": "Health Potion"},
-    ITEM_SWORD: {"char": "/", "color": curses.COLOR_WHITE, "name": "Sword"},
-    ITEM_SHIELD: {"char": ")", "color": curses.COLOR_CYAN, "name": "Shield"},
-    ITEM_GOLD: {"char": ",", "color": curses.COLOR_YELLOW, "name": "Gold"},
+    ITEM_POTION: {"char": "!", "color": COLOR_RED, "name": "Health Potion"},
+    ITEM_SWORD: {"char": "/", "color": COLOR_WHITE, "name": "Sword"},
+    ITEM_SHIELD: {"char": ")", "color": COLOR_CYAN, "name": "Shield"},
+    ITEM_GOLD: {"char": ",", "color": COLOR_YELLOW, "name": "Gold"},
 }
 
 
@@ -375,7 +384,7 @@ def _has_line_of_sight(map_grid, x0, y0, x1, y1):
 
 # --- Player ---
 class Player:
-    def __init__(self, name, char, x, y, color=curses.COLOR_WHITE):
+    def __init__(self, name, char, x, y, color=COLOR_WHITE):
         self.name = name
         self.char = char
         self.color = color
@@ -406,7 +415,7 @@ class Player:
 
 # --- Game State ---
 class Game:
-    def __init__(self, stdscr):
+    def __init__(self, stdscr=None):
         self.stdscr = stdscr
         self.depth = 0
         self.messages = []
@@ -418,10 +427,12 @@ class Game:
         self.levels = {}
         self.tick = 0
 
-        self._init_curses()
+        if stdscr is not None:
+            self._init_curses()
         self.new_dungeon()
 
     def _init_curses(self):
+        import curses
         curses.curs_set(0)
         curses.start_color()
         curses.use_default_colors()
@@ -456,8 +467,8 @@ class Game:
             self.explored = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
             px, py, self.enemies, self.items = place_entities(rooms, self.dungeon, self.depth)
             if not self.players:
-                p1 = Player("Hero1", "@", px, py, curses.COLOR_YELLOW)
-                p2 = Player("Hero2", "@", px + 1, py, curses.COLOR_GREEN)
+                p1 = Player("Hero1", "@", px, py, COLOR_YELLOW)
+                p2 = Player("Hero2", "@", px + 1, py, COLOR_GREEN)
                 self.players = [p1, p2]
             else:
                 for i, p in enumerate(self.players):
@@ -508,7 +519,7 @@ class Game:
                 if self.visible[y][x]:
                     self.explored[y][x] = True
 
-    def msg(self, text, color=curses.COLOR_WHITE):
+    def msg(self, text, color=COLOR_WHITE):
         self.message_log.append((text, color))
         if len(self.message_log) > MAX_MSGS:
             self.message_log.pop(0)
@@ -588,9 +599,9 @@ class Game:
             player.name, player.attack_total(),
             enemy["name"], enemy["defense"])
         enemy["hp"] -= damage
-        self.msg(f"{player.name} hits the {enemy['name']} for {damage} damage!", curses.COLOR_WHITE)
+        self.msg(f"{player.name} hits the {enemy['name']} for {damage} damage!", COLOR_WHITE)
         if enemy["hp"] <= 0:
-            self.msg(f"The {enemy['name']} dies!", curses.COLOR_RED)
+            self.msg(f"The {enemy['name']} dies!", COLOR_RED)
             player.xp += enemy["xp"]
             self._check_level_up(player)
 
@@ -603,7 +614,7 @@ class Game:
             player.attack += 1
             player.defense += 1
             player.next_level_xp = int(player.next_level_xp * 1.5)
-            self.msg(f"{player.name} is now level {player.level}!", curses.COLOR_YELLOW)
+            self.msg(f"{player.name} is now level {player.level}!", COLOR_YELLOW)
 
     def _process_tick(self):
         if self.game_over or self.game_win:
@@ -667,7 +678,7 @@ class Game:
             if target.hp <= 0:
                 target.hp = 0
                 target.dead = True
-                self.msg(f"{target.name} has died!", curses.COLOR_RED)
+                self.msg(f"{target.name} has died!", COLOR_RED)
                 alive = any(p and not p.dead for p in self.players)
                 if not alive:
                     self.game_over = True
@@ -709,12 +720,12 @@ class Game:
             self._save_current_level()
             self.depth += 1
             if self.depth >= MAX_DEPTH:
-                self.msg("You have conquered the dungeon!", curses.COLOR_YELLOW)
+                self.msg("You have conquered the dungeon!", COLOR_YELLOW)
                 self.game_win = True
                 return
             self.new_dungeon()
         else:
-            self.msg("No stairs here.", curses.COLOR_CYAN)
+            self.msg("No stairs here.", COLOR_CYAN)
 
     def _do_go_up_stairs(self):
         self.consecutive_waits = 0
@@ -723,37 +734,37 @@ class Game:
             self.depth -= 1
             self.new_dungeon(from_stairs_up=True)
         else:
-            self.msg("Can't go up further.", curses.COLOR_CYAN)
+            self.msg("Can't go up further.", COLOR_CYAN)
 
     def _do_grab_item(self, player):
         self.consecutive_waits = 0
         idx, item = self.get_item_at(player.x, player.y)
         if item is None:
-            self.msg(f"{player.name}: nothing to grab here.", curses.COLOR_CYAN)
+            self.msg(f"{player.name}: nothing to grab here.", COLOR_CYAN)
             return
         kind = item["kind"]
         if kind == ITEM_POTION:
             heal = random.randint(5, 10)
             player.hp = min(player.hp + heal, player.max_hp)
-            self.msg(f"{player.name} drinks a potion. Recovered {heal} HP.", curses.COLOR_RED)
+            self.msg(f"{player.name} drinks a potion. Recovered {heal} HP.", COLOR_RED)
         elif kind == ITEM_SWORD:
             player.weapon_bonus += item["bonus"]
-            self.msg(f"{player.name} equips a sword (+{item['bonus']} attack).", curses.COLOR_WHITE)
+            self.msg(f"{player.name} equips a sword (+{item['bonus']} attack).", COLOR_WHITE)
         elif kind == ITEM_SHIELD:
             player.armor_bonus += item["bonus"]
-            self.msg(f"{player.name} equips a shield (+{item['bonus']} defense).", curses.COLOR_CYAN)
+            self.msg(f"{player.name} equips a shield (+{item['bonus']} defense).", COLOR_CYAN)
         elif kind == ITEM_GOLD:
             player.gold += item["value"]
-            self.msg(f"{player.name} picks up {item['value']} gold.", curses.COLOR_YELLOW)
+            self.msg(f"{player.name} picks up {item['value']} gold.", COLOR_YELLOW)
         self.items.pop(idx)
 
     def _do_rest(self, player):
         self.consecutive_waits += 1
         if player.hp < player.max_hp:
             player.hp += 1
-            self.msg(f"{player.name} rests for a moment. (+1 HP)", curses.COLOR_GREEN)
+            self.msg(f"{player.name} rests for a moment. (+1 HP)", COLOR_GREEN)
         else:
-            self.msg(f"{player.name} rests for a moment.", curses.COLOR_GREEN)
+            self.msg(f"{player.name} rests for a moment.", COLOR_GREEN)
         chance = 0.05 * self.consecutive_waits + 0.02 * self.depth
         chance = min(chance, 0.7)
         if random.random() < chance:
@@ -794,10 +805,11 @@ class Game:
                 "next_tick": self.tick + random.randint(0, 99),
             }
             self.enemies.append(enemy)
-            self.msg(f"A {prop['name']} appears!", curses.COLOR_RED)
+            self.msg(f"A {prop['name']} appears!", COLOR_RED)
             return
 
     def handle_input(self, key):
+        import curses
         if self.game_over or self.game_win:
             if key in (ord('q'), ord('Q'), 27):
                 sys.exit(0)
@@ -884,6 +896,7 @@ class Game:
         print(f"{'=' * view_w}")
 
     def render(self):
+        import curses
         self.stdscr.erase()
 
         view_h = MAX_SCREEN_Y - 4
@@ -970,7 +983,7 @@ class Game:
             pass
 
         if self.game_over:
-            self._show_overlay("YOU HAVE DIED", "Press q to quit.", curses.COLOR_RED)
+            self._show_overlay("YOU HAVE DIED", "Press q to quit.", COLOR_RED)
         elif self.game_win:
             stats = ', '.join(
                 f'{p.name} Lv{p.level} Gold:{p.gold}'
@@ -978,14 +991,15 @@ class Game:
             self._show_overlay(
                 "YOU CONQUERED THE DUNGEON!",
                 f"Final: {stats}. Press q to quit.",
-                curses.COLOR_GREEN)
+                COLOR_GREEN)
 
         self.stdscr.refresh()
 
     def _show_overlay(self, title, subtitle, color):
+        import curses
         try:
             self.stdscr.addstr(10, 25, title, curses.color_pair(color + 1) | curses.A_BOLD)
-            self.stdscr.addstr(12, 20, subtitle, curses.color_pair(curses.COLOR_WHITE + 1))
+            self.stdscr.addstr(12, 20, subtitle, curses.color_pair(COLOR_WHITE + 1))
         except curses.error:
             pass
 
@@ -1009,8 +1023,8 @@ def run_text_mode():
     dungeon, rooms = create_dungeon(depth)
     px, py, enemies, items = place_entities(rooms, dungeon, depth)
     players = [
-        Player("Hero1", "@", px, py, curses.COLOR_YELLOW),
-        Player("Hero2", "@", px + 1, py, curses.COLOR_GREEN),
+        Player("Hero1", "@", px, py, COLOR_YELLOW),
+        Player("Hero2", "@", px + 1, py, COLOR_GREEN),
     ]
     visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
     for p in players:
@@ -1074,4 +1088,5 @@ if __name__ == "__main__":
     if '--text' in sys.argv:
         run_text_mode()
     else:
+        import curses
         curses.wrapper(main)

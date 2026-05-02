@@ -12,70 +12,25 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-
-class _FakeCurses:
-    """Minimal curses shim for headless game."""
-
-    COLOR_BLACK = 0
-    COLOR_RED = 1
-    COLOR_GREEN = 2
-    COLOR_YELLOW = 3
-    COLOR_BLUE = 4
-    COLOR_MAGENTA = 5
-    COLOR_CYAN = 6
-    COLOR_WHITE = 7
-    A_BOLD = 0
-    A_DIM = 0
-    error = Exception
-    KEY_LEFT = 261
-    KEY_DOWN = 258
-    KEY_UP = 259
-    KEY_RIGHT = 260
-
-    def curs_set(self, *_):  # noqa: E704
-        pass
-    def start_color(self):  # noqa: E704
-        pass
-    def use_default_colors(self):  # noqa: E704
-        pass
-    def init_pair(self, *_):  # noqa: E704
-        pass
-    def nodelay(self, *_):  # noqa: E704
-        pass
-    def keypad(self, *_):  # noqa: E704
-        pass
-    def timeout(self, *_):  # noqa: E704
-        pass
-    def wrapper(self, func):  # noqa: E704
-        return func
-    def color_pair(self, n):  # noqa: E704
-        return 0
-
-
-# Patch curses before importing dungeon_crawler
-_fake = _FakeCurses()
-sys.modules['curses'] = _fake
 from dungeon_crawler import (
     Game, Player,
     create_dungeon, place_entities, compute_fov,
     ITEM_PROPS,
     MAP_WIDTH, MAP_HEIGHT, MAX_SCREEN_X, MAX_SCREEN_Y,
     MAX_DEPTH, TICK_PLAYER_REST,
+    COLOR_YELLOW, COLOR_GREEN, COLOR_CYAN, COLOR_MAGENTA, COLOR_RED,
 )
-# Restore real curses
-import curses as _real_curses
-sys.modules['curses'] = _real_curses
 
 
 class GameServer:
     """Thread-safe wrapper around the game state."""
 
     PLAYER_COLORS = [
-        _FakeCurses.COLOR_YELLOW,
-        _FakeCurses.COLOR_GREEN,
-        _FakeCurses.COLOR_CYAN,
-        _FakeCurses.COLOR_MAGENTA,
-        _FakeCurses.COLOR_RED,
+        COLOR_YELLOW,
+        COLOR_GREEN,
+        COLOR_CYAN,
+        COLOR_MAGENTA,
+        COLOR_RED,
     ]
 
     def __init__(self):
@@ -87,9 +42,8 @@ class GameServer:
         self._init_game()
 
     def _init_game(self):
-        """Initialize game with a dummy curses screen."""
-        fake_curses = _FakeCurses()
-        self.game = Game(fake_curses)
+        """Initialize game in headless mode."""
+        self.game = Game()
         self.game.tick = 0
         # Remove auto-created players
         self.game.players = []
