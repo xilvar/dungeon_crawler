@@ -40,6 +40,7 @@ class GameServer:
         self.running = False
         self.clients = {}
         self.inactive_players = []
+        self._next_id = 0
         self._init_game()
 
     def _init_game(self):
@@ -105,32 +106,36 @@ class GameServer:
                 p.dead = False
                 p.hp = p.max_hp
                 g.players.append(p)
-                idx = len(g.players) - 1
+                pid = p._server_id
             else:
-                idx = len(g.players)
-                color = self.PLAYER_COLORS[idx % len(self.PLAYER_COLORS)]
+                pid = self._next_id
+                self._next_id += 1
+                color = self.PLAYER_COLORS[pid % len(self.PLAYER_COLORS)]
                 sx, sy = self._random_floor_pos(g.dungeon)
                 p = Player(
-                    f"Hero{idx + 1}", "@",
+                    f"Hero{pid + 1}", "@",
                     sx, sy,
                     color)
+                p._server_id = pid
                 g.players.append(p)
-            self.clients[idx] = p
+            self.clients[pid] = p
             self._update_visibility(g)
-            return {"client_id": idx, "player_id": idx}
+            return {"client_id": pid, "player_id": pid}
 
     def deregister_player(self, player_id):
         with self.lock:
             g = self.game
-            if player_id < len(g.players):
-                p = g.players[player_id]
-                # Store player data for potential rejoin
-                self.inactive_players.append(p)
-                # Remove from active players
-                g.players.pop(player_id)
-                # Update visibility
+            target = None
+            target_idx = None
+            for i, pl in enumerate(g.players):
+                if pl._server_id == player_id:
+                    target = pl
+                    target_idx = i
+                    break
+            if target is not None:
+                self.inactive_players.append(target)
+                g.players.pop(target_idx)
                 self._update_visibility(g)
-                # Remove from clients
                 self.clients.pop(player_id, None)
                 return {"ok": True}
             return {"error": "player not found"}
@@ -155,12 +160,20 @@ class GameServer:
                     "game_win": False,
                     "max_depth": MAX_DEPTH,
                 }
-            pid = min(player_id, len(g.players) - 1)
-            p = g.players[pid]
+            target = None
+            target_idx = None
+            for i, pl in enumerate(g.players):
+                if pl._server_id == player_id:
+                    target = pl
+                    target_idx = i
+                    break
+            if target is None:
+                target_idx = 0
+                target = g.players[target_idx]
             view_h = MAX_SCREEN_Y - 4
             view_w = MAX_SCREEN_X
-            start_x = max(0, min(p.x - view_w // 2, MAP_WIDTH - view_w))
-            start_y = max(0, min(p.y - view_h // 2, MAP_HEIGHT - view_h))
+            start_x = max(0, min(target.x - view_w // 2, MAP_WIDTH - view_w))
+            start_y = max(0, min(target.y - view_h // 2, MAP_HEIGHT - view_h))
 
             chars = []
             for sy in range(view_h):
@@ -168,10 +181,10 @@ class GameServer:
                 for sx in range(view_w):
                     mx = sx + start_x
                     my = sy + start_y
-                    row.append(g.get_char_at(mx, my, pid))
+                    row.append(g.get_char_at(mx, my, target_idx))
                 chars.append(''.join(row))
 
-            p_visible = g.player_visible[pid] if 0 <= pid < len(g.player_visible) else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+            p_visible = g.player_visible[target_idx] if 0 <= target_idx < len(g.player_visible) else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
             enemies = []
             for e in g.enemies:
                 if e["hp"] > 0 and p_visible[e["y"]][e["x"]]:
@@ -194,7 +207,7 @@ class GameServer:
             for pl in g.players:
                 visible_to_me = p_visible[pl.y][pl.x]
                 ps = {
-                    "id": g.players.index(pl),
+                    "id": pl._server_id,
                     "name": pl.name, "char": pl.char,
                     "color": pl.color,
                     "x": pl.x, "y": pl.y,
@@ -238,9 +251,16 @@ class GameServer:
     def send_action(self, player_id, action):
         with self.lock:
             g = self.game
-            if player_id >= len(g.players) or g.players[player_id].dead:
+            target_idx = None
+            for i, pl in enumerate(g.players):
+                if pl._server_id == player_id:
+                    target_idx = i
+                    if pl.dead:
+                        return {"error": "invalid player"}
+                    break
+            if target_idx is None:
                 return {"error": "invalid player"}
-            g.queue_player_action(player_id, action)
+            g.queue_player_action(target_idx, action)
             return {"ok": True}
 
 
