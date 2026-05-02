@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from dungeon_crawler import (
     Game, Player,
     create_dungeon, place_entities, compute_fov,
-    ITEM_PROPS,
+    ITEM_PROPS, TILE_WALL,
     MAP_WIDTH, MAP_HEIGHT, MAX_SCREEN_X, MAX_SCREEN_Y,
     MAX_DEPTH, TICK_PLAYER_REST,
     COLOR_YELLOW, COLOR_GREEN, COLOR_CYAN, COLOR_MAGENTA, COLOR_RED,
@@ -73,57 +73,50 @@ class GameServer:
     def stop(self):
         self.running = False
 
+    @staticmethod
+    def _random_floor_pos(dungeon):
+        """Pick a random floor tile from the dungeon."""
+        positions = []
+        for y in range(MAP_HEIGHT):
+            for x in range(MAP_WIDTH):
+                if dungeon[y][x] != TILE_WALL:
+                    positions.append((x, y))
+        if not positions:
+            return 10, 10
+        return random.choice(positions)
+
+    def _update_visibility(self, g):
+        """Recompute combined visibility from all alive players."""
+        g.visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+        for pl in g.players:
+            if not pl.dead:
+                fov = compute_fov(g.dungeon, pl.x, pl.y, 8)
+                for y in range(MAP_HEIGHT):
+                    for x in range(MAP_WIDTH):
+                        if fov[y][x]:
+                            g.visible[y][x] = True
+
     def register_player(self):
         with self.lock:
             g = self.game
-            # Check if this player has inactive data to restore
             inactive = self.inactive_players.pop(0) if self.inactive_players else None
             if inactive:
-                # Restore player data
                 p = inactive
                 p.dead = False
                 p.hp = p.max_hp
-                p.x = g.players[0].x + 1 if g.players else 10
-                p.y = g.players[0].y if g.players else 10
                 g.players.append(p)
                 idx = len(g.players) - 1
             else:
                 idx = len(g.players)
                 color = self.PLAYER_COLORS[idx % len(self.PLAYER_COLORS)]
-                if idx == 0:
-                    # First player spawns at dungeon start
-                    start_x = 10
-                    start_y = 10
-                    for y in range(MAP_HEIGHT):
-                        for x in range(MAP_WIDTH):
-                            if g.dungeon[y][x] != 0:
-                                start_x, start_y = x, y
-                                break
-                        if start_x != 10:
-                            break
-                    p = Player(
-                        f"Hero{idx + 1}", "@",
-                        start_x, start_y,
-                        color)
-                    g.players.append(p)
-                    g.visible = compute_fov(g.dungeon, start_x, start_y, 8)
-                else:
-                    # Subsequent players spawn next to first player
-                    p = Player(
-                        f"Hero{idx + 1}", "@",
-                        g.players[0].x + 1, g.players[0].y,
-                        color)
-                    g.players.append(p)
-                    # Update visibility
-                    g.visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
-                    for pl in g.players:
-                        if not pl.dead:
-                            fov = compute_fov(g.dungeon, pl.x, pl.y, 8)
-                            for y in range(MAP_HEIGHT):
-                                for x in range(MAP_WIDTH):
-                                    if fov[y][x]:
-                                        g.visible[y][x] = True
+                sx, sy = self._random_floor_pos(g.dungeon)
+                p = Player(
+                    f"Hero{idx + 1}", "@",
+                    sx, sy,
+                    color)
+                g.players.append(p)
             self.clients[idx] = p
+            self._update_visibility(g)
             return {"client_id": idx, "player_id": idx}
 
     def deregister_player(self, player_id):
@@ -136,15 +129,7 @@ class GameServer:
                 # Remove from active players
                 g.players.pop(player_id)
                 # Update visibility
-                if g.players:
-                    g.visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
-                    for pl in g.players:
-                        if not pl.dead:
-                            fov = compute_fov(g.dungeon, pl.x, pl.y, 8)
-                            for y in range(MAP_HEIGHT):
-                                for x in range(MAP_WIDTH):
-                                    if fov[y][x]:
-                                        g.visible[y][x] = True
+                self._update_visibility(g)
                 # Remove from clients
                 self.clients.pop(player_id, None)
                 return {"ok": True}
