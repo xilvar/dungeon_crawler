@@ -3,12 +3,14 @@
 Dungeon Crawler Server - runs the game and exposes a REST API.
 """
 import json
+import random
 import threading
 import http.server
 import socketserver
 import sys
+import os
 
-sys.path.insert(0, '/Users/xilvar/src/test')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 class _FakeCurses:
@@ -54,7 +56,8 @@ class _FakeCurses:
 _fake = _FakeCurses()
 sys.modules['curses'] = _fake
 from dungeon_crawler import (
-    Game,
+    Game, Player,
+    create_dungeon, place_entities, compute_fov,
     ITEM_PROPS,
     MAP_WIDTH, MAP_HEIGHT, MAX_SCREEN_X, MAX_SCREEN_Y,
     MAX_DEPTH, TICK_PLAYER_REST,
@@ -67,10 +70,20 @@ sys.modules['curses'] = _real_curses
 class GameServer:
     """Thread-safe wrapper around the game state."""
 
+    PLAYER_COLORS = [
+        _FakeCurses.COLOR_YELLOW,
+        _FakeCurses.COLOR_GREEN,
+        _FakeCurses.COLOR_CYAN,
+        _FakeCurses.COLOR_MAGENTA,
+        _FakeCurses.COLOR_RED,
+    ]
+
     def __init__(self):
         self.lock = threading.Lock()
         self.game = None
         self.running = False
+        self.clients = {}
+        self.inactive_players = []
         self._init_game()
 
     def _init_game(self):
@@ -78,6 +91,16 @@ class GameServer:
         fake_curses = _FakeCurses()
         self.game = Game(fake_curses)
         self.game.tick = 0
+        # Remove auto-created players
+        self.game.players = []
+        # Create a default dungeon for player 1
+        self.game.dungeon, rooms = create_dungeon(0)
+        self.game.explored = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+        _, _, self.game.enemies, self.game.items = \
+            place_entities(rooms, self.game.dungeon, 0)
+        # Initialize enemy ticks
+        for e in self.game.enemies:
+            e["next_tick"] = random.randint(0, 99)
 
     def start(self):
         self.running = True
@@ -94,11 +117,103 @@ class GameServer:
     def stop(self):
         self.running = False
 
+    def register_player(self):
+        with self.lock:
+            g = self.game
+            # Check if this player has inactive data to restore
+            inactive = self.inactive_players.pop(0) if self.inactive_players else None
+            if inactive:
+                # Restore player data
+                p = inactive
+                p.dead = False
+                p.hp = p.max_hp
+                p.x = g.players[0].x + 1 if g.players else 10
+                p.y = g.players[0].y if g.players else 10
+                g.players.append(p)
+                idx = len(g.players) - 1
+            else:
+                idx = len(g.players)
+                color = self.PLAYER_COLORS[idx % len(self.PLAYER_COLORS)]
+                if idx == 0:
+                    # First player spawns at dungeon start
+                    start_x = 10
+                    start_y = 10
+                    for y in range(MAP_HEIGHT):
+                        for x in range(MAP_WIDTH):
+                            if g.dungeon[y][x] != 0:
+                                start_x, start_y = x, y
+                                break
+                        if start_x != 10:
+                            break
+                    p = Player(
+                        f"Hero{idx + 1}", "@",
+                        start_x, start_y,
+                        color)
+                    g.players.append(p)
+                    g.visible = compute_fov(g.dungeon, start_x, start_y, 8)
+                else:
+                    # Subsequent players spawn next to first player
+                    p = Player(
+                        f"Hero{idx + 1}", "@",
+                        g.players[0].x + 1, g.players[0].y,
+                        color)
+                    g.players.append(p)
+                    # Update visibility
+                    g.visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+                    for pl in g.players:
+                        if not pl.dead:
+                            fov = compute_fov(g.dungeon, pl.x, pl.y, 8)
+                            for y in range(MAP_HEIGHT):
+                                for x in range(MAP_WIDTH):
+                                    if fov[y][x]:
+                                        g.visible[y][x] = True
+            self.clients[idx] = p
+            return {"client_id": idx, "player_id": idx}
+
+    def deregister_player(self, player_id):
+        with self.lock:
+            g = self.game
+            if player_id < len(g.players):
+                p = g.players[player_id]
+                # Store player data for potential rejoin
+                self.inactive_players.append(p)
+                # Remove from active players
+                g.players.pop(player_id)
+                # Update visibility
+                if g.players:
+                    g.visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+                    for pl in g.players:
+                        if not pl.dead:
+                            fov = compute_fov(g.dungeon, pl.x, pl.y, 8)
+                            for y in range(MAP_HEIGHT):
+                                for x in range(MAP_WIDTH):
+                                    if fov[y][x]:
+                                        g.visible[y][x] = True
+                # Remove from clients
+                self.clients.pop(player_id, None)
+                return {"ok": True}
+            return {"error": "player not found"}
+
     def get_state(self):
         with self.lock:
             g = self.game
             if not g.players:
-                return {"error": "no game"}
+                return {
+                    "tick": g.tick,
+                    "depth": g.depth,
+                    "view_h": MAX_SCREEN_Y - 4,
+                    "view_w": MAX_SCREEN_X,
+                    "start_x": 0,
+                    "start_y": 0,
+                    "map": [" " * MAX_SCREEN_X for _ in range(MAX_SCREEN_Y - 4)],
+                    "players": [],
+                    "enemies": [],
+                    "items": [],
+                    "messages": [("Waiting for players...", 7)],
+                    "game_over": False,
+                    "game_win": False,
+                    "max_depth": MAX_DEPTH,
+                }
             p = g.players[0]
             view_h = MAX_SCREEN_Y - 4
             view_w = MAX_SCREEN_X
@@ -225,6 +340,26 @@ class GameHandler(http.server.BaseHTTPRequestHandler):
             pid = data.get("player_id", 0)
             action = data.get("action", {})
             result = self.server_side.send_action(pid, action)
+            self._send_json(result)
+        elif self.path == '/register':
+            if self.server_side is None:
+                self._send_json({"error": "no server"}, 500)
+                return
+            result = self.server_side.register_player()
+            self._send_json(result)
+        elif self.path == '/deregister':
+            if self.server_side is None:
+                self._send_json({"error": "no server"}, 500)
+                return
+            length = int(self.headers.get('Content-Length', 0))
+            raw = self.rfile.read(length)
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                self._send_json({"error": "bad json"}, 400)
+                return
+            pid = data.get("player_id", 0)
+            result = self.server_side.deregister_player(pid)
             self._send_json(result)
         else:
             self._send_json({"error": "not found"}, 404)

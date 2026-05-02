@@ -66,7 +66,37 @@ def send_action(url, player_id, action):
         return {"error": "connection failed"}
 
 
-def render(stdscr, state):
+def register(url):
+    """Register a new player on the server."""
+    data = json.dumps({}).encode()
+    req = urllib.request.Request(
+        url + '/register',
+        data=data,
+        headers={'Content-Type': 'application/json'},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            return json.loads(resp.read())
+    except Exception:
+        return {"error": "connection failed"}
+
+
+def deregister(url, player_id):
+    """Deregister a player from the server."""
+    data = json.dumps({"player_id": player_id}).encode()
+    req = urllib.request.Request(
+        url + '/deregister',
+        data=data,
+        headers={'Content-Type': 'application/json'},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            return json.loads(resp.read())
+    except Exception:
+        return {"error": "connection failed"}
+
+
+def render(stdscr, state, my_player_id):
     """Render the game state to the terminal."""
     stdscr.erase()
     max_y, max_x = stdscr.getmaxyx()
@@ -114,28 +144,34 @@ def render(stdscr, state):
             except curses.error:
                 pass
 
-    # Player status bars
-    for i, pl in enumerate(players):
-        row = view_h + i
-        if row >= max_y - 1:
+    # Find my player
+    my_player = None
+    for pl in players:
+        if pl["id"] == my_player_id:
+            my_player = pl
             break
-        dead = " [DEAD]" if pl["dead"] else ""
-        resting = ""
-        if pl.get("resting"):
-            remaining = pl.get("rest_remaining", 0)
-            total = pl.get("rest_total", 200)
-            resting = f" | Resting ({total - remaining}/{total})"
-        bar = (f"{pl['name']} | Lv{pl['level']} | HP {pl['hp']}/{pl['max_hp']} | "
-               f"ATK {pl['attack']} | DEF {pl['defense']} | "
-               f"XP {pl['xp']}/{pl['next_level_xp']} | Gold {pl['gold']}"
-               f"{dead}{resting}")
-        try:
-            stdscr.addstr(row, 0, bar.ljust(max_x)[:max_x])
-        except curses.error:
-            pass
+    if my_player is None:
+        return
+
+    # Player status bar
+    dead = " [DEAD]" if my_player["dead"] else ""
+    resting = ""
+    if my_player.get("resting"):
+        remaining = my_player.get("rest_remaining", 0)
+        total = my_player.get("rest_total", 200)
+        resting = f" | Resting ({total - remaining}/{total})"
+    bar = (f"{my_player['name']} | Lv{my_player['level']} | "
+           f"HP {my_player['hp']}/{my_player['max_hp']} | "
+           f"ATK {my_player['attack']} | DEF {my_player['defense']} | "
+           f"XP {my_player['xp']}/{my_player['next_level_xp']} | "
+           f"Gold {my_player['gold']}{dead}{resting}")
+    try:
+        stdscr.addstr(view_h, 0, bar.ljust(max_x)[:max_x])
+    except curses.error:
+        pass
 
     # Messages
-    msg_row = view_h + len(players)
+    msg_row = view_h + 1
     if msg_row < max_y - 1:
         for j, msg in enumerate(messages[-1:]):
             row = msg_row + j
@@ -149,7 +185,8 @@ def render(stdscr, state):
     depth = state.get("depth", 0)
     max_depth = state.get("max_depth", 10)
     help_text = (
-        "P1:Arrows  P2:WASD  >:Down  <:Up  g/G:Grab  /*:Rest  "
+        f"You: {my_player['name']}  "
+        f">:Down  <:Up  g:Grab  /:Rest  "
         f"Depth {depth + 1}/{max_depth}  q:Quit"
     )
     try:
@@ -188,6 +225,12 @@ def main(stdscr):
     port = sys.argv[2] if len(sys.argv) > 2 else str(DEFAULT_PORT)
     url = f"http://{host}:{port}"
 
+    result = register(url)
+    if "error" in result:
+        print(f"Failed to register: {result['error']}")
+        return
+    player_id = result["player_id"]
+
     while True:
         try:
             state = fetch_state(url)
@@ -203,11 +246,12 @@ def main(stdscr):
                 "game_over": False, "game_win": False,
             }
 
-        render(stdscr, state)
+        render(stdscr, state, player_id)
 
         if state.get("game_over") or state.get("game_win"):
             key = stdscr.getch()
             if key in (ord('q'), ord('Q'), 27):
+                deregister(url, player_id)
                 break
             continue
 
@@ -216,26 +260,20 @@ def main(stdscr):
             continue
 
         if key in (ord('q'), ord('Q'), 27):
+            deregister(url, player_id)
             break
 
         if key in P1_MOVES and key in ACTION_MAP:
             dx, dy = ACTION_MAP[key]
-            send_action(url, 0, {"type": "move", "dx": dx, "dy": dy})
-        elif key in (ord('a'), ord('s'), ord('w'), ord('d')):
-            dx, dy = ACTION_MAP[key]
-            send_action(url, 1, {"type": "move", "dx": dx, "dy": dy})
+            send_action(url, player_id, {"type": "move", "dx": dx, "dy": dy})
         elif key in (ord('>'), ord('=')):
-            send_action(url, 0, {"type": "stairs_down"})
+            send_action(url, player_id, {"type": "stairs_down"})
         elif key in (ord('<'), ord('-')):
-            send_action(url, 0, {"type": "stairs_up"})
+            send_action(url, player_id, {"type": "stairs_up"})
         elif key in (ord('g'),):
-            send_action(url, 0, {"type": "grab"})
-        elif key in (ord('G'),):
-            send_action(url, 1, {"type": "grab"})
+            send_action(url, player_id, {"type": "grab"})
         elif key in (ord('/'),):
-            send_action(url, 0, {"type": "rest"})
-        elif key in (ord('*'),):
-            send_action(url, 1, {"type": "rest"})
+            send_action(url, player_id, {"type": "rest"})
 
 
 if __name__ == "__main__":
