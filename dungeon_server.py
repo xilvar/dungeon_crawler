@@ -181,6 +181,8 @@ class GameServer:
 
             items = []
             for it in g._get_items(depth):
+                if not p_visible[it["y"]][it["x"]]:
+                    continue
                 items.append({
                     "x": it["x"], "y": it["y"],
                     "kind": it["kind"],
@@ -190,6 +192,8 @@ class GameServer:
             player_stats = []
             for pl in g.players:
                 visible_to_me = p_visible[pl.y][pl.x] if pl.depth == depth else False
+                if not visible_to_me:
+                    continue
                 ps = {
                     "id": pl._server_id,
                     "name": pl.name, "char": pl.char,
@@ -203,7 +207,7 @@ class GameServer:
                     "gold": pl.gold, "dead": pl.dead,
                     "weapon_bonus": pl.weapon_bonus,
                     "armor_bonus": pl.armor_bonus,
-                    "visible": visible_to_me,
+                    "visible": True,
                 }
                 if pl.rest_end_tick and g.tick < pl.rest_end_tick:
                     remaining = pl.rest_end_tick - g.tick
