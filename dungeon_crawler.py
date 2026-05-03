@@ -507,20 +507,26 @@ class Game:
                         explored_grid[y][x] = True
 
     def _tell(self, player, text, color=COLOR_WHITE):
-        """Send a message to a specific player."""
-        player.messages.append((text, color))
+        """Send a message to a specific player, resolving {name} to 'You'."""
+        resolved = text.replace("{name}", "You")
+        player.messages.append((resolved, color))
         if len(player.messages) > MAX_MSGS:
             player.messages.pop(0)
 
-    def _broadcast(self, x, y, depth, text, color=COLOR_WHITE):
-        """Send a message to all alive players on the same depth who can see (x, y)."""
+    def _broadcast(self, x, y, depth, text, color=COLOR_WHITE, subject=None):
+        """Send a message to all alive players on the same depth who can see (x, y).
+        Resolves {name} to 'You' for the subject player, actual name for others."""
         dungeon = self._get_dungeon(depth)
         for p in self.players:
             if p.dead or p.depth != depth:
                 continue
             fov = compute_fov(dungeon, p.x, p.y, FOV_RADIUS)
             if fov[y][x]:
-                p.messages.append((text, color))
+                if subject and p is subject:
+                    resolved = text.replace("{name}", "You")
+                else:
+                    resolved = text.replace("{name}", subject.name if subject else "")
+                p.messages.append((resolved, color))
                 if len(p.messages) > MAX_MSGS:
                     p.messages.pop(0)
 
@@ -600,7 +606,7 @@ class Game:
             enemy["name"], enemy["defense"])
         enemy["hp"] -= damage
         self._broadcast(enemy["x"], enemy["y"], player.depth,
-                        f"{player.name} hits the {enemy['name']} for {damage} damage!", COLOR_WHITE)
+                        f"{{name}} hits the {enemy['name']} for {damage} damage!", COLOR_WHITE, subject=player)
         if enemy["hp"] <= 0:
             self._broadcast(enemy["x"], enemy["y"], player.depth,
                             f"The {enemy['name']} dies!", COLOR_RED)
@@ -617,7 +623,7 @@ class Game:
             player.defense += 1
             player.next_level_xp = int(player.next_level_xp * 1.5)
             self._broadcast(player.x, player.y, player.depth,
-                            f"{player.name} is now level {player.level}!", COLOR_YELLOW)
+                            f"{{name}} is now level {player.level}!", COLOR_YELLOW, subject=player)
 
     def _process_tick(self):
         if self.game_over:
@@ -681,13 +687,13 @@ class Game:
                 target.name, target.defense_total(), 1)
             target.hp -= damage
             self._broadcast(target.x, target.y, depth,
-                            f"The {enemy['name']} hits {target.name} for {damage} damage!", enemy["color"])
+                            f"The {enemy['name']} hits {{name}} for {damage} damage!", enemy["color"], subject=target)
             enemy["next_tick"] = self.tick + TICK_ATTACK
             if target.hp <= 0:
                 target.hp = 0
                 target.dead = True
                 self._broadcast(target.x, target.y, depth,
-                                f"{target.name} has died!", COLOR_RED)
+                                "{name} has died!", COLOR_RED, subject=target)
                 alive = any(p and not p.dead and not p.game_win for p in self.players)
                 if not alive:
                     self.game_over = True
@@ -728,7 +734,7 @@ class Game:
             new_depth = player.depth + 1
             if new_depth >= MAX_DEPTH:
                 self._broadcast(player.x, player.y, player.depth,
-                                f"{player.name} has conquered the dungeon!", COLOR_YELLOW)
+                                "{name} has conquered the dungeon!", COLOR_YELLOW, subject=player)
                 player.game_win = True
                 return
             self._ensure_level(new_depth)
@@ -738,9 +744,9 @@ class Game:
             player.x, player.y = stairs_up_x, stairs_up_y
             self._ensure_player_explored(player)
             self._broadcast(old_x, old_y, old_depth,
-                            f"{player.name} descends deeper. (Depth: {new_depth + 1})", COLOR_CYAN)
+                            f"{{name}} descends deeper. (Depth: {new_depth + 1})", COLOR_CYAN, subject=player)
         else:
-            self._tell(player, f"{player.name}: no stairs down here.", COLOR_CYAN)
+            self._tell(player, "{name}: no stairs down here.", COLOR_CYAN)
 
     def _do_go_up_stairs(self, player):
         dungeon = self._get_dungeon(player.depth)
@@ -754,35 +760,35 @@ class Game:
                 player.x, player.y = stairs_down_x, stairs_down_y
                 self._ensure_player_explored(player)
                 self._broadcast(old_x, old_y, old_depth,
-                                f"{player.name} goes back up. (Depth: {new_depth + 1})", COLOR_CYAN)
+                                f"{{name}} goes back up. (Depth: {new_depth + 1})", COLOR_CYAN, subject=player)
             else:
-                self._tell(player, f"{player.name}: can't go up further.", COLOR_CYAN)
+                self._tell(player, "{name}: can't go up further.", COLOR_CYAN)
         else:
-            self._tell(player, f"{player.name}: no stairs up here.", COLOR_CYAN)
+            self._tell(player, "{name}: no stairs up here.", COLOR_CYAN)
 
     def _do_grab_item(self, player):
         idx, item = self.get_item_at(player.x, player.y, player.depth)
         if item is None:
-            self._tell(player, f"{player.name}: nothing to grab here.", COLOR_CYAN)
+            self._tell(player, "{name}: nothing to grab here.", COLOR_CYAN)
             return
         kind = item["kind"]
         if kind == ITEM_POTION:
             heal = random.randint(5, 10)
             player.hp = min(player.hp + heal, player.max_hp)
             self._broadcast(player.x, player.y, player.depth,
-                            f"{player.name} drinks a potion. Recovered {heal} HP.", COLOR_RED)
+                            f"{{name}} drinks a potion. Recovered {heal} HP.", COLOR_RED, subject=player)
         elif kind == ITEM_SWORD:
             player.weapon_bonus += item["bonus"]
             self._broadcast(player.x, player.y, player.depth,
-                            f"{player.name} equips a sword (+{item['bonus']} attack).", COLOR_WHITE)
+                            f"{{name}} equips a sword (+{item['bonus']} attack).", COLOR_WHITE, subject=player)
         elif kind == ITEM_SHIELD:
             player.armor_bonus += item["bonus"]
             self._broadcast(player.x, player.y, player.depth,
-                            f"{player.name} equips a shield (+{item['bonus']} defense).", COLOR_CYAN)
+                            f"{{name}} equips a shield (+{item['bonus']} defense).", COLOR_CYAN, subject=player)
         elif kind == ITEM_GOLD:
             player.gold += item["value"]
             self._broadcast(player.x, player.y, player.depth,
-                            f"{player.name} picks up {item['value']} gold.", COLOR_YELLOW)
+                            f"{{name}} picks up {item['value']} gold.", COLOR_YELLOW, subject=player)
         self._get_items(player.depth).pop(idx)
 
     def _do_rest(self, player):
@@ -792,10 +798,10 @@ class Game:
         if player.hp < player.max_hp:
             player.hp += 1
             self._broadcast(player.x, player.y, player.depth,
-                            f"{player.name} rests for a moment. (+1 HP)", COLOR_GREEN)
+                            "{name} rests for a moment. (+1 HP)", COLOR_GREEN, subject=player)
         else:
             self._broadcast(player.x, player.y, player.depth,
-                            f"{player.name} rests for a moment.", COLOR_GREEN)
+                            "{name} rests for a moment.", COLOR_GREEN, subject=player)
         chance = 0.05 * player._consecutive_waits + 0.02 * player.depth
         chance = min(chance, 0.7)
         if random.random() < chance:
