@@ -191,7 +191,10 @@ class GameServer:
 
             player_stats = []
             for pl in g.players:
-                visible_to_me = p_visible[pl.y][pl.x] if pl.depth == depth else False
+                if pl is target:
+                    visible_to_me = True
+                else:
+                    visible_to_me = p_visible[pl.y][pl.x] if pl.depth == depth else False
                 if not visible_to_me:
                     continue
                 ps = {
@@ -221,6 +224,7 @@ class GameServer:
             messages = [(m[0], m[1]) for m in target.messages[-3:]]
 
             game_win = target.game_win
+            game_over = target.dead
             return {
                 "tick": g.tick,
                 "depth": depth,
@@ -233,7 +237,7 @@ class GameServer:
                 "enemies": enemies,
                 "items": items,
                 "messages": messages,
-                "game_over": g.game_over,
+                "game_over": game_over,
                 "game_win": game_win,
                 "max_depth": MAX_DEPTH,
             }
