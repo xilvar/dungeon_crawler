@@ -407,6 +407,7 @@ class Player:
         self.rest_progress_shown = 0
         self.dead = False
         self.game_win = False
+        self.messages = []
         # Per-depth explored grids: {depth: 2D boolean grid}
         self.explored = {}
 
@@ -420,9 +421,7 @@ class Player:
 # --- Game State ---
 class Game:
     def __init__(self):
-        self.messages = []
         self.game_over = False
-        self.message_log = []
         self.players = []
         self.levels = {}
         self.tick = 0
@@ -509,10 +508,23 @@ class Game:
                     if p_visible[y][x]:
                         explored_grid[y][x] = True
 
-    def msg(self, text, color=COLOR_WHITE):
-        self.message_log.append((text, color))
-        if len(self.message_log) > MAX_MSGS:
-            self.message_log.pop(0)
+    def _tell(self, player, text, color=COLOR_WHITE):
+        """Send a message to a specific player."""
+        player.messages.append((text, color))
+        if len(player.messages) > MAX_MSGS:
+            player.messages.pop(0)
+
+    def _broadcast(self, x, y, depth, text, color=COLOR_WHITE):
+        """Send a message to all alive players on the same depth who can see (x, y)."""
+        dungeon = self._get_dungeon(depth)
+        for p in self.players:
+            if p.dead or p.depth != depth:
+                continue
+            fov = compute_fov(dungeon, p.x, p.y, FOV_RADIUS)
+            if fov[y][x]:
+                p.messages.append((text, color))
+                if len(p.messages) > MAX_MSGS:
+                    p.messages.pop(0)
 
     def is_passable(self, x, y, depth):
         if x < 0 or x >= MAP_WIDTH or y < 0 or y >= MAP_HEIGHT:
@@ -585,14 +597,15 @@ class Game:
             player.next_tick = self.tick + TICK_PLAYER_MOVE
 
     def _do_combat_attack(self, player, enemy):
-        self.consecutive_waits = 0
         damage = self.do_attack(
             player.name, player.attack_total(),
             enemy["name"], enemy["defense"])
         enemy["hp"] -= damage
-        self.msg(f"{player.name} hits the {enemy['name']} for {damage} damage!", COLOR_WHITE)
+        self._broadcast(enemy["x"], enemy["y"], player.depth,
+                        f"{player.name} hits the {enemy['name']} for {damage} damage!", COLOR_WHITE)
         if enemy["hp"] <= 0:
-            self.msg(f"The {enemy['name']} dies!", COLOR_RED)
+            self._broadcast(enemy["x"], enemy["y"], player.depth,
+                            f"The {enemy['name']} dies!", COLOR_RED)
             player.xp += enemy["xp"]
             self._check_level_up(player)
 
@@ -605,7 +618,7 @@ class Game:
             player.attack += 1
             player.defense += 1
             player.next_level_xp = int(player.next_level_xp * 1.5)
-            self.msg(f"{player.name} is now level {player.level}!", COLOR_YELLOW)
+            self._tell(player, f"{player.name} is now level {player.level}!", COLOR_YELLOW)
 
     def _process_tick(self):
         if self.game_over:
@@ -670,12 +683,14 @@ class Game:
                 enemy["name"], enemy["attack"],
                 target.name, target.defense_total(), 1)
             target.hp -= damage
-            self.msg(f"The {enemy['name']} hits {target.name} for {damage} damage!", enemy["color"])
+            self._broadcast(target.x, target.y, depth,
+                            f"The {enemy['name']} hits {target.name} for {damage} damage!", enemy["color"])
             enemy["next_tick"] = self.tick + TICK_ATTACK
             if target.hp <= 0:
                 target.hp = 0
                 target.dead = True
-                self.msg(f"{target.name} has died!", COLOR_RED)
+                self._broadcast(target.x, target.y, depth,
+                                f"{target.name} has died!", COLOR_RED)
                 alive = any(p and not p.dead and not p.game_win for p in self.players)
                 if not alive:
                     self.game_over = True
@@ -715,7 +730,7 @@ class Game:
         if dungeon[player.y][player.x] == TILE_STAIRS_DOWN:
             new_depth = player.depth + 1
             if new_depth >= MAX_DEPTH:
-                self.msg(f"{player.name}: You have conquered the dungeon!", COLOR_YELLOW)
+                self._tell(player, f"{player.name}: You have conquered the dungeon!", COLOR_YELLOW)
                 player.game_win = True
                 return
             self._ensure_level(new_depth)
@@ -723,9 +738,9 @@ class Game:
             player.depth = new_depth
             player.x, player.y = stairs_up_x, stairs_up_y
             self._ensure_player_explored(player)
-            self.msg(f"{player.name} descends deeper. (Depth: {new_depth + 1})", COLOR_CYAN)
+            self._tell(player, f"{player.name} descends deeper. (Depth: {new_depth + 1})", COLOR_CYAN)
         else:
-            self.msg(f"{player.name}: no stairs down here.", COLOR_CYAN)
+            self._tell(player, f"{player.name}: no stairs down here.", COLOR_CYAN)
 
     def _do_go_up_stairs(self, player):
         dungeon = self._get_dungeon(player.depth)
@@ -737,31 +752,31 @@ class Game:
                 player.depth = new_depth
                 player.x, player.y = stairs_down_x, stairs_down_y
                 self._ensure_player_explored(player)
-                self.msg(f"{player.name} goes back up. (Depth: {new_depth + 1})", COLOR_CYAN)
+                self._tell(player, f"{player.name} goes back up. (Depth: {new_depth + 1})", COLOR_CYAN)
             else:
-                self.msg(f"{player.name}: can't go up further.", COLOR_CYAN)
+                self._tell(player, f"{player.name}: can't go up further.", COLOR_CYAN)
         else:
-            self.msg(f"{player.name}: no stairs up here.", COLOR_CYAN)
+            self._tell(player, f"{player.name}: no stairs up here.", COLOR_CYAN)
 
     def _do_grab_item(self, player):
         idx, item = self.get_item_at(player.x, player.y, player.depth)
         if item is None:
-            self.msg(f"{player.name}: nothing to grab here.", COLOR_CYAN)
+            self._tell(player, f"{player.name}: nothing to grab here.", COLOR_CYAN)
             return
         kind = item["kind"]
         if kind == ITEM_POTION:
             heal = random.randint(5, 10)
             player.hp = min(player.hp + heal, player.max_hp)
-            self.msg(f"{player.name} drinks a potion. Recovered {heal} HP.", COLOR_RED)
+            self._tell(player, f"{player.name} drinks a potion. Recovered {heal} HP.", COLOR_RED)
         elif kind == ITEM_SWORD:
             player.weapon_bonus += item["bonus"]
-            self.msg(f"{player.name} equips a sword (+{item['bonus']} attack).", COLOR_WHITE)
+            self._tell(player, f"{player.name} equips a sword (+{item['bonus']} attack).", COLOR_WHITE)
         elif kind == ITEM_SHIELD:
             player.armor_bonus += item["bonus"]
-            self.msg(f"{player.name} equips a shield (+{item['bonus']} defense).", COLOR_CYAN)
+            self._tell(player, f"{player.name} equips a shield (+{item['bonus']} defense).", COLOR_CYAN)
         elif kind == ITEM_GOLD:
             player.gold += item["value"]
-            self.msg(f"{player.name} picks up {item['value']} gold.", COLOR_YELLOW)
+            self._tell(player, f"{player.name} picks up {item['value']} gold.", COLOR_YELLOW)
         self._get_items(player.depth).pop(idx)
 
     def _do_rest(self, player):
@@ -770,9 +785,9 @@ class Game:
         player._consecutive_waits += 1
         if player.hp < player.max_hp:
             player.hp += 1
-            self.msg(f"{player.name} rests for a moment. (+1 HP)", COLOR_GREEN)
+            self._tell(player, f"{player.name} rests for a moment. (+1 HP)", COLOR_GREEN)
         else:
-            self.msg(f"{player.name} rests for a moment.", COLOR_GREEN)
+            self._tell(player, f"{player.name} rests for a moment.", COLOR_GREEN)
         chance = 0.05 * player._consecutive_waits + 0.02 * player.depth
         chance = min(chance, 0.7)
         if random.random() < chance:
@@ -813,7 +828,7 @@ class Game:
                 "next_tick": self.tick + random.randint(0, 99),
             }
             self._get_enemies(depth).append(enemy)
-            self.msg(f"A {prop['name']} appears!", COLOR_RED)
+            self._broadcast(sx, sy, depth, f"A {prop['name']} appears!", COLOR_RED)
             return
 
     def get_char_at(self, mx, my, player_idx=0):
@@ -869,7 +884,7 @@ class Game:
                 row.append(self.get_char_at(mx, my))
             print(''.join(row))
 
-        for msg_text, _ in self.message_log[-3:]:
+        for msg_text, _ in self.players[0].messages[-3:]:
             print(msg_text[:view_w])
         print("P1:Arrows  P2:WASD  >:Down  <:Up  g/G:Grab  /*:Rest  q:Quit")
         print(f"{'=' * view_w}")

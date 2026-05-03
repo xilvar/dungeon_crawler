@@ -48,7 +48,6 @@ class GameServer:
         self.game = Game()
         self.game.tick = 0
         self.game.players = []
-        self.game.message_log = []
         self.game.player_visible = []
 
     def start(self):
@@ -220,7 +219,7 @@ class GameServer:
                     ps["resting"] = False
                 player_stats.append(ps)
 
-            messages = [(m[0], m[1]) for m in g.message_log[-3:]]
+            messages = [(m[0], m[1]) for m in target.messages[-3:]]
 
             game_win = target.game_win
             return {
