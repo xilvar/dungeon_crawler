@@ -5,9 +5,7 @@ Use arrow keys or WASD to move. Bump into enemies to attack.
 Press > or . to go down stairs. g to grab items.
 """
 
-import copy
 import random
-import sys
 
 # --- Constants ---
 # Color constants (match curses.COLOR_* values for compatibility)
@@ -624,14 +622,12 @@ class Game:
     def _process_tick(self):
         if self.game_over:
             return
-        any_action = False
         for i, player in enumerate(self.players):
             if player.dead or player.game_win:
                 continue
             if self.tick >= player.next_tick:
                 if player.queued_action is not None:
                     self.execute_player_action(i)
-                    any_action = True
                 else:
                     player.next_tick = self.tick + 1
         for depth in list(self.levels.keys()):
@@ -901,10 +897,11 @@ class Game:
         print("P1:Arrows  P2:WASD  >:Down  <:Up  g/G:Grab  /*:Rest  q:Quit")
         print(f"{'=' * view_w}")
 
+
 def run_text_mode():
     """Run a single frame in text mode for debugging."""
     game = Game()
-    level = game._init_level(0)
+    game._init_level(0)
     spawn_x, spawn_y = game.levels[0]["spawn_x"], game.levels[0]["spawn_y"]
     game.players = [
         Player("Hero1", "@", spawn_x, spawn_y, COLOR_YELLOW, 0),

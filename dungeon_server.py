@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from dungeon_crawler import (
     Game, Player,
-    create_dungeon, place_entities, compute_fov,
     ITEM_PROPS, TILE_WALL,
     MAP_WIDTH, MAP_HEIGHT, MAX_SCREEN_X, MAX_SCREEN_Y,
     MAX_DEPTH, TICK_PLAYER_REST,
