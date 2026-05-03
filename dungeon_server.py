@@ -47,17 +47,9 @@ class GameServer:
         """Initialize game in headless mode."""
         self.game = Game()
         self.game.tick = 0
-        # Clear auto-created players and stale state
         self.game.players = []
         self.game.message_log = []
         self.game.player_visible = []
-        # Create a default dungeon for player 1
-        self.game.dungeon, rooms = create_dungeon(0)
-        _, _, self.game.enemies, self.game.items = \
-            place_entities(rooms, self.game.dungeon, 0)
-        # Initialize enemy ticks
-        for e in self.game.enemies:
-            e["next_tick"] = random.randint(0, 99)
 
     def start(self):
         self.running = True
@@ -87,15 +79,8 @@ class GameServer:
         return random.choice(positions)
 
     def _update_visibility(self, g):
-        """Recompute combined visibility from all alive players."""
-        g.visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
-        for pl in g.players:
-            if not pl.dead:
-                fov = compute_fov(g.dungeon, pl.x, pl.y, 8)
-                for y in range(MAP_HEIGHT):
-                    for x in range(MAP_WIDTH):
-                        if fov[y][x]:
-                            g.visible[y][x] = True
+        """Recompute visibility from all alive players."""
+        g._update_visibility()
 
     def register_player(self):
         with self.lock:
@@ -104,18 +89,22 @@ class GameServer:
             if inactive:
                 p = inactive
                 p.dead = False
+                p.game_win = False
                 p.hp = p.max_hp
+                p.depth = 0
+                spawn_x, spawn_y = g.levels[0]["spawn_x"], g.levels[0]["spawn_y"]
+                p.x, p.y = spawn_x, spawn_y
                 g.players.append(p)
                 pid = p._server_id
             else:
                 pid = self._next_id
                 self._next_id += 1
                 color = self.PLAYER_COLORS[pid % len(self.PLAYER_COLORS)]
-                sx, sy = self._random_floor_pos(g.dungeon)
+                spawn_x, spawn_y = g.levels[0]["spawn_x"], g.levels[0]["spawn_y"]
                 p = Player(
                     f"Hero{pid + 1}", "@",
-                    sx, sy,
-                    color)
+                    spawn_x, spawn_y,
+                    color, depth=0)
                 p._server_id = pid
                 g.players.append(p)
             self.clients[pid] = p
@@ -146,7 +135,7 @@ class GameServer:
             if not g.players:
                 return {
                     "tick": g.tick,
-                    "depth": g.depth,
+                    "depth": 0,
                     "view_h": MAX_SCREEN_Y - 4,
                     "view_w": MAX_SCREEN_X,
                     "start_x": 0,
@@ -185,8 +174,9 @@ class GameServer:
                 chars.append(''.join(row))
 
             p_visible = g.player_visible[target_idx] if 0 <= target_idx < len(g.player_visible) else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+            depth = target.depth
             enemies = []
-            for e in g.enemies:
+            for e in g._get_enemies(depth):
                 if e["hp"] > 0 and p_visible[e["y"]][e["x"]]:
                     enemies.append({
                         "x": e["x"], "y": e["y"],
@@ -196,7 +186,7 @@ class GameServer:
                     })
 
             items = []
-            for it in g.items:
+            for it in g._get_items(depth):
                 items.append({
                     "x": it["x"], "y": it["y"],
                     "kind": it["kind"],
@@ -205,12 +195,13 @@ class GameServer:
 
             player_stats = []
             for pl in g.players:
-                visible_to_me = p_visible[pl.y][pl.x]
+                visible_to_me = p_visible[pl.y][pl.x] if pl.depth == depth else False
                 ps = {
                     "id": pl._server_id,
                     "name": pl.name, "char": pl.char,
                     "color": pl.color,
                     "x": pl.x, "y": pl.y,
+                    "depth": pl.depth,
                     "hp": pl.hp, "max_hp": pl.max_hp,
                     "level": pl.level, "attack": pl.attack_total(),
                     "defense": pl.defense_total(),
@@ -231,9 +222,10 @@ class GameServer:
 
             messages = [(m[0], m[1]) for m in g.message_log[-3:]]
 
+            game_win = target.game_win
             return {
                 "tick": g.tick,
-                "depth": g.depth,
+                "depth": depth,
                 "view_h": view_h,
                 "view_w": view_w,
                 "start_x": start_x,
@@ -244,7 +236,7 @@ class GameServer:
                 "items": items,
                 "messages": messages,
                 "game_over": g.game_over,
-                "game_win": g.game_win,
+                "game_win": game_win,
                 "max_depth": MAX_DEPTH,
             }
 

@@ -384,12 +384,13 @@ def _has_line_of_sight(map_grid, x0, y0, x1, y1):
 
 # --- Player ---
 class Player:
-    def __init__(self, name, char, x, y, color=COLOR_WHITE):
+    def __init__(self, name, char, x, y, color=COLOR_WHITE, depth=0):
         self.name = name
         self.char = char
         self.color = color
         self.x = x
         self.y = y
+        self.depth = depth
         self.hp = 30
         self.max_hp = 30
         self.attack = 5
@@ -405,6 +406,7 @@ class Player:
         self.rest_end_tick = None
         self.rest_progress_shown = 0
         self.dead = False
+        self.game_win = False
         # Per-depth explored grids: {depth: 2D boolean grid}
         self.explored = {}
 
@@ -418,93 +420,80 @@ class Player:
 # --- Game State ---
 class Game:
     def __init__(self):
-        self.depth = 0
         self.messages = []
         self.game_over = False
-        self.game_win = False
         self.message_log = []
         self.players = []
-        self.consecutive_waits = 0
         self.levels = {}
         self.tick = 0
 
-        self.new_dungeon()
+        self._init_level(0)
 
-    def _save_current_level(self):
-        """Save the current state of the level to cache."""
-        self.levels[self.depth] = {
-            "dungeon": copy.deepcopy(self.dungeon),
-            "enemies": copy.deepcopy(self.enemies),
-            "items": copy.deepcopy(self.items),
-            "players": copy.deepcopy(self.players),
-            "stairs_x": self.players[0].x,
-            "stairs_y": self.players[0].y,
+    def _get_dungeon(self, depth):
+        return self.levels[depth]["dungeon"]
+
+    def _get_enemies(self, depth):
+        return self.levels[depth]["enemies"]
+
+    def _get_items(self, depth):
+        return self.levels[depth]["items"]
+
+    def _get_stairs_down(self, depth):
+        return self.levels[depth]["stairs_down_x"], self.levels[depth]["stairs_down_y"]
+
+    def _get_stairs_up(self, depth):
+        return self.levels[depth]["stairs_up_x"], self.levels[depth]["stairs_up_y"]
+
+    def _ensure_level(self, depth):
+        """Ensure a level exists at the given depth, creating it if needed."""
+        if depth not in self.levels:
+            self._init_level(depth)
+
+    def _init_level(self, depth):
+        """Generate a new dungeon level at the given depth."""
+        dungeon, rooms = create_dungeon(depth)
+        px, py, enemies, items = place_entities(rooms, dungeon, depth)
+
+        start_room = rooms[0]
+        end_room = rooms[-1]
+
+        stairs_down_x, stairs_down_y = end_room.center_x, end_room.center_y
+
+        stairs_up_x = start_room.center_x
+        stairs_up_y = start_room.center_y
+        while stairs_up_x == px and stairs_up_y == py:
+            stairs_up_y += 1
+
+        if depth > 0:
+            dungeon[stairs_up_y][stairs_up_x] = TILE_STAIRS_UP
+
+        self.levels[depth] = {
+            "dungeon": dungeon,
+            "enemies": enemies,
+            "items": items,
+            "stairs_down_x": stairs_down_x,
+            "stairs_down_y": stairs_down_y,
+            "stairs_up_x": stairs_up_x,
+            "stairs_up_y": stairs_up_y,
+            "spawn_x": px,
+            "spawn_y": py,
         }
 
-    def _ensure_player_explored(self, player):
-        """Ensure a player has an explored grid for the current depth."""
-        if self.depth not in player.explored:
-            player.explored[self.depth] = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
-
-    def new_dungeon(self, from_stairs_up=False):
-        if self.depth in self.levels:
-            level = self.levels[self.depth]
-            self.dungeon = copy.deepcopy(level["dungeon"])
-            self.enemies = copy.deepcopy(level["enemies"])
-            self.items = copy.deepcopy(level["items"])
-            self.players = copy.deepcopy(level.get("players", []))
-        else:
-            self.dungeon, rooms = create_dungeon(self.depth)
-            px, py, self.enemies, self.items = place_entities(rooms, self.dungeon, self.depth)
-            if not self.players:
-                p1 = Player("Hero1", "@", px, py, COLOR_YELLOW)
-                p2 = Player("Hero2", "@", px + 1, py, COLOR_GREEN)
-                self.players = [p1, p2]
-            else:
-                for i, p in enumerate(self.players):
-                    p.x = px + i
-                    p.y = py
-                    p.dead = False
-            start_room = rooms[0]
-            ux = start_room.center_x
-            uy = start_room.center_y
-            if ux == self.players[0].x and uy == self.players[0].y:
-                uy = start_room.center_y + 1
-            if from_stairs_up and self.depth > 0:
-                self.dungeon[uy][ux] = TILE_STAIRS_DOWN
-            elif not from_stairs_up and self.depth > 0:
-                self.dungeon[uy][ux] = TILE_STAIRS_UP
-            self._save_current_level()
-        for e in self.enemies:
+        for e in enemies:
             e["next_tick"] = self.tick + random.randint(0, 99)
-        for p in self.players:
-            p.next_tick = self.tick + random.randint(0, 99)
-            p.queued_action = None
-            p.rest_end_tick = None
-            p.rest_progress_shown = 0
-            if p.dead:
-                p.dead = False
-                p.hp = p.max_hp
-            self._ensure_player_explored(p)
-        self._update_visibility()
-        self._update_explored()
-        self.consecutive_waits = 0
-        if not from_stairs_up:
-            self.msg(f"You descend into the dungeon. (Depth: {self.depth + 1})")
-        else:
-            self.msg(f"You go back up. (Depth: {self.depth + 1})")
+
+    def _ensure_player_explored(self, player):
+        """Ensure a player has an explored grid for their current depth."""
+        if player.depth not in player.explored:
+            player.explored[player.depth] = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
 
     def _update_visibility(self):
         self.player_visible = []
-        self.visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
         for p in self.players:
             if not p.dead:
-                fov = compute_fov(self.dungeon, p.x, p.y, FOV_RADIUS)
+                dungeon = self._get_dungeon(p.depth)
+                fov = compute_fov(dungeon, p.x, p.y, FOV_RADIUS)
                 self.player_visible.append(fov)
-                for y in range(MAP_HEIGHT):
-                    for x in range(MAP_WIDTH):
-                        if fov[y][x]:
-                            self.visible[y][x] = True
             else:
                 self.player_visible.append([[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
 
@@ -513,41 +502,35 @@ class Game:
             if p.dead:
                 continue
             self._ensure_player_explored(p)
-            explored_grid = p.explored[self.depth]
+            explored_grid = p.explored[p.depth]
             p_visible = self.player_visible[i]
             for y in range(MAP_HEIGHT):
                 for x in range(MAP_WIDTH):
                     if p_visible[y][x]:
                         explored_grid[y][x] = True
-        # Maintain combined explored for curses rendering
-        if not hasattr(self, '_combined_explored') or self._combined_explored is None:
-            self._combined_explored = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
-        for y in range(MAP_HEIGHT):
-            for x in range(MAP_WIDTH):
-                if self.visible[y][x]:
-                    self._combined_explored[y][x] = True
 
     def msg(self, text, color=COLOR_WHITE):
         self.message_log.append((text, color))
         if len(self.message_log) > MAX_MSGS:
             self.message_log.pop(0)
 
-    def is_passable(self, x, y):
+    def is_passable(self, x, y, depth):
         if x < 0 or x >= MAP_WIDTH or y < 0 or y >= MAP_HEIGHT:
             return False
-        tile = self.dungeon[y][x]
+        tile = self._get_dungeon(depth)[y][x]
         if tile == TILE_WALL:
             return False
         return True
 
-    def get_enemy_at(self, x, y):
-        for e in self.enemies:
+    def get_enemy_at(self, x, y, depth):
+        for e in self._get_enemies(depth):
             if e["x"] == x and e["y"] == y and e["hp"] > 0:
                 return e
         return None
 
-    def get_item_at(self, x, y):
-        for i, item in enumerate(self.items):
+    def get_item_at(self, x, y, depth):
+        items = self._get_items(depth)
+        for i, item in enumerate(items):
             if item["x"] == x and item["y"] == y:
                 return i, item
         return None, None
@@ -557,9 +540,12 @@ class Game:
         return damage
 
     def queue_player_action(self, player_idx, action):
-        if self.game_over or self.game_win:
+        if self.game_over:
             return
-        self.players[player_idx].queued_action = action
+        player = self.players[player_idx]
+        if player.game_win:
+            return
+        player.queued_action = action
 
     def execute_player_action(self, player_idx):
         player = self.players[player_idx]
@@ -575,12 +561,10 @@ class Game:
             player.next_tick = self.tick + TICK_MOVE
         elif action_type == "stairs_down":
             self._do_go_down_stairs(player)
-            for p in self.players:
-                p.next_tick = self.tick + TICK_MOVE
+            player.next_tick = self.tick + TICK_MOVE
         elif action_type == "stairs_up":
             self._do_go_up_stairs(player)
-            for p in self.players:
-                p.next_tick = self.tick + TICK_MOVE
+            player.next_tick = self.tick + TICK_MOVE
         elif action_type == "rest":
             self._do_rest(player)
             player.rest_end_tick = self.tick + TICK_PLAYER_REST
@@ -589,16 +573,15 @@ class Game:
 
     def _do_move(self, player, dx, dy):
         nx, ny = player.x + dx, player.y + dy
-        if not self.is_passable(nx, ny):
+        if not self.is_passable(nx, ny, player.depth):
             player.next_tick = self.tick + TICK_WAIT
             return
-        enemy = self.get_enemy_at(nx, ny)
+        enemy = self.get_enemy_at(nx, ny, player.depth)
         if enemy:
             self._do_combat_attack(player, enemy)
             player.next_tick = self.tick + TICK_ATTACK
         else:
             player.x, player.y = nx, ny
-            self.consecutive_waits = 0
             player.next_tick = self.tick + TICK_PLAYER_MOVE
 
     def _do_combat_attack(self, player, enemy):
@@ -625,11 +608,11 @@ class Game:
             self.msg(f"{player.name} is now level {player.level}!", COLOR_YELLOW)
 
     def _process_tick(self):
-        if self.game_over or self.game_win:
+        if self.game_over:
             return
         any_action = False
         for i, player in enumerate(self.players):
-            if player.dead:
+            if player.dead or player.game_win:
                 continue
             if self.tick >= player.next_tick:
                 if player.queued_action is not None:
@@ -637,23 +620,20 @@ class Game:
                     any_action = True
                 else:
                     player.next_tick = self.tick + 1
-        for enemy in self.enemies:
-            if enemy["hp"] <= 0:
-                continue
-            if self.tick >= enemy["next_tick"]:
-                self._process_enemy_action(enemy)
-        if not any_action:
-            self._update_visibility()
-            self._update_explored()
-        else:
-            self._update_visibility()
-            self._update_explored()
+        for depth in list(self.levels.keys()):
+            for enemy in self._get_enemies(depth):
+                if enemy["hp"] <= 0:
+                    continue
+                if self.tick >= enemy["next_tick"]:
+                    self._process_enemy_action(enemy, depth)
+        self._update_visibility()
+        self._update_explored()
 
-    def _get_nearest_player(self, ex, ey):
+    def _get_nearest_player(self, ex, ey, depth):
         best = None
         best_dist = float('inf')
         for p in self.players:
-            if p.dead:
+            if p.dead or p.depth != depth:
                 continue
             dist = abs(p.x - ex) + abs(p.y - ey)
             if dist < best_dist:
@@ -661,20 +641,29 @@ class Game:
                 best_dist = dist
         return best, best_dist
 
-    def _process_enemy_action(self, enemy):
+    def _process_enemy_action(self, enemy, depth):
         ex, ey = enemy["x"], enemy["y"]
-        target, dist = self._get_nearest_player(ex, ey)
+        target, dist = self._get_nearest_player(ex, ey, depth)
         if target is None:
             moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
             random.shuffle(moves)
             for wdx, wdy in moves:
                 wx, wy = ex + wdx, ey + wdy
-                if self.is_passable(wx, wy) and not self.get_enemy_at(wx, wy):
+                if self.is_passable(wx, wy, depth) and not self.get_enemy_at(wx, wy, depth):
                     enemy["x"], enemy["y"] = wx, wy
                     break
             enemy["next_tick"] = self.tick + TICK_MOVE
             return
-        can_see = self.visible[enemy["y"]][enemy["x"]] and dist <= FOV_RADIUS + 2
+        dungeon = self._get_dungeon(depth)
+        player_on_depth = [p for p in self.players if p.depth == depth and not p.dead]
+        combined_visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+        for p in player_on_depth:
+            fov = compute_fov(dungeon, p.x, p.y, FOV_RADIUS)
+            for y in range(MAP_HEIGHT):
+                for x in range(MAP_WIDTH):
+                    if fov[y][x]:
+                        combined_visible[y][x] = True
+        can_see = combined_visible[enemy["y"]][enemy["x"]] and dist <= FOV_RADIUS + 2
 
         if dist == 1:
             damage = self.do_attack(
@@ -687,7 +676,7 @@ class Game:
                 target.hp = 0
                 target.dead = True
                 self.msg(f"{target.name} has died!", COLOR_RED)
-                alive = any(p and not p.dead for p in self.players)
+                alive = any(p and not p.dead and not p.game_win for p in self.players)
                 if not alive:
                     self.game_over = True
                     return
@@ -699,7 +688,7 @@ class Game:
             else:
                 dy = 1 if target.y > ey else -1
             nx, ny = ex + dx, ey + dy
-            if self.is_passable(nx, ny) and not self.get_enemy_at(nx, ny) and (nx != target.x or ny != target.y):
+            if self.is_passable(nx, ny, depth) and not self.get_enemy_at(nx, ny, depth) and (nx != target.x or ny != target.y):
                 enemy["x"], enemy["y"] = nx, ny
                 enemy["next_tick"] = self.tick + TICK_MOVE
             else:
@@ -707,7 +696,7 @@ class Game:
                 random.shuffle(moves)
                 for wdx, wdy in moves:
                     wx, wy = ex + wdx, ey + wdy
-                    if self.is_passable(wx, wy) and not self.get_enemy_at(wx, wy):
+                    if self.is_passable(wx, wy, depth) and not self.get_enemy_at(wx, wy, depth):
                         enemy["x"], enemy["y"] = wx, wy
                         break
                 enemy["next_tick"] = self.tick + TICK_MOVE
@@ -716,39 +705,46 @@ class Game:
             random.shuffle(moves)
             for wdx, wdy in moves:
                 wx, wy = ex + wdx, ey + wdy
-                if self.is_passable(wx, wy) and not self.get_enemy_at(wx, wy):
+                if self.is_passable(wx, wy, depth) and not self.get_enemy_at(wx, wy, depth):
                     enemy["x"], enemy["y"] = wx, wy
                     break
             enemy["next_tick"] = self.tick + TICK_MOVE
 
     def _do_go_down_stairs(self, player):
-        self.consecutive_waits = 0
-        if self.dungeon[player.y][player.x] == TILE_STAIRS_DOWN:
-            self._save_current_level()
-            self.depth += 1
-            if self.depth >= MAX_DEPTH:
-                self.msg("You have conquered the dungeon!", COLOR_YELLOW)
-                self.game_win = True
+        dungeon = self._get_dungeon(player.depth)
+        if dungeon[player.y][player.x] == TILE_STAIRS_DOWN:
+            new_depth = player.depth + 1
+            if new_depth >= MAX_DEPTH:
+                self.msg(f"{player.name}: You have conquered the dungeon!", COLOR_YELLOW)
+                player.game_win = True
                 return
-            self.new_dungeon()
+            self._ensure_level(new_depth)
+            stairs_up_x, stairs_up_y = self._get_stairs_up(new_depth)
+            player.depth = new_depth
+            player.x, player.y = stairs_up_x, stairs_up_y
+            self._ensure_player_explored(player)
+            self.msg(f"{player.name} descends deeper. (Depth: {new_depth + 1})", COLOR_CYAN)
         else:
-            self.msg(f"{player.name}: no stairs here.", COLOR_CYAN)
+            self.msg(f"{player.name}: no stairs down here.", COLOR_CYAN)
 
     def _do_go_up_stairs(self, player):
-        self.consecutive_waits = 0
-        if self.dungeon[player.y][player.x] == TILE_STAIRS_UP:
-            if self.depth > 0:
-                self._save_current_level()
-                self.depth -= 1
-                self.new_dungeon(from_stairs_up=True)
+        dungeon = self._get_dungeon(player.depth)
+        if dungeon[player.y][player.x] == TILE_STAIRS_UP:
+            if player.depth > 0:
+                new_depth = player.depth - 1
+                self._ensure_level(new_depth)
+                stairs_down_x, stairs_down_y = self._get_stairs_down(new_depth)
+                player.depth = new_depth
+                player.x, player.y = stairs_down_x, stairs_down_y
+                self._ensure_player_explored(player)
+                self.msg(f"{player.name} goes back up. (Depth: {new_depth + 1})", COLOR_CYAN)
             else:
                 self.msg(f"{player.name}: can't go up further.", COLOR_CYAN)
         else:
-            self.msg(f"{player.name}: no stairs here.", COLOR_CYAN)
+            self.msg(f"{player.name}: no stairs up here.", COLOR_CYAN)
 
     def _do_grab_item(self, player):
-        self.consecutive_waits = 0
-        idx, item = self.get_item_at(player.x, player.y)
+        idx, item = self.get_item_at(player.x, player.y, player.depth)
         if item is None:
             self.msg(f"{player.name}: nothing to grab here.", COLOR_CYAN)
             return
@@ -766,41 +762,43 @@ class Game:
         elif kind == ITEM_GOLD:
             player.gold += item["value"]
             self.msg(f"{player.name} picks up {item['value']} gold.", COLOR_YELLOW)
-        self.items.pop(idx)
+        self._get_items(player.depth).pop(idx)
 
     def _do_rest(self, player):
-        self.consecutive_waits += 1
+        if not hasattr(player, '_consecutive_waits'):
+            player._consecutive_waits = 0
+        player._consecutive_waits += 1
         if player.hp < player.max_hp:
             player.hp += 1
             self.msg(f"{player.name} rests for a moment. (+1 HP)", COLOR_GREEN)
         else:
             self.msg(f"{player.name} rests for a moment.", COLOR_GREEN)
-        chance = 0.05 * self.consecutive_waits + 0.02 * self.depth
+        chance = 0.05 * player._consecutive_waits + 0.02 * player.depth
         chance = min(chance, 0.7)
         if random.random() < chance:
-            self._spawn_nearby_enemy()
+            self._spawn_nearby_enemy(player)
 
-    def _spawn_nearby_enemy(self):
-        """Spawn a random enemy near the first player."""
-        p = self.players[0]
+    def _spawn_nearby_enemy(self, player):
+        """Spawn a random enemy near the given player on their level."""
+        depth = player.depth
         for _ in range(10):
-            sx = p.x + random.randint(-5, 5)
-            sy = p.y + random.randint(-5, 5)
-            if sx == p.x and sy == p.y:
+            sx = player.x + random.randint(-5, 5)
+            sy = player.y + random.randint(-5, 5)
+            if sx == player.x and sy == player.y:
                 continue
             if not (0 <= sx < MAP_WIDTH and 0 <= sy < MAP_HEIGHT):
                 continue
-            if not self.is_passable(sx, sy):
+            if not self.is_passable(sx, sy, depth):
                 continue
-            if self.get_enemy_at(sx, sy):
+            if self.get_enemy_at(sx, sy, depth):
                 continue
-            dist = abs(sx - p.x) + abs(sy - p.y)
+            dist = abs(sx - player.x) + abs(sy - player.y)
             if dist < 4:
                 continue
             etypes = list(ENEMY_PROPS.keys())
             etype = random.choice(etypes)
             prop = ENEMY_PROPS[etype]
-            scale = 1 + self.depth * 0.15
+            scale = 1 + depth * 0.15
             enemy = {
                 "x": sx, "y": sy,
                 "kind": etype,
@@ -814,7 +812,7 @@ class Game:
                 "xp": int(prop["xp"] * scale),
                 "next_tick": self.tick + random.randint(0, 99),
             }
-            self.enemies.append(enemy)
+            self._get_enemies(depth).append(enemy)
             self.msg(f"A {prop['name']} appears!", COLOR_RED)
             return
 
@@ -825,22 +823,23 @@ class Game:
         player = self.players[player_idx] if 0 <= player_idx < len(self.players) else None
         if player is None:
             return ' '
-        explored_grid = player.explored.get(self.depth, [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
+        depth = player.depth
+        explored_grid = player.explored.get(depth, [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
         p_visible = self.player_visible[player_idx] if 0 <= player_idx < len(self.player_visible) else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
         is_explored = explored_grid[my][mx]
         is_visible = p_visible[my][mx]
         if not is_explored:
             return ' '
-        enemy = self.get_enemy_at(mx, my)
+        enemy = self.get_enemy_at(mx, my, depth)
         if enemy and is_visible:
             return enemy["char"]
         for p in self.players:
-            if mx == p.x and my == p.y and not p.dead and is_visible:
+            if p.depth == depth and mx == p.x and my == p.y and not p.dead and is_visible:
                 return p.char
-        _, item = self.get_item_at(mx, my)
+        _, item = self.get_item_at(mx, my, depth)
         if item and is_visible:
             return ITEM_PROPS[item["kind"]]["char"]
-        tile = self.dungeon[my][mx]
+        tile = self._get_dungeon(depth)[my][mx]
         return TILE_CHAR.get(tile, '?')
 
     def print_text_map(self):
@@ -856,11 +855,11 @@ class Game:
 
         print(f"{'=' * view_w}")
         for pl in self.players:
-            bar = (f"{pl.name} | Lv{pl.level} | HP {pl.hp}/{pl.max_hp} | "
+            bar = (f"{pl.name} | D{pl.depth + 1} | Lv{pl.level} | HP {pl.hp}/{pl.max_hp} | "
                    f"ATK {pl.attack_total()} | DEF {pl.defense_total()} | "
-                   f"XP {pl.xp}/{pl.next_level_xp} | Gold {pl.gold} {'[DEAD]' if pl.dead else ''}")
+                   f"XP {pl.xp}/{pl.next_level_xp} | Gold {pl.gold} "
+                   f"{'[WIN]' if pl.game_win else '[DEAD]' if pl.dead else ''}")
             print(bar.ljust(view_w))
-        print(f"Depth {self.depth + 1}/{MAX_DEPTH}")
 
         for sy in range(view_h):
             row = []
@@ -877,69 +876,16 @@ class Game:
 
 def run_text_mode():
     """Run a single frame in text mode for debugging."""
-    depth = 0
-    dungeon, rooms = create_dungeon(depth)
-    px, py, enemies, items = place_entities(rooms, dungeon, depth)
-    players = [
-        Player("Hero1", "@", px, py, COLOR_YELLOW),
-        Player("Hero2", "@", px + 1, py, COLOR_GREEN),
+    game = Game()
+    level = game._init_level(0)
+    spawn_x, spawn_y = game.levels[0]["spawn_x"], game.levels[0]["spawn_y"]
+    game.players = [
+        Player("Hero1", "@", spawn_x, spawn_y, COLOR_YELLOW, 0),
+        Player("Hero2", "@", spawn_x + 1, spawn_y, COLOR_GREEN, 0),
     ]
-    visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
-    for p in players:
-        fov = compute_fov(dungeon, p.x, p.y, FOV_RADIUS)
-        for y in range(MAP_HEIGHT):
-            for x in range(MAP_WIDTH):
-                if fov[y][x]:
-                    visible[y][x] = True
-    explored = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
-    for y in range(MAP_HEIGHT):
-        for x in range(MAP_WIDTH):
-            if visible[y][x]:
-                explored[y][x] = True
-
-    view_h = MAX_SCREEN_Y - 4
-    view_w = MAX_SCREEN_X
-    start_x = max(0, min(px - view_w // 2, MAP_WIDTH - view_w))
-    start_y = max(0, min(py - view_h // 2, MAP_HEIGHT - view_h))
-
-    print(f"{'=' * view_w}")
-    print(f"P1@({players[0].x},{players[0].y}) P2@({players[1].x},{players[1].y}), Rooms: {len(rooms)}")
-    for e in enemies:
-        print(f"  Enemy: {e['name']} at ({e['x']}, {e['y']})")
-    for it in items:
-        print(f"  Item: {it['kind']} at ({it['x']}, {it['y']})")
-
-    for sy in range(view_h):
-        row = []
-        for sx in range(view_w):
-            mx = sx + start_x
-            my = sy + start_y
-            if mx < 0 or mx >= MAP_WIDTH or my < 0 or my >= MAP_HEIGHT:
-                row.append(' ')
-                continue
-            if not explored[my][mx]:
-                row.append(' ')
-                continue
-            if mx == players[0].x and my == players[0].y:
-                row.append('A')
-            elif mx == players[1].x and my == players[1].y:
-                row.append('B')
-            elif visible[my][mx]:
-                for e in enemies:
-                    if e['x'] == mx and e['y'] == my and e['hp'] > 0:
-                        row.append(e['char'])
-                        break
-                else:
-                    for it in items:
-                        if it['x'] == mx and it['y'] == my:
-                            row.append(ITEM_PROPS[it["kind"]]["char"])
-                            break
-                    else:
-                        row.append(TILE_CHAR.get(dungeon[my][mx], '?'))
-            else:
-                row.append(TILE_CHAR.get(dungeon[my][mx], '?'))
-        print(''.join(row))
-    print(f"{'=' * view_w}")
+    game._update_visibility()
+    game._update_explored()
+    game.print_text_map()
 
 
 if __name__ == "__main__":
