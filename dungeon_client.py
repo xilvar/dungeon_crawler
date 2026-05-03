@@ -170,16 +170,20 @@ def render(stdscr, state, my_player_id):
     except curses.error:
         pass
 
-    # Messages
-    msg_row = view_h + 1
-    if msg_row < max_y - 1:
-        for j, msg in enumerate(messages[-1:]):
-            row = msg_row + j
-            if row < max_y - 1:
-                try:
-                    stdscr.addstr(row, 0, (msg[0] + " " * max_x)[:max_x])
-                except curses.error:
-                    pass
+    # Messages (last 3, right-aligned; newest in normal color, older in grey)
+    msg_start = view_h + 1
+    msg_end = max_y - 2  # row just above the help bar
+    last_msgs = messages[-3:]
+    offset = msg_end - (msg_start + len(last_msgs) - 1)
+    for j, msg in enumerate(last_msgs):
+        row = msg_start + offset + j
+        if row < msg_start or row > msg_end:
+            continue
+        attr = curses.A_DIM if j < len(last_msgs) - 1 else curses.A_NORMAL
+        try:
+            stdscr.addstr(row, 0, (msg[0] + " " * max_x)[:max_x], attr)
+        except curses.error:
+            pass
 
     # Help bar
     depth = state.get("depth", 0)

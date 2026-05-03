@@ -89,10 +89,6 @@ class GameServer:
                 p = inactive
                 p.dead = False
                 p.game_win = False
-                p.hp = p.max_hp
-                p.depth = 0
-                spawn_x, spawn_y = g.levels[0]["spawn_x"], g.levels[0]["spawn_y"]
-                p.x, p.y = spawn_x, spawn_y
                 g.players.append(p)
                 pid = p._server_id
             else:

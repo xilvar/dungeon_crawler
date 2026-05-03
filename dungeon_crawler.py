@@ -618,7 +618,8 @@ class Game:
             player.attack += 1
             player.defense += 1
             player.next_level_xp = int(player.next_level_xp * 1.5)
-            self._tell(player, f"{player.name} is now level {player.level}!", COLOR_YELLOW)
+            self._broadcast(player.x, player.y, player.depth,
+                            f"{player.name} is now level {player.level}!", COLOR_YELLOW)
 
     def _process_tick(self):
         if self.game_over:
@@ -730,15 +731,18 @@ class Game:
         if dungeon[player.y][player.x] == TILE_STAIRS_DOWN:
             new_depth = player.depth + 1
             if new_depth >= MAX_DEPTH:
-                self._tell(player, f"{player.name}: You have conquered the dungeon!", COLOR_YELLOW)
+                self._broadcast(player.x, player.y, player.depth,
+                                f"{player.name} has conquered the dungeon!", COLOR_YELLOW)
                 player.game_win = True
                 return
             self._ensure_level(new_depth)
             stairs_up_x, stairs_up_y = self._get_stairs_up(new_depth)
+            old_x, old_y, old_depth = player.x, player.y, player.depth
             player.depth = new_depth
             player.x, player.y = stairs_up_x, stairs_up_y
             self._ensure_player_explored(player)
-            self._tell(player, f"{player.name} descends deeper. (Depth: {new_depth + 1})", COLOR_CYAN)
+            self._broadcast(old_x, old_y, old_depth,
+                            f"{player.name} descends deeper. (Depth: {new_depth + 1})", COLOR_CYAN)
         else:
             self._tell(player, f"{player.name}: no stairs down here.", COLOR_CYAN)
 
@@ -749,10 +753,12 @@ class Game:
                 new_depth = player.depth - 1
                 self._ensure_level(new_depth)
                 stairs_down_x, stairs_down_y = self._get_stairs_down(new_depth)
+                old_x, old_y, old_depth = player.x, player.y, player.depth
                 player.depth = new_depth
                 player.x, player.y = stairs_down_x, stairs_down_y
                 self._ensure_player_explored(player)
-                self._tell(player, f"{player.name} goes back up. (Depth: {new_depth + 1})", COLOR_CYAN)
+                self._broadcast(old_x, old_y, old_depth,
+                                f"{player.name} goes back up. (Depth: {new_depth + 1})", COLOR_CYAN)
             else:
                 self._tell(player, f"{player.name}: can't go up further.", COLOR_CYAN)
         else:
@@ -767,16 +773,20 @@ class Game:
         if kind == ITEM_POTION:
             heal = random.randint(5, 10)
             player.hp = min(player.hp + heal, player.max_hp)
-            self._tell(player, f"{player.name} drinks a potion. Recovered {heal} HP.", COLOR_RED)
+            self._broadcast(player.x, player.y, player.depth,
+                            f"{player.name} drinks a potion. Recovered {heal} HP.", COLOR_RED)
         elif kind == ITEM_SWORD:
             player.weapon_bonus += item["bonus"]
-            self._tell(player, f"{player.name} equips a sword (+{item['bonus']} attack).", COLOR_WHITE)
+            self._broadcast(player.x, player.y, player.depth,
+                            f"{player.name} equips a sword (+{item['bonus']} attack).", COLOR_WHITE)
         elif kind == ITEM_SHIELD:
             player.armor_bonus += item["bonus"]
-            self._tell(player, f"{player.name} equips a shield (+{item['bonus']} defense).", COLOR_CYAN)
+            self._broadcast(player.x, player.y, player.depth,
+                            f"{player.name} equips a shield (+{item['bonus']} defense).", COLOR_CYAN)
         elif kind == ITEM_GOLD:
             player.gold += item["value"]
-            self._tell(player, f"{player.name} picks up {item['value']} gold.", COLOR_YELLOW)
+            self._broadcast(player.x, player.y, player.depth,
+                            f"{player.name} picks up {item['value']} gold.", COLOR_YELLOW)
         self._get_items(player.depth).pop(idx)
 
     def _do_rest(self, player):
@@ -785,9 +795,11 @@ class Game:
         player._consecutive_waits += 1
         if player.hp < player.max_hp:
             player.hp += 1
-            self._tell(player, f"{player.name} rests for a moment. (+1 HP)", COLOR_GREEN)
+            self._broadcast(player.x, player.y, player.depth,
+                            f"{player.name} rests for a moment. (+1 HP)", COLOR_GREEN)
         else:
-            self._tell(player, f"{player.name} rests for a moment.", COLOR_GREEN)
+            self._broadcast(player.x, player.y, player.depth,
+                            f"{player.name} rests for a moment.", COLOR_GREEN)
         chance = 0.05 * player._consecutive_waits + 0.02 * player.depth
         chance = min(chance, 0.7)
         if random.random() < chance:
