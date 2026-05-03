@@ -57,9 +57,9 @@ class GameServer:
     def _loop(self):
         while self.running:
             with self.lock:
-                self.game.tick += 10
+                self.game.tick += 1
                 self.game._process_tick()
-            _sleep_ms(100)
+            _sleep_ms(10)
 
     def stop(self):
         self.running = False
