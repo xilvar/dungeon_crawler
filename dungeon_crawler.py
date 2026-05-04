@@ -544,6 +544,20 @@ class Game:
                 if len(p.messages) > MAX_MSGS:
                     p.messages.pop(0)
 
+    def _ambient_sound(self, x, y, depth, messages, color, source=None, chance=0.35):
+        """Send a random ambient message to nearby players on the same depth,
+        with probability decreasing by distance. Skips the source player."""
+        dungeon = self._get_dungeon(depth)
+        for p in self.players:
+            if p.dead or p.depth != depth or p is source:
+                continue
+            dist = abs(p.x - x) + abs(p.y - y)
+            if dist < 2 or dist > 25:
+                continue
+            prob = max(0, chance * (1 - dist / 25))
+            if random.random() < prob:
+                self._tell(p, random.choice(messages), color)
+
     def is_passable(self, x, y, depth):
         if x < 0 or x >= MAP_WIDTH or y < 0 or y >= MAP_HEIGHT:
             return False
@@ -622,6 +636,11 @@ class Game:
         else:
             player.x, player.y = nx, ny
             player.next_tick = self.tick + TICK_PLAYER_MOVE
+            self._ambient_sound(nx, ny, player.depth, [
+                "You hear faint footsteps nearby.",
+                "A faint sound of movement echoes through the dungeon.",
+                "You hear something moving in the distance.",
+            ], COLOR_WHITE, source=player)
             corpse = self.get_corpse_at(nx, ny, player.depth)
             if corpse:
                 self._tell(player,
@@ -635,9 +654,19 @@ class Game:
         enemy["hp"] -= damage
         self._broadcast(enemy["x"], enemy["y"], player.depth,
                         f"{{name}} hit the {enemy['name']} for {damage} damage!", COLOR_WHITE, subject=player)
+        self._ambient_sound(enemy["x"], enemy["y"], player.depth, [
+            "You hear the sharp clash of steel nearby.",
+            "A sudden clash echoes through the dungeon.",
+            "You hear something being struck in the distance.",
+        ], COLOR_WHITE, source=player)
         if enemy["hp"] <= 0:
             self._broadcast(enemy["x"], enemy["y"], player.depth,
                             f"The {enemy['name']} dies!", COLOR_RED)
+            self._ambient_sound(enemy["x"], enemy["y"], player.depth, [
+                "You hear something collapse in the distance.",
+                "A dying groan echoes nearby.",
+                "You hear a wet thud from somewhere nearby.",
+            ], COLOR_RED, source=player)
             player.xp += enemy["xp"]
             self._check_level_up(player)
 
@@ -691,11 +720,19 @@ class Game:
         if target is None:
             moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
             random.shuffle(moves)
+            moved = False
             for wdx, wdy in moves:
                 wx, wy = ex + wdx, ey + wdy
                 if self.is_passable(wx, wy, depth) and not self.get_enemy_at(wx, wy, depth):
                     enemy["x"], enemy["y"] = wx, wy
+                    moved = True
                     break
+            if moved:
+                self._ambient_sound(enemy["x"], enemy["y"], depth, [
+                    "You hear a faint scuttling in the darkness.",
+                    "Something shifts in the shadows nearby.",
+                    "You hear a low growl in the distance.",
+                ], COLOR_WHITE, chance=0.09)
             enemy["next_tick"] = self.tick + TICK_MOVE
             return
         dungeon = self._get_dungeon(depth)
@@ -716,6 +753,11 @@ class Game:
             target.hp -= damage
             self._broadcast(target.x, target.y, depth,
                             f"The {enemy['name']} hit {{name}} for {damage} damage!", enemy["color"], subject=target)
+            self._ambient_sound(target.x, target.y, depth, [
+                "You hear the sharp clash of steel nearby.",
+                "A cry of pain echoes through the dungeon.",
+                "You hear something being struck in the distance.",
+            ], COLOR_WHITE)
             enemy["next_tick"] = self.tick + TICK_ATTACK
             if target.hp <= 0:
                 target.hp = 0
@@ -729,6 +771,11 @@ class Game:
                 })
                 self._broadcast(target.x, target.y, depth,
                                 "{name} has died!", COLOR_RED, subject=target)
+                self._ambient_sound(target.x, target.y, depth, [
+                    "You hear someone cry out in agony nearby.",
+                    "A terrible scream echoes through the dungeon.",
+                    "You hear a body collapse in the distance.",
+                ], COLOR_RED)
                 alive = any(p and not p.dead and not p.game_win for p in self.players)
                 if not alive:
                     self.game_over = True
@@ -741,9 +788,10 @@ class Game:
             else:
                 dy = 1 if target.y > ey else -1
             nx, ny = ex + dx, ey + dy
+            moved = False
             if self.is_passable(nx, ny, depth) and not self.get_enemy_at(nx, ny, depth) and (nx != target.x or ny != target.y):
                 enemy["x"], enemy["y"] = nx, ny
-                enemy["next_tick"] = self.tick + TICK_MOVE
+                moved = True
             else:
                 moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
                 random.shuffle(moves)
@@ -751,16 +799,31 @@ class Game:
                     wx, wy = ex + wdx, ey + wdy
                     if self.is_passable(wx, wy, depth) and not self.get_enemy_at(wx, wy, depth):
                         enemy["x"], enemy["y"] = wx, wy
+                        moved = True
                         break
-                enemy["next_tick"] = self.tick + TICK_MOVE
+            if moved:
+                self._ambient_sound(enemy["x"], enemy["y"], depth, [
+                    "You hear something heavy moving nearby.",
+                    "A low growl echoes from somewhere in the dark.",
+                    "You hear claws scraping against stone.",
+                ], COLOR_WHITE, chance=0.09)
+            enemy["next_tick"] = self.tick + TICK_MOVE
         else:
             moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
             random.shuffle(moves)
+            moved = False
             for wdx, wdy in moves:
                 wx, wy = ex + wdx, ey + wdy
                 if self.is_passable(wx, wy, depth) and not self.get_enemy_at(wx, wy, depth):
                     enemy["x"], enemy["y"] = wx, wy
+                    moved = True
                     break
+            if moved:
+                self._ambient_sound(enemy["x"], enemy["y"], depth, [
+                    "You hear a faint scuttling in the darkness.",
+                    "Something shifts in the shadows nearby.",
+                    "You hear a low growl in the distance.",
+                ], COLOR_WHITE, chance=0.09)
             enemy["next_tick"] = self.tick + TICK_MOVE
 
     def _do_go_down_stairs(self, player):
@@ -780,6 +843,16 @@ class Game:
             self._ensure_player_explored(player)
             self._broadcast(old_x, old_y, old_depth,
                             f"{{name}} descended deeper. (Depth: {new_depth + 1})", COLOR_CYAN, subject=player)
+            self._ambient_sound(old_x, old_y, old_depth, [
+                "You hear footsteps descending the stairs.",
+                "The sound of boots echoing down the staircase.",
+                "Footsteps fade into the depths below.",
+            ], COLOR_CYAN, source=player)
+            self._ambient_sound(player.x, player.y, new_depth, [
+                "You hear footsteps ascending from below.",
+                "Boots echo up the staircase.",
+                "Footsteps approach from the stairs below.",
+            ], COLOR_CYAN, source=player)
         else:
             self._tell(player, "{name}: no stairs down here.", COLOR_CYAN)
 
@@ -796,6 +869,16 @@ class Game:
                 self._ensure_player_explored(player)
                 self._broadcast(old_x, old_y, old_depth,
                                 f"{{name}} went back up. (Depth: {new_depth + 1})", COLOR_CYAN, subject=player)
+                self._ambient_sound(old_x, old_y, old_depth, [
+                    "You hear footsteps ascending the stairs.",
+                    "The sound of boots echoing up the staircase.",
+                    "Footsteps fade upward into the darkness.",
+                ], COLOR_CYAN, source=player)
+                self._ambient_sound(player.x, player.y, new_depth, [
+                    "You hear footsteps descending from above.",
+                    "Boots echo down the staircase.",
+                    "Footsteps approach from the stairs above.",
+                ], COLOR_CYAN, source=player)
             else:
                 self._tell(player, "{name}: can't go up further.", COLOR_CYAN)
         else:
@@ -878,6 +961,11 @@ class Game:
             }
             self._get_enemies(depth).append(enemy)
             self._broadcast(sx, sy, depth, f"A {prop['name']} appears!", COLOR_RED)
+            self._ambient_sound(sx, sy, depth, [
+                "You hear a sudden growl in the distance.",
+                "Something stirs in the darkness nearby.",
+                "A cold chill runs down your spine.",
+            ], COLOR_RED, chance=0.09)
             return
 
     def get_char_at(self, mx, my, player_idx=0):
