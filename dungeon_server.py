@@ -142,6 +142,7 @@ class GameServer:
                     "players": [],
                     "enemies": [],
                     "items": [],
+                    "corpses": [],
                     "messages": [("Waiting for players...", 7)],
                     "game_over": False,
                     "game_win": False,
@@ -193,6 +194,17 @@ class GameServer:
                     "char": ITEM_PROPS[it["kind"]]["char"],
                 })
 
+            explored_grid = target.explored.get(depth, [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
+            corpses = []
+            for c in g._get_corpses(depth):
+                if explored_grid[c["y"]][c["x"]]:
+                    corpses.append({
+                        "x": c["x"], "y": c["y"],
+                        "name": c["name"],
+                        "level": c["level"],
+                        "killer": c["killer"],
+                    })
+
             player_stats = []
             for pl in g.players:
                 if pl is target:
@@ -240,6 +252,7 @@ class GameServer:
                 "players": player_stats,
                 "enemies": enemies,
                 "items": items,
+                "corpses": corpses,
                 "messages": messages,
                 "game_over": game_over,
                 "game_win": game_win,

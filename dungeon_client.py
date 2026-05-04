@@ -104,6 +104,7 @@ def render(stdscr, state, my_player_id):
     map_lines = state.get("map", [])
     players = state.get("players", [])
     enemies = state.get("enemies", [])
+    corpses = state.get("corpses", [])
     messages = state.get("messages", [])
 
     start_x = state.get("start_x", 0)
@@ -251,6 +252,7 @@ def main(stdscr):
                 "map": [" " * 80 for _ in range(20)],
                 "players": [],
                 "enemies": [],
+                "corpses": [],
                 "messages": [("Connecting to server...", 7)],
                 "view_h": 20, "view_w": 80,
                 "start_x": 0, "start_y": 0,

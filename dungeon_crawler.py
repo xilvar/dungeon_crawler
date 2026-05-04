@@ -468,6 +468,7 @@ class Game:
             "dungeon": dungeon,
             "enemies": enemies,
             "items": items,
+            "corpses": [],
             "stairs_down_x": stairs_down_x,
             "stairs_down_y": stairs_down_y,
             "stairs_up_x": stairs_up_x,
@@ -551,6 +552,15 @@ class Game:
                 return i, item
         return None, None
 
+    def _get_corpses(self, depth):
+        return self.levels[depth]["corpses"]
+
+    def get_corpse_at(self, x, y, depth):
+        for c in self._get_corpses(depth):
+            if c["x"] == x and c["y"] == y:
+                return c
+        return None
+
     def do_attack(self, attacker_name, attacker_atk, defender_name, defender_def, damage_variance=2):
         damage = max(1, attacker_atk - defender_def + random.randint(-damage_variance, damage_variance))
         return damage
@@ -599,6 +609,11 @@ class Game:
         else:
             player.x, player.y = nx, ny
             player.next_tick = self.tick + TICK_PLAYER_MOVE
+            corpse = self.get_corpse_at(nx, ny, player.depth)
+            if corpse:
+                self._tell(player,
+                    f"You see the corpse of {corpse['name']} (lv {corpse['level']}). Looks like they were killed by a {corpse['killer']}.",
+                    COLOR_RED)
 
     def _do_combat_attack(self, player, enemy):
         damage = self.do_attack(
@@ -692,6 +707,13 @@ class Game:
             if target.hp <= 0:
                 target.hp = 0
                 target.dead = True
+                self.levels[depth]["corpses"].append({
+                    "x": target.x,
+                    "y": target.y,
+                    "name": target.name,
+                    "level": target.level,
+                    "killer": enemy["name"],
+                })
                 self._broadcast(target.x, target.y, depth,
                                 "{name} has died!", COLOR_RED, subject=target)
                 alive = any(p and not p.dead and not p.game_win for p in self.players)
@@ -868,6 +890,9 @@ class Game:
         _, item = self.get_item_at(mx, my, depth)
         if item and is_visible:
             return ITEM_PROPS[item["kind"]]["char"]
+        corpse = self.get_corpse_at(mx, my, depth)
+        if corpse and is_explored:
+            return "_"
         tile = self._get_dungeon(depth)[my][mx]
         return TILE_CHAR.get(tile, '?')
 
