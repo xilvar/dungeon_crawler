@@ -486,14 +486,27 @@ class Game:
             player.explored[player.depth] = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
 
     def _update_visibility(self):
+        old_visible = self.player_visible if hasattr(self, 'player_visible') else []
         self.player_visible = []
-        for p in self.players:
+        for i, p in enumerate(self.players):
             if not p.dead:
                 dungeon = self._get_dungeon(p.depth)
                 fov = compute_fov(dungeon, p.x, p.y, FOV_RADIUS)
                 self.player_visible.append(fov)
             else:
                 self.player_visible.append([[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
+
+        # Detect enemies that just came into view
+        for i, p in enumerate(self.players):
+            if p.dead:
+                continue
+            old_fov = old_visible[i] if i < len(old_visible) else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+            new_fov = self.player_visible[i]
+            for e in self._get_enemies(p.depth):
+                if e["hp"] <= 0:
+                    continue
+                if new_fov[e["y"]][e["x"]] and not old_fov[e["y"]][e["x"]]:
+                    self._tell(p, f"A {e['name']} comes into view.", e["color"])
 
     def _update_explored(self):
         for i, p in enumerate(self.players):
@@ -621,7 +634,7 @@ class Game:
             enemy["name"], enemy["defense"])
         enemy["hp"] -= damage
         self._broadcast(enemy["x"], enemy["y"], player.depth,
-                        f"{{name}} hits the {enemy['name']} for {damage} damage!", COLOR_WHITE, subject=player)
+                        f"{{name}} hit the {enemy['name']} for {damage} damage!", COLOR_WHITE, subject=player)
         if enemy["hp"] <= 0:
             self._broadcast(enemy["x"], enemy["y"], player.depth,
                             f"The {enemy['name']} dies!", COLOR_RED)
@@ -702,7 +715,7 @@ class Game:
                 target.name, target.defense_total(), 1)
             target.hp -= damage
             self._broadcast(target.x, target.y, depth,
-                            f"The {enemy['name']} hits {{name}} for {damage} damage!", enemy["color"], subject=target)
+                            f"The {enemy['name']} hit {{name}} for {damage} damage!", enemy["color"], subject=target)
             enemy["next_tick"] = self.tick + TICK_ATTACK
             if target.hp <= 0:
                 target.hp = 0
@@ -766,7 +779,7 @@ class Game:
             player.x, player.y = stairs_up_x, stairs_up_y
             self._ensure_player_explored(player)
             self._broadcast(old_x, old_y, old_depth,
-                            f"{{name}} descends deeper. (Depth: {new_depth + 1})", COLOR_CYAN, subject=player)
+                            f"{{name}} descended deeper. (Depth: {new_depth + 1})", COLOR_CYAN, subject=player)
         else:
             self._tell(player, "{name}: no stairs down here.", COLOR_CYAN)
 
@@ -782,7 +795,7 @@ class Game:
                 player.x, player.y = stairs_down_x, stairs_down_y
                 self._ensure_player_explored(player)
                 self._broadcast(old_x, old_y, old_depth,
-                                f"{{name}} goes back up. (Depth: {new_depth + 1})", COLOR_CYAN, subject=player)
+                                f"{{name}} went back up. (Depth: {new_depth + 1})", COLOR_CYAN, subject=player)
             else:
                 self._tell(player, "{name}: can't go up further.", COLOR_CYAN)
         else:
@@ -798,19 +811,19 @@ class Game:
             heal = random.randint(5, 10)
             player.hp = min(player.hp + heal, player.max_hp)
             self._broadcast(player.x, player.y, player.depth,
-                            f"{{name}} drinks a potion. Recovered {heal} HP.", COLOR_RED, subject=player)
+                            f"{{name}} drank a potion. Recovered {heal} HP.", COLOR_RED, subject=player)
         elif kind == ITEM_SWORD:
             player.weapon_bonus += item["bonus"]
             self._broadcast(player.x, player.y, player.depth,
-                            f"{{name}} equips a sword (+{item['bonus']} attack).", COLOR_WHITE, subject=player)
+                            f"{{name}} equipped a sword (+{item['bonus']} attack).", COLOR_WHITE, subject=player)
         elif kind == ITEM_SHIELD:
             player.armor_bonus += item["bonus"]
             self._broadcast(player.x, player.y, player.depth,
-                            f"{{name}} equips a shield (+{item['bonus']} defense).", COLOR_CYAN, subject=player)
+                            f"{{name}} equipped a shield (+{item['bonus']} defense).", COLOR_CYAN, subject=player)
         elif kind == ITEM_GOLD:
             player.gold += item["value"]
             self._broadcast(player.x, player.y, player.depth,
-                            f"{{name}} picks up {item['value']} gold.", COLOR_YELLOW, subject=player)
+                            f"{{name}} picked up {item['value']} gold.", COLOR_YELLOW, subject=player)
         self._get_items(player.depth).pop(idx)
 
     def _do_rest(self, player):
@@ -820,10 +833,10 @@ class Game:
         if player.hp < player.max_hp:
             player.hp += 1
             self._broadcast(player.x, player.y, player.depth,
-                            "{name} rests for a moment. (+1 HP)", COLOR_GREEN, subject=player)
+                            "{name} rested for a moment. (+1 HP)", COLOR_GREEN, subject=player)
         else:
             self._broadcast(player.x, player.y, player.depth,
-                            "{name} rests for a moment.", COLOR_GREEN, subject=player)
+                            "{name} rested for a moment.", COLOR_GREEN, subject=player)
         chance = 0.05 * player._consecutive_waits + 0.02 * player.depth
         chance = min(chance, 0.7)
         if random.random() < chance:
