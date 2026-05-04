@@ -205,10 +205,18 @@ def render(stdscr, state, my_player_id):
                           curses.color_pair(curses.COLOR_RED + 1) | curses.A_BOLD)
         except curses.error:
             pass
+        try:
+            stdscr.addstr(11, 22, "n:New Game  q:Quit")
+        except curses.error:
+            pass
     elif state.get("game_win"):
         try:
             stdscr.addstr(10, 20, "YOU CONQUERED THE DUNGEON!",
                           curses.color_pair(curses.COLOR_GREEN + 1) | curses.A_BOLD)
+        except curses.error:
+            pass
+        try:
+            stdscr.addstr(11, 22, "n:New Game  q:Quit")
         except curses.error:
             pass
 
@@ -257,6 +265,14 @@ def main(stdscr):
             if key in (ord('q'), ord('Q'), 27):
                 deregister(url, player_id)
                 break
+            if key == ord('n'):
+                deregister(url, player_id)
+                result = register(url)
+                if "error" in result:
+                    print(f"Failed to register: {result['error']}")
+                    break
+                player_id = result["player_id"]
+                continue
             continue
 
         key = stdscr.getch()

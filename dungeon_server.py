@@ -83,11 +83,13 @@ class GameServer:
     def register_player(self):
         with self.lock:
             g = self.game
-            inactive = self.inactive_players.pop(0) if self.inactive_players else None
+            inactive = None
+            for i, candidate in enumerate(self.inactive_players):
+                if not candidate.dead and not candidate.game_win:
+                    inactive = self.inactive_players.pop(i)
+                    break
             if inactive:
                 p = inactive
-                p.dead = False
-                p.game_win = False
                 g.players.append(p)
                 pid = p._server_id
             else:
@@ -103,6 +105,8 @@ class GameServer:
                 g.players.append(p)
             self.clients[pid] = p
             self._update_visibility(g)
+            g._update_explored()
+            g.game_over = False
             return {"client_id": pid, "player_id": pid}
 
     def deregister_player(self, player_id):
