@@ -544,9 +544,10 @@ class Game:
                 if len(p.messages) > MAX_MSGS:
                     p.messages.pop(0)
 
-    def _ambient_sound(self, x, y, depth, messages, color, source=None, chance=0.35):
+    def _ambient_sound(self, x, y, depth, messages, color, source=None, chance=0.35, skip_visible=False):
         """Send a random ambient message to nearby players on the same depth,
-        with probability decreasing by distance. Skips the source player."""
+        with probability decreasing by distance. Skips the source player.
+        When skip_visible is True, also skips players who can see the source."""
         dungeon = self._get_dungeon(depth)
         for p in self.players:
             if p.dead or p.depth != depth or p is source:
@@ -554,16 +555,26 @@ class Game:
             dist = abs(p.x - x) + abs(p.y - y)
             if dist < 2 or dist > 25:
                 continue
+            if skip_visible and source:
+                fov = compute_fov(dungeon, p.x, p.y, FOV_RADIUS)
+                if fov[y][x]:
+                    continue
             prob = max(0, chance * (1 - dist / 25))
             if random.random() < prob:
                 self._tell(p, random.choice(messages), color)
 
-    def _ambient_depth(self, depth, messages, color, source=None, chance=0.5):
+    def _ambient_depth(self, depth, messages, color, source=None, chance=0.5, skip_visible=False):
         """Send a random ambient message to all alive players on a depth,
-        regardless of distance. Skips the source player."""
+        regardless of distance. Skips the source player.
+        When skip_visible is True, also skips players who can see the source."""
+        dungeon = self._get_dungeon(depth)
         for p in self.players:
             if p.dead or p.depth != depth or p is source:
                 continue
+            if skip_visible and source:
+                fov = compute_fov(dungeon, p.x, p.y, FOV_RADIUS)
+                if fov[source.y][source.x]:
+                    continue
             if random.random() < chance:
                 self._tell(p, random.choice(messages), color)
 
@@ -649,7 +660,7 @@ class Game:
                 "You hear faint footsteps nearby.",
                 "A faint sound of movement echoes through the dungeon.",
                 "You hear something moving in the distance.",
-            ], COLOR_WHITE, source=player, chance=0.25)
+            ], COLOR_WHITE, source=player, chance=0.25, skip_visible=True)
             corpse = self.get_corpse_at(nx, ny, player.depth)
             if corpse:
                 self._tell(player,
@@ -854,12 +865,12 @@ class Game:
                 "You hear footsteps descending the stairs.",
                 "The sound of boots echoing down the staircase.",
                 "Footsteps fade into the depths below.",
-            ], COLOR_CYAN, source=player, chance=0.7)
+            ], COLOR_CYAN, source=player, chance=0.7, skip_visible=True)
             self._ambient_depth(new_depth, [
                 "You hear footsteps ascending from below.",
                 "Boots echo up the staircase.",
                 "Footsteps approach from the stairs below.",
-            ], COLOR_CYAN, source=player)
+            ], COLOR_CYAN, source=player, skip_visible=True)
             self._broadcast(old_x, old_y, old_depth,
                             f"{{name}} descended deeper. (Depth: {new_depth + 1})", COLOR_CYAN, subject=player)
         else:
@@ -880,12 +891,12 @@ class Game:
                     "You hear footsteps ascending the stairs.",
                     "The sound of boots echoing up the staircase.",
                     "Footsteps fade upward into the darkness.",
-                ], COLOR_CYAN, source=player, chance=0.7)
+                ], COLOR_CYAN, source=player, chance=0.7, skip_visible=True)
                 self._ambient_depth(new_depth, [
-                    "You hear footsteps descending from above.",
-                    "Boots echo down the staircase.",
-                    "Footsteps approach from the stairs above.",
-                ], COLOR_CYAN, source=player)
+                    "You hear footsteps ascending from below.",
+                    "Boots echo up the staircase.",
+                    "Footsteps approach from the stairs below.",
+                ], COLOR_CYAN, source=player, skip_visible=True)
                 self._broadcast(old_x, old_y, old_depth,
                                 f"{{name}} went back up. (Depth: {new_depth + 1})", COLOR_CYAN, subject=player)
             else:
