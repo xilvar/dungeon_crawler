@@ -308,6 +308,174 @@ ENEMY_SOUNDS = {
     ],
 }
 
+ENEMY_HIT_MESSAGES = {
+    "Rat": [
+        "The Rat bites {{name}} for {damage} damage!",
+        "The Rat gnaws at {{name}} for {damage} damage!",
+        "The Rat scratches at {{name}} for {damage} damage!",
+    ],
+    "Bat": [
+        "The Bat pecks at {{name}} for {damage} damage!",
+        "The Bat claws at {{name}} for {damage} damage!",
+        "The Bat dives and strikes {{name}} for {damage} damage!",
+    ],
+    "Spider": [
+        "The Spider bites {{name}} for {damage} damage!",
+        "The Spider injects venom into {{name}} for {damage} damage!",
+        "The Spider wraps {{name}} in web and bites for {damage} damage!",
+    ],
+    "Snake": [
+        "The Snake strikes {{name}} for {damage} damage!",
+        "The Snake bites {{name}} and injects venom for {damage} damage!",
+        "The Snake coils tight and strikes {{name}} for {damage} damage!",
+    ],
+    "Kobold": [
+        "The Kobold stabs {{name}} with a rusty dagger for {damage} damage!",
+        "The Kobold strikes {{name}} with a crude club for {damage} damage!",
+        "The Kobold lunges and scratches {{name}} for {damage} damage!",
+    ],
+    "Goblin": [
+        "The Goblin hits {{name}} with a wooden club for {damage} damage!",
+        "The Goblin slashes {{name}} with a jagged blade for {damage} damage!",
+        "The Goblin strikes {{name}} with surprising speed for {damage} damage!",
+    ],
+    "Imp": [
+        "The Imp claws at {{name}} for {damage} damage!",
+        "The Imp bites {{name}} with sharp fangs for {damage} damage!",
+        "The Imp zaps {{name}} with a burst of hellfire for {damage} damage!",
+    ],
+    "Skeleton": [
+        "The Skeleton strikes {{name}} with bony fists for {damage} damage!",
+        "The Skeleton clubs {{name}} with a rusty sword for {damage} damage!",
+        "The Skeleton slashes {{name}} with skeletal hands for {damage} damage!",
+    ],
+    "Zombie": [
+        "The Zombie grabs {{name}} and bites for {damage} damage!",
+        "The Zombie slams into {{name}} for {damage} damage!",
+        "The Zombie strikes {{name}} with rotting hands for {damage} damage!",
+    ],
+    "Wolf": [
+        "The Wolf lunges and bites {{name}} for {damage} damage!",
+        "The Wolf claws at {{name}} for {damage} damage!",
+        "The Wolf tackles {{name}} for {damage} damage!",
+    ],
+    "Hydra": [
+        "The Hydra bites {{name}} with multiple heads for {damage} damage!",
+        "The Hydra wraps around {{name}} and bites for {damage} damage!",
+        "The Hydra lashes out with its tails for {damage} damage!",
+    ],
+    "Mummy": [
+        "The Mummy strikes {{name}} with bandaged fists for {damage} damage!",
+        "The Mummy wraps {{name}} in ancient bandages for {damage} damage!",
+        "The Mummy delivers a withering blow to {{name}} for {damage} damage!",
+    ],
+    "Wraith": [
+        "The Wraith drains life force from {{name}} for {damage} damage!",
+        "The Wraith strikes {{name}} with spectral claws for {damage} damage!",
+        "The Wraith delivers a chilling touch to {{name}} for {damage} damage!",
+    ],
+    "Troll": [
+        "The Troll swings a massive club at {{name}} for {damage} damage!",
+        "The Troll slams {{name}} with huge fists for {damage} damage!",
+        "The Troll delivers a crushing blow to {{name}} for {damage} damage!",
+    ],
+    "Minotaur": [
+        "The Minotaur charges and strikes {{name}} for {damage} damage!",
+        "The Minotaur swings a massive axe at {{name}} for {damage} damage!",
+        "The Minotaur delivers a powerful blow to {{name}} for {damage} damage!",
+    ],
+    "Medusa": [
+        "The Medusa strikes {{name}} with a serpent's hiss for {damage} damage!",
+        "The Medusa delivers a paralyzing touch to {{name}} for {damage} damage!",
+        "The Medusa lashes out with writhing snake hair for {damage} damage!",
+    ],
+    "Owlbear": [
+        "The Owlbear claws deeply into {{name}} for {damage} damage!",
+        "The Owlbear strikes {{name}} with massive talons for {damage} damage!",
+        "The Owlbear delivers a crushing blow to {{name}} for {damage} damage!",
+    ],
+    "Hook Horror": [
+        "The Hook Horror slashes {{name}} with razor hooks for {damage} damage!",
+        "The Hook Horror drags its hooks across {{name}} for {damage} damage!",
+        "The Hook Horror strikes {{name}} with metal appendages for {damage} damage!",
+    ],
+    "Phase Spider": [
+        "The Phase Spider phases through the wall and bites {{name}} for {damage} damage!",
+        "The Phase Spider materializes and strikes {{name}} for {damage} damage!",
+        "The Phase Spider injects venom into {{name}} for {damage} damage!",
+    ],
+    "Basilisk": [
+        "The Basilisk strikes {{name}} with a petrifying gaze for {damage} damage!",
+        "The Basilisk delivers a venomous bite to {{name}} for {damage} damage!",
+        "The Basilisk lashes {{name}} with its stony tail for {damage} damage!",
+    ],
+    "Wyvern": [
+        "The Wyvern breathes acid onto {{name}} for {damage} damage!",
+        "The Wyvern strikes {{name}} with massive claws for {damage} damage!",
+        "The Wyvern delivers a poisonous bite to {{name}} for {damage} damage!",
+    ],
+    "Phoenix": [
+        "The Phoenix scorches {{name}} with blazing flames for {damage} damage!",
+        "The Phoenix strikes {{name}} with fiery wings for {damage} damage!",
+        "The Phoenix delivers a searing blow to {{name}} for {damage} damage!",
+    ],
+    "Grue": [
+        "The Grue emerges from the darkness and strikes {{name}} for {damage} damage!",
+        "The Grue delivers a chilling touch to {{name}} for {damage} damage!",
+        "The Grue strikes {{name}} with shadowy claws for {damage} damage!",
+    ],
+    "Gelatinous Cube": [
+        "The Gelatinous Cube partially engulfs {{name}} and dissolves for {damage} damage!",
+        "The Gelatinous Cube delivers a squelching blow to {{name}} for {damage} damage!",
+        "The Gelatinous Cube oozes corrosive slime onto {{name}} for {damage} damage!",
+    ],
+    "Remorhaz": [
+        "The Remorhaz burrows up and strikes {{name}} for {damage} damage!",
+        "The Remorhaz breathes intense heat onto {{name}} for {damage} damage!",
+        "The Remorhaz delivers a devastating blow to {{name}} for {damage} damage!",
+    ],
+    "Ice Devil": [
+        "The Ice Devil strikes {{name}} with razor frost for {damage} damage!",
+        "The Ice Devil delivers a freezing blow to {{name}} for {damage} damage!",
+        "The Ice Devil scorches {{name}} with cold fire for {damage} damage!",
+    ],
+    "Lich": [
+        "The Lich zaps {{name}} with necrotic energy for {damage} damage!",
+        "The Lich strikes {{name}} with a skeletal hand for {damage} damage!",
+        "The Lich delivers a withering curse to {{name}} for {damage} damage!",
+    ],
+    "Beholder": [
+        "The Beholder fires a ray at {{name}} for {damage} damage!",
+        "The Beholder strikes {{name}} with writhing eyestalks for {damage} damage!",
+        "The Beholder blasts {{name}} with a debilitating ray for {damage} damage!",
+    ],
+    "Balor": [
+        "The Balor strikes {{name}} with a flaming sword for {damage} damage!",
+        "The Balor breathes hellfire onto {{name}} for {damage} damage!",
+        "The Balor delivers a devastating blow to {{name}} for {damage} damage!",
+    ],
+    "Orc": [
+        "The Orc strikes {{name}} with a heavy axe for {damage} damage!",
+        "The Orc hits {{name}} with a spiked club for {damage} damage!",
+        "The Orc slashes {{name}} with a crude blade for {damage} damage!",
+    ],
+    "Golem": [
+        "The Golem slams {{name}} with stone fists for {damage} damage!",
+        "The Golem delivers a crushing blow to {{name}} for {damage} damage!",
+        "The Golem strikes {{name}} with metallic arms for {damage} damage!",
+    ],
+    "Demon": [
+        "The Demon strikes {{name}} with crackling hellfire for {damage} damage!",
+        "The Demon claws at {{name}} with demonic strength for {damage} damage!",
+        "The Demon delivers a devastating blow to {{name}} for {damage} damage!",
+    ],
+    "Dragon": [
+        "The Dragon breathes searing fire onto {{name}} for {damage} damage!",
+        "The Dragon strikes {{name}} with massive claws for {damage} damage!",
+        "The Dragon delivers a devastating bite to {{name}} for {damage} damage!",
+    ],
+}
+
 ITEM_POTION = "potion"
 ITEM_SWORD = "sword"
 ITEM_SHIELD = "shield"
@@ -971,8 +1139,11 @@ class Game:
                 enemy["name"], enemy["attack"],
                 target.name, target.defense_total(), 1)
             target.hp -= damage
+            hit_template = random.choice(ENEMY_HIT_MESSAGES.get(enemy["name"], [
+                "The " + enemy["name"] + " hits {{name}} for {damage} damage!",
+            ]))
             self._broadcast(target.x, target.y, depth,
-                            f"The {enemy['name']} hit {{name}} for {damage} damage!", enemy["color"], subject=target)
+                            hit_template.format(damage=damage), enemy["color"], subject=target)
             self._ambient_sound(target.x, target.y, depth, [
                 "You hear the sharp clash of steel nearby.",
                 "A cry of pain echoes through the dungeon.",
