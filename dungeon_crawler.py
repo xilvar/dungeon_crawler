@@ -579,6 +579,33 @@ class Game:
             if random.random() < chance:
                 self._tell(p, random.choice(messages), color)
 
+    def _find_open_spawn(self, x, y, depth, exclude_player=None):
+        """Find the nearest open tile to (x, y) that doesn't overlap with
+        other players or enemies. Prefers cardinal directions over diagonals.
+        Only searches within 2 tiles of the intended position."""
+        if self._is_tile_free(x, y, depth, exclude_player):
+            return x, y
+        for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0),
+                        (-1, -1), (1, -1), (-1, 1), (1, 1),
+                        (0, -2), (0, 2), (-2, 0), (2, 0)]:
+            nx, ny = x + dx, y + dy
+            if self._is_tile_free(nx, ny, depth, exclude_player):
+                return nx, ny
+        return x, y
+
+    def _is_tile_free(self, x, y, depth, exclude_player=None):
+        """Check if a tile is passable and not occupied by another player or enemy."""
+        if not self.is_passable(x, y, depth):
+            return False
+        if self.get_enemy_at(x, y, depth):
+            return False
+        for p in self.players:
+            if p is exclude_player:
+                continue
+            if not p.dead and p.depth == depth and p.x == x and p.y == y:
+                return False
+        return True
+
     def is_passable(self, x, y, depth):
         if x < 0 or x >= MAP_WIDTH or y < 0 or y >= MAP_HEIGHT:
             return False
@@ -860,7 +887,7 @@ class Game:
             stairs_up_x, stairs_up_y = self._get_stairs_up(new_depth)
             old_x, old_y, old_depth = player.x, player.y, player.depth
             player.depth = new_depth
-            player.x, player.y = stairs_up_x, stairs_up_y
+            player.x, player.y = self._find_open_spawn(stairs_up_x, stairs_up_y, new_depth, exclude_player=player)
             self._ensure_player_explored(player)
             self._ambient_sound(old_x, old_y, old_depth, [
                 "You hear footsteps descending the stairs.",
@@ -886,7 +913,7 @@ class Game:
                 stairs_down_x, stairs_down_y = self._get_stairs_down(new_depth)
                 old_x, old_y, old_depth = player.x, player.y, player.depth
                 player.depth = new_depth
-                player.x, player.y = stairs_down_x, stairs_down_y
+                player.x, player.y = self._find_open_spawn(stairs_down_x, stairs_down_y, new_depth, exclude_player=player)
                 self._ensure_player_explored(player)
                 self._ambient_sound(old_x, old_y, old_depth, [
                     "You hear footsteps ascending the stairs.",

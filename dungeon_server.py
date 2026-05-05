@@ -103,6 +103,7 @@ class GameServer:
                     color, depth=0)
                 p._server_id = pid
                 g.players.append(p)
+                p.x, p.y = g._find_open_spawn(spawn_x, spawn_y, 0, exclude_player=p)
             self.clients[pid] = p
             self._update_visibility(g)
             g._update_explored()
