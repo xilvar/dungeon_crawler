@@ -140,6 +140,174 @@ ENEMY_PROPS = {
     ENEMY_DRAGON: {"char": "d", "color": COLOR_RED, "name": "Dragon", "hp": 50, "attack": 12, "defense": 5, "xp": 50},
 }
 
+ENEMY_SOUNDS = {
+    "Rat": [
+        "You hear faint scratching in the darkness.",
+        "Something small scurries across the stone floor.",
+        "A faint squeak echoes from somewhere nearby.",
+    ],
+    "Bat": [
+        "You hear the flutter of leathery wings nearby.",
+        "A faint squeaking sound comes from the shadows.",
+        "Something flutters past in the darkness.",
+    ],
+    "Spider": [
+        "You hear a faint skittering against the stone.",
+        "Something crawls across the ceiling above.",
+        "A soft clicking sound echoes from the darkness.",
+    ],
+    "Snake": [
+        "You hear a faint hiss in the darkness.",
+        "Something slithers across the stone floor.",
+        "A dry rustling sound comes from somewhere nearby.",
+    ],
+    "Kobold": [
+        "You hear faint chittering nearby.",
+        "Something small and quick scampers in the dark.",
+        "A distant giggle echoes through the corridor.",
+    ],
+    "Goblin": [
+        "You hear a faint cackle in the distance.",
+        "Something shuffles nearby with clanking metal.",
+        "A guttural mutter echoes through the darkness.",
+    ],
+    "Imp": [
+        "You hear a faint cackle echoing nearby.",
+        "Something small and swift darts through the shadows.",
+        "A sizzling sound comes from somewhere in the dark.",
+    ],
+    "Skeleton": [
+        "You hear bones clattering in the darkness.",
+        "Something rattles as it moves nearby.",
+        "A dry clicking echoes through the corridor.",
+    ],
+    "Zombie": [
+        "You hear a slow shuffle in the darkness.",
+        "Something drags heavily across the stone.",
+        "A low groan echoes from somewhere nearby.",
+    ],
+    "Wolf": [
+        "You hear a low growl in the distance.",
+        "Something prowls through the shadows nearby.",
+        "A sharp snarl echoes through the corridor.",
+    ],
+    "Hydra": [
+        "You hear multiple heads hissing in the darkness.",
+        "Something massive shifts nearby with a wet slither.",
+        "A deep gurgling roar echoes through the dungeon.",
+    ],
+    "Mummy": [
+        "You hear bandages rustling in the darkness.",
+        "Something shuffles slowly with a dry whisper.",
+        "Ancient mumbling echoes from somewhere nearby.",
+    ],
+    "Wraith": [
+        "You hear a chilling whisper in the darkness.",
+        "Something ethereal drifts through the shadows.",
+        "A cold moan echoes from somewhere nearby.",
+    ],
+    "Troll": [
+        "You hear heavy thudding footsteps nearby.",
+        "Something massive grunts in the darkness.",
+        "A crude club drags across the stone floor.",
+    ],
+    "Minotaur": [
+        "You hear heavy hooves pounding in the distance.",
+        "Something massive snorts in the darkness.",
+        "A horn scrapes against stone nearby.",
+    ],
+    "Medusa": [
+        "You hear a faint hissing, like many snakes at once.",
+        "Something moves with an uncanny stillness nearby.",
+        "A cold whisper echoes from the shadows.",
+    ],
+    "Owlbear": [
+        "You hear a guttural hoot in the darkness.",
+        "Something heavy scratches at the stone.",
+        "Talons scrape across the floor nearby.",
+    ],
+    "Hook Horror": [
+        "You hear metal clanking in the darkness.",
+        "Something drags heavy hooks across the stone.",
+        "A rhythmic scraping echoes from somewhere nearby.",
+    ],
+    "Phase Spider": [
+        "You hear a faint shimmering in the air.",
+        "Something skitters through the walls nearby.",
+        "A dimensional ripple echoes from the shadows.",
+    ],
+    "Basilisk": [
+        "You hear a heavy slithering in the darkness.",
+        "Something hisses with a stony resonance.",
+        "A cold clicking echoes from somewhere nearby.",
+    ],
+    "Wyvern": [
+        "You hear heavy wings beating in the distance.",
+        "Something scaly scrapes against the stone.",
+        "A deep roar echoes through the dungeon.",
+    ],
+    "Phoenix": [
+        "You hear crackling flames in the darkness.",
+        "Something melodic cries from somewhere nearby.",
+        "Wings beat with the sound of rushing fire.",
+    ],
+    "Grue": [
+        "You hear whispers from the darkness itself.",
+        "Something shifts in the shadows nearby.",
+        "A cold presence stirs in the distance.",
+    ],
+    "Gelatinous Cube": [
+        "You hear a wet squelching in the darkness.",
+        "Something drips and oozes across the floor.",
+        "A gurgling sound echoes from somewhere nearby.",
+    ],
+    "Remorhaz": [
+        "You hear the ground tremble with heavy footsteps.",
+        "Something burrows through the stone nearby.",
+        "A deep rumble echoes with crackling heat.",
+    ],
+    "Ice Devil": [
+        "You hear a freezing wind in the darkness.",
+        "Something heavy moves with crackling frost.",
+        "A chilling laugh echoes from somewhere nearby.",
+    ],
+    "Lich": [
+        "You hear a faint chanting in the darkness.",
+        "Something moves with an aura of cold magic.",
+        "A crackling energy echoes from somewhere nearby.",
+    ],
+    "Beholder": [
+        "You hear a wet squelching and clicking nearby.",
+        "Something floats through the darkness with a hum.",
+        "Multiple eyes track you from somewhere in the shadows.",
+    ],
+    "Balor": [
+        "You hear fire crackling with immense heat.",
+        "Something massive moves with devastating power.",
+        "A deep roar shakes the very walls nearby.",
+    ],
+    "Orc": [
+        "You hear heavy footsteps and grunting nearby.",
+        "Something swings a weapon in the darkness.",
+        "A guttural shout echoes through the corridor.",
+    ],
+    "Golem": [
+        "You hear heavy stone grinding nearby.",
+        "Something massive thuds across the floor.",
+        "Metallic clanking echoes from somewhere in the dark.",
+    ],
+    "Demon": [
+        "You hear a deep roar from the darkness.",
+        "Something moves with crackling hellfire.",
+        "Sulfurous heat radiates from somewhere nearby.",
+    ],
+    "Dragon": [
+        "You hear massive wings beating in the distance.",
+        "Something enormous shifts with a deep rumble.",
+        "A roar echoes through the dungeon with terrifying force.",
+    ],
+}
+
 ITEM_POTION = "potion"
 ITEM_SWORD = "sword"
 ITEM_SHIELD = "shield"
@@ -779,11 +947,12 @@ class Game:
                     moved = True
                     break
             if moved:
-                self._ambient_sound(enemy["x"], enemy["y"], depth, [
-                    "You hear a faint scuttling in the darkness.",
-                    "Something shifts in the shadows nearby.",
-                    "You hear a low growl in the distance.",
-                ], COLOR_WHITE, chance=0.09, range=37)
+                self._ambient_sound(enemy["x"], enemy["y"], depth,
+                    ENEMY_SOUNDS.get(enemy["name"], [
+                        "You hear a faint scuttling in the darkness.",
+                        "Something shifts in the shadows nearby.",
+                        "You hear a low growl in the distance.",
+                    ]), COLOR_WHITE, chance=0.09, range=37)
             enemy["next_tick"] = self.tick + TICK_MOVE
             return
         dungeon = self._get_dungeon(depth)
@@ -853,11 +1022,12 @@ class Game:
                         moved = True
                         break
             if moved:
-                self._ambient_sound(enemy["x"], enemy["y"], depth, [
-                    "You hear something heavy moving nearby.",
-                    "A low growl echoes from somewhere in the dark.",
-                    "You hear claws scraping against stone.",
-                ], COLOR_WHITE, chance=0.09, range=37)
+                self._ambient_sound(enemy["x"], enemy["y"], depth,
+                    ENEMY_SOUNDS.get(enemy["name"], [
+                        "You hear something heavy moving nearby.",
+                        "A low growl echoes from somewhere in the dark.",
+                        "You hear claws scraping against stone.",
+                    ]), COLOR_WHITE, chance=0.09, range=37)
             enemy["next_tick"] = self.tick + TICK_MOVE
         else:
             moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
@@ -870,11 +1040,12 @@ class Game:
                     moved = True
                     break
             if moved:
-                self._ambient_sound(enemy["x"], enemy["y"], depth, [
-                    "You hear a faint scuttling in the darkness.",
-                    "Something shifts in the shadows nearby.",
-                    "You hear a low growl in the distance.",
-                ], COLOR_WHITE, chance=0.09, range=37)
+                self._ambient_sound(enemy["x"], enemy["y"], depth,
+                    ENEMY_SOUNDS.get(enemy["name"], [
+                        "You hear a faint scuttling in the darkness.",
+                        "Something shifts in the shadows nearby.",
+                        "You hear a low growl in the distance.",
+                    ]), COLOR_WHITE, chance=0.09, range=37)
             enemy["next_tick"] = self.tick + TICK_MOVE
 
     def _do_go_down_stairs(self, player):
