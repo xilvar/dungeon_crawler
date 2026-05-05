@@ -16,10 +16,6 @@ ACTION_MAP = {
     curses.KEY_DOWN: (0, 1),
     curses.KEY_UP: (0, -1),
     curses.KEY_RIGHT: (1, 0),
-    ord('y'): (-1, -1),
-    ord('u'): (1, -1),
-    ord('b'): (-1, 1),
-    ord('n'): (1, 1),
     ord('a'): (-1, 0),
     ord('s'): (0, 1),
     ord('w'): (0, -1),
@@ -28,9 +24,8 @@ ACTION_MAP = {
 
 P1_MOVES = {
     curses.KEY_LEFT, curses.KEY_DOWN, curses.KEY_UP, curses.KEY_RIGHT,
-    ord('y'), ord('u'), ord('b'), ord('n'),
+    ord('a'), ord('s'), ord('w'), ord('d'),
 }
-P2_MOVES = {ord('a'), ord('s'), ord('w'), ord('d')}
 
 COLOR_MAP = {
     0: curses.COLOR_BLACK,

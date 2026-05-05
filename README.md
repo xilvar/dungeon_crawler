@@ -29,7 +29,7 @@ A terminal-based roguelike dungeon crawler with multiplayer support, implemented
 
 | Key | Action |
 |---|---|
-| Arrow keys / `y u b n` / `WASD` | Move |
+| Arrow keys / `WASD` | Move |
 | `>` or `=` | Descend stairs |
 | `<` or `-` | Ascend stairs |
 | `g` | Grab item |

@@ -673,6 +673,9 @@ class Game:
             player.next_tick = player.rest_end_tick
 
     def _do_move(self, player, dx, dy):
+        if dx != 0 and dy != 0:
+            player.next_tick = self.tick + TICK_WAIT
+            return
         nx, ny = player.x + dx, player.y + dy
         if not self.is_passable(nx, ny, player.depth):
             player.next_tick = self.tick + TICK_WAIT
@@ -780,7 +783,7 @@ class Game:
                     "You hear a faint scuttling in the darkness.",
                     "Something shifts in the shadows nearby.",
                     "You hear a low growl in the distance.",
-                ], COLOR_WHITE, chance=0.09)
+                ], COLOR_WHITE, chance=0.09, range=37)
             enemy["next_tick"] = self.tick + TICK_MOVE
             return
         dungeon = self._get_dungeon(depth)
@@ -854,7 +857,7 @@ class Game:
                     "You hear something heavy moving nearby.",
                     "A low growl echoes from somewhere in the dark.",
                     "You hear claws scraping against stone.",
-                ], COLOR_WHITE, chance=0.09)
+                ], COLOR_WHITE, chance=0.09, range=37)
             enemy["next_tick"] = self.tick + TICK_MOVE
         else:
             moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
@@ -871,7 +874,7 @@ class Game:
                     "You hear a faint scuttling in the darkness.",
                     "Something shifts in the shadows nearby.",
                     "You hear a low growl in the distance.",
-                ], COLOR_WHITE, chance=0.09)
+                ], COLOR_WHITE, chance=0.09, range=37)
             enemy["next_tick"] = self.tick + TICK_MOVE
 
     def _do_go_down_stairs(self, player):
