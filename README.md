@@ -4,7 +4,8 @@ A terminal-based roguelike dungeon crawler with multiplayer support, implemented
 
 ## Modules
 
-- **dungeon_crawler.py** — Core game logic: dungeon generation, FOV, combat, entities, items, corpses, ambient sounds, and a text-mode renderer for debugging.
+- **dungeon_messages.py** — All player-facing message strings: enemy sounds, hit messages, ambient sounds, and broadcast/tell templates.
+- **dungeon_crawler.py** — Core game logic: dungeon generation, FOV, combat, entities, items, corpses, and a text-mode renderer for debugging.
 - **dungeon_server.py** — Multiplayer HTTP server that manages game state, player registration, actions, visibility-filtered state responses, and smart spawn placement.
 - **dungeon_client.py** — Curses-based terminal client that connects to the server, renders the map with colored overlays, and handles player input.
 

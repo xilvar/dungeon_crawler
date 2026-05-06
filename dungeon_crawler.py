@@ -7,6 +7,42 @@ Press > or . to go down stairs. g to grab items.
 
 import random
 
+from dungeon_messages import (
+    ENEMY_SOUNDS,
+    ENEMY_SOUNDS_DEFAULT,
+    ENEMY_HIT_MESSAGES,
+    ENEMY_HIT_DEFAULT,
+    PLAYER_MOVE_AMBIENT,
+    COMBAT_CLASH_AMBIENT,
+    ENEMY_DEATH_AMBIENT,
+    PLAYER_DEATH_AMBIENT,
+    STAIRS_DOWN_AMBIENT,
+    STAIRS_DOWN_DEPTH_AMBIENT,
+    STAIRS_UP_AMBIENT,
+    STAIRS_UP_DEPTH_AMBIENT,
+    ENEMY_SPAWN_AMBIENT,
+    MSG_PLAYER_HIT_ENEMY,
+    MSG_ENEMY_DIES,
+    MSG_LEVEL_UP,
+    MSG_PLAYER_DIED,
+    MSG_CONQUERED,
+    MSG_DESCENDED,
+    MSG_ASCENDED,
+    MSG_DRANK_POTION,
+    MSG_EQUIPPED_SWORD,
+    MSG_EQUIPPED_SHIELD,
+    MSG_PICKED_UP_GOLD,
+    MSG_REST_HEAL,
+    MSG_REST_NO_HEAL,
+    MSG_ENEMY_APPEARS,
+    MSG_ENEMY_INTO_VIEW,
+    MSG_CORPSE_INFO,
+    MSG_NO_STAIRS_DOWN,
+    MSG_CANNOT_GO_UP,
+    MSG_NO_STAIRS_UP,
+    MSG_NOTHING_TO_GRAB,
+)
+
 # --- Constants ---
 # Color constants (match curses.COLOR_* values for compatibility)
 COLOR_BLACK = 0
@@ -140,341 +176,6 @@ ENEMY_PROPS = {
     ENEMY_DRAGON: {"char": "d", "color": COLOR_RED, "name": "Dragon", "hp": 50, "attack": 12, "defense": 5, "xp": 50},
 }
 
-ENEMY_SOUNDS = {
-    "Rat": [
-        "You hear faint scratching in the darkness.",
-        "Something small scurries across the stone floor.",
-        "A faint squeak echoes from somewhere nearby.",
-    ],
-    "Bat": [
-        "You hear the flutter of leathery wings nearby.",
-        "A faint squeaking sound comes from the shadows.",
-        "Something flutters past in the darkness.",
-    ],
-    "Spider": [
-        "You hear a faint skittering against the stone.",
-        "Something crawls across the ceiling above.",
-        "A soft clicking sound echoes from the darkness.",
-    ],
-    "Snake": [
-        "You hear a faint hiss in the darkness.",
-        "Something slithers across the stone floor.",
-        "A dry rustling sound comes from somewhere nearby.",
-    ],
-    "Kobold": [
-        "You hear faint chittering nearby.",
-        "Something small and quick scampers in the dark.",
-        "A distant giggle echoes through the corridor.",
-    ],
-    "Goblin": [
-        "You hear a faint cackle in the distance.",
-        "Something shuffles nearby with clanking metal.",
-        "A guttural mutter echoes through the darkness.",
-    ],
-    "Imp": [
-        "You hear a faint cackle echoing nearby.",
-        "Something small and swift darts through the shadows.",
-        "A sizzling sound comes from somewhere in the dark.",
-    ],
-    "Skeleton": [
-        "You hear bones clattering in the darkness.",
-        "Something rattles as it moves nearby.",
-        "A dry clicking echoes through the corridor.",
-    ],
-    "Zombie": [
-        "You hear a slow shuffle in the darkness.",
-        "Something drags heavily across the stone.",
-        "A low groan echoes from somewhere nearby.",
-    ],
-    "Wolf": [
-        "You hear a low growl in the distance.",
-        "Something prowls through the shadows nearby.",
-        "A sharp snarl echoes through the corridor.",
-    ],
-    "Hydra": [
-        "You hear multiple heads hissing in the darkness.",
-        "Something massive shifts nearby with a wet slither.",
-        "A deep gurgling roar echoes through the dungeon.",
-    ],
-    "Mummy": [
-        "You hear bandages rustling in the darkness.",
-        "Something shuffles slowly with a dry whisper.",
-        "Ancient mumbling echoes from somewhere nearby.",
-    ],
-    "Wraith": [
-        "You hear a chilling whisper in the darkness.",
-        "Something ethereal drifts through the shadows.",
-        "A cold moan echoes from somewhere nearby.",
-    ],
-    "Troll": [
-        "You hear heavy thudding footsteps nearby.",
-        "Something massive grunts in the darkness.",
-        "A crude club drags across the stone floor.",
-    ],
-    "Minotaur": [
-        "You hear heavy hooves pounding in the distance.",
-        "Something massive snorts in the darkness.",
-        "A horn scrapes against stone nearby.",
-    ],
-    "Medusa": [
-        "You hear a faint hissing, like many snakes at once.",
-        "Something moves with an uncanny stillness nearby.",
-        "A cold whisper echoes from the shadows.",
-    ],
-    "Owlbear": [
-        "You hear a guttural hoot in the darkness.",
-        "Something heavy scratches at the stone.",
-        "Talons scrape across the floor nearby.",
-    ],
-    "Hook Horror": [
-        "You hear metal clanking in the darkness.",
-        "Something drags heavy hooks across the stone.",
-        "A rhythmic scraping echoes from somewhere nearby.",
-    ],
-    "Phase Spider": [
-        "You hear a faint shimmering in the air.",
-        "Something skitters through the walls nearby.",
-        "A dimensional ripple echoes from the shadows.",
-    ],
-    "Basilisk": [
-        "You hear a heavy slithering in the darkness.",
-        "Something hisses with a stony resonance.",
-        "A cold clicking echoes from somewhere nearby.",
-    ],
-    "Wyvern": [
-        "You hear heavy wings beating in the distance.",
-        "Something scaly scrapes against the stone.",
-        "A deep roar echoes through the dungeon.",
-    ],
-    "Phoenix": [
-        "You hear crackling flames in the darkness.",
-        "Something melodic cries from somewhere nearby.",
-        "Wings beat with the sound of rushing fire.",
-    ],
-    "Grue": [
-        "You hear whispers from the darkness itself.",
-        "Something shifts in the shadows nearby.",
-        "A cold presence stirs in the distance.",
-    ],
-    "Gelatinous Cube": [
-        "You hear a wet squelching in the darkness.",
-        "Something drips and oozes across the floor.",
-        "A gurgling sound echoes from somewhere nearby.",
-    ],
-    "Remorhaz": [
-        "You hear the ground tremble with heavy footsteps.",
-        "Something burrows through the stone nearby.",
-        "A deep rumble echoes with crackling heat.",
-    ],
-    "Ice Devil": [
-        "You hear a freezing wind in the darkness.",
-        "Something heavy moves with crackling frost.",
-        "A chilling laugh echoes from somewhere nearby.",
-    ],
-    "Lich": [
-        "You hear a faint chanting in the darkness.",
-        "Something moves with an aura of cold magic.",
-        "A crackling energy echoes from somewhere nearby.",
-    ],
-    "Beholder": [
-        "You hear a wet squelching and clicking nearby.",
-        "Something floats through the darkness with a hum.",
-        "Multiple eyes track you from somewhere in the shadows.",
-    ],
-    "Balor": [
-        "You hear fire crackling with immense heat.",
-        "Something massive moves with devastating power.",
-        "A deep roar shakes the very walls nearby.",
-    ],
-    "Orc": [
-        "You hear heavy footsteps and grunting nearby.",
-        "Something swings a weapon in the darkness.",
-        "A guttural shout echoes through the corridor.",
-    ],
-    "Golem": [
-        "You hear heavy stone grinding nearby.",
-        "Something massive thuds across the floor.",
-        "Metallic clanking echoes from somewhere in the dark.",
-    ],
-    "Demon": [
-        "You hear a deep roar from the darkness.",
-        "Something moves with crackling hellfire.",
-        "Sulfurous heat radiates from somewhere nearby.",
-    ],
-    "Dragon": [
-        "You hear massive wings beating in the distance.",
-        "Something enormous shifts with a deep rumble.",
-        "A roar echoes through the dungeon with terrifying force.",
-    ],
-}
-
-ENEMY_HIT_MESSAGES = {
-    "Rat": [
-        "The Rat bites {name} for {damage} damage!",
-        "The Rat gnaws at {name} for {damage} damage!",
-        "The Rat scratches at {name} for {damage} damage!",
-    ],
-    "Bat": [
-        "The Bat pecks at {name} for {damage} damage!",
-        "The Bat claws at {name} for {damage} damage!",
-        "The Bat dives and strikes {name} for {damage} damage!",
-    ],
-    "Spider": [
-        "The Spider bites {name} for {damage} damage!",
-        "The Spider injects venom into {name} for {damage} damage!",
-        "The Spider wraps {name} in web and bites for {damage} damage!",
-    ],
-    "Snake": [
-        "The Snake strikes {name} for {damage} damage!",
-        "The Snake bites {name} and injects venom for {damage} damage!",
-        "The Snake coils tight and strikes {name} for {damage} damage!",
-    ],
-    "Kobold": [
-        "The Kobold stabs {name} with a rusty dagger for {damage} damage!",
-        "The Kobold strikes {name} with a crude club for {damage} damage!",
-        "The Kobold lunges and scratches {name} for {damage} damage!",
-    ],
-    "Goblin": [
-        "The Goblin hits {name} with a wooden club for {damage} damage!",
-        "The Goblin slashes {name} with a jagged blade for {damage} damage!",
-        "The Goblin strikes {name} with surprising speed for {damage} damage!",
-    ],
-    "Imp": [
-        "The Imp claws at {name} for {damage} damage!",
-        "The Imp bites {name} with sharp fangs for {damage} damage!",
-        "The Imp zaps {name} with a burst of hellfire for {damage} damage!",
-    ],
-    "Skeleton": [
-        "The Skeleton strikes {name} with bony fists for {damage} damage!",
-        "The Skeleton clubs {name} with a rusty sword for {damage} damage!",
-        "The Skeleton slashes {name} with skeletal hands for {damage} damage!",
-    ],
-    "Zombie": [
-        "The Zombie grabs {name} and bites for {damage} damage!",
-        "The Zombie slams into {name} for {damage} damage!",
-        "The Zombie strikes {name} with rotting hands for {damage} damage!",
-    ],
-    "Wolf": [
-        "The Wolf lunges and bites {name} for {damage} damage!",
-        "The Wolf claws at {name} for {damage} damage!",
-        "The Wolf tackles {name} for {damage} damage!",
-    ],
-    "Hydra": [
-        "The Hydra bites {name} with multiple heads for {damage} damage!",
-        "The Hydra wraps around {name} and bites for {damage} damage!",
-        "The Hydra lashes out with its tails for {damage} damage!",
-    ],
-    "Mummy": [
-        "The Mummy strikes {name} with bandaged fists for {damage} damage!",
-        "The Mummy wraps {name} in ancient bandages for {damage} damage!",
-        "The Mummy delivers a withering blow to {name} for {damage} damage!",
-    ],
-    "Wraith": [
-        "The Wraith drains life force from {name} for {damage} damage!",
-        "The Wraith strikes {name} with spectral claws for {damage} damage!",
-        "The Wraith delivers a chilling touch to {name} for {damage} damage!",
-    ],
-    "Troll": [
-        "The Troll swings a massive club at {name} for {damage} damage!",
-        "The Troll slams {name} with huge fists for {damage} damage!",
-        "The Troll delivers a crushing blow to {name} for {damage} damage!",
-    ],
-    "Minotaur": [
-        "The Minotaur charges and strikes {name} for {damage} damage!",
-        "The Minotaur swings a massive axe at {name} for {damage} damage!",
-        "The Minotaur delivers a powerful blow to {name} for {damage} damage!",
-    ],
-    "Medusa": [
-        "The Medusa strikes {name} with a serpent's hiss for {damage} damage!",
-        "The Medusa delivers a paralyzing touch to {name} for {damage} damage!",
-        "The Medusa lashes out with writhing snake hair for {damage} damage!",
-    ],
-    "Owlbear": [
-        "The Owlbear claws deeply into {name} for {damage} damage!",
-        "The Owlbear strikes {name} with massive talons for {damage} damage!",
-        "The Owlbear delivers a crushing blow to {name} for {damage} damage!",
-    ],
-    "Hook Horror": [
-        "The Hook Horror slashes {name} with razor hooks for {damage} damage!",
-        "The Hook Horror drags its hooks across {name} for {damage} damage!",
-        "The Hook Horror strikes {name} with metal appendages for {damage} damage!",
-    ],
-    "Phase Spider": [
-        "The Phase Spider phases through the wall and bites {name} for {damage} damage!",
-        "The Phase Spider materializes and strikes {name} for {damage} damage!",
-        "The Phase Spider injects venom into {name} for {damage} damage!",
-    ],
-    "Basilisk": [
-        "The Basilisk strikes {name} with a petrifying gaze for {damage} damage!",
-        "The Basilisk delivers a venomous bite to {name} for {damage} damage!",
-        "The Basilisk lashes {name} with its stony tail for {damage} damage!",
-    ],
-    "Wyvern": [
-        "The Wyvern breathes acid onto {name} for {damage} damage!",
-        "The Wyvern strikes {name} with massive claws for {damage} damage!",
-        "The Wyvern delivers a poisonous bite to {name} for {damage} damage!",
-    ],
-    "Phoenix": [
-        "The Phoenix scorches {name} with blazing flames for {damage} damage!",
-        "The Phoenix strikes {name} with fiery wings for {damage} damage!",
-        "The Phoenix delivers a searing blow to {name} for {damage} damage!",
-    ],
-    "Grue": [
-        "The Grue emerges from the darkness and strikes {name} for {damage} damage!",
-        "The Grue delivers a chilling touch to {name} for {damage} damage!",
-        "The Grue strikes {name} with shadowy claws for {damage} damage!",
-    ],
-    "Gelatinous Cube": [
-        "The Gelatinous Cube partially engulfs {name} and dissolves for {damage} damage!",
-        "The Gelatinous Cube delivers a squelching blow to {name} for {damage} damage!",
-        "The Gelatinous Cube oozes corrosive slime onto {name} for {damage} damage!",
-    ],
-    "Remorhaz": [
-        "The Remorhaz burrows up and strikes {name} for {damage} damage!",
-        "The Remorhaz breathes intense heat onto {name} for {damage} damage!",
-        "The Remorhaz delivers a devastating blow to {name} for {damage} damage!",
-    ],
-    "Ice Devil": [
-        "The Ice Devil strikes {name} with razor frost for {damage} damage!",
-        "The Ice Devil delivers a freezing blow to {name} for {damage} damage!",
-        "The Ice Devil scorches {name} with cold fire for {damage} damage!",
-    ],
-    "Lich": [
-        "The Lich zaps {name} with necrotic energy for {damage} damage!",
-        "The Lich strikes {name} with a skeletal hand for {damage} damage!",
-        "The Lich delivers a withering curse to {name} for {damage} damage!",
-    ],
-    "Beholder": [
-        "The Beholder fires a ray at {name} for {damage} damage!",
-        "The Beholder strikes {name} with writhing eyestalks for {damage} damage!",
-        "The Beholder blasts {name} with a debilitating ray for {damage} damage!",
-    ],
-    "Balor": [
-        "The Balor strikes {name} with a flaming sword for {damage} damage!",
-        "The Balor breathes hellfire onto {name} for {damage} damage!",
-        "The Balor delivers a devastating blow to {name} for {damage} damage!",
-    ],
-    "Orc": [
-        "The Orc strikes {name} with a heavy axe for {damage} damage!",
-        "The Orc hits {name} with a spiked club for {damage} damage!",
-        "The Orc slashes {name} with a crude blade for {damage} damage!",
-    ],
-    "Golem": [
-        "The Golem slams {name} with stone fists for {damage} damage!",
-        "The Golem delivers a crushing blow to {name} for {damage} damage!",
-        "The Golem strikes {name} with metallic arms for {damage} damage!",
-    ],
-    "Demon": [
-        "The Demon strikes {name} with crackling hellfire for {damage} damage!",
-        "The Demon claws at {name} with demonic strength for {damage} damage!",
-        "The Demon delivers a devastating blow to {name} for {damage} damage!",
-    ],
-    "Dragon": [
-        "The Dragon breathes searing fire onto {name} for {damage} damage!",
-        "The Dragon strikes {name} with massive claws for {damage} damage!",
-        "The Dragon delivers a devastating bite to {name} for {damage} damage!",
-    ],
-}
 
 ITEM_POTION = "potion"
 ITEM_SWORD = "sword"
@@ -842,7 +543,7 @@ class Game:
                 if e["hp"] <= 0:
                     continue
                 if new_fov[e["y"]][e["x"]] and not old_fov[e["y"]][e["x"]]:
-                    self._tell(p, f"A {e['name']} comes into view.", e["color"])
+                    self._tell(p, MSG_ENEMY_INTO_VIEW, e["color"], ctx={"enemy": e["name"]})
 
     def _update_explored(self):
         for i, p in enumerate(self.players):
@@ -1027,16 +728,15 @@ class Game:
         else:
             player.x, player.y = nx, ny
             player.next_tick = self.tick + TICK_PLAYER_MOVE
-            self._ambient_sound(nx, ny, player.depth, [
-                "You hear faint footsteps nearby.",
-                "A faint sound of movement echoes through the dungeon.",
-                "You hear something moving in the distance.",
-            ], COLOR_WHITE, source=player, chance=0.08, skip_visible=True, range=38, flat=True)
+            self._ambient_sound(nx, ny, player.depth, PLAYER_MOVE_AMBIENT,
+                COLOR_WHITE, source=player, chance=0.08, skip_visible=True, range=38, flat=True)
             corpse = self.get_corpse_at(nx, ny, player.depth)
             if corpse:
-                self._tell(player,
-                    f"You see the corpse of {corpse['name']} (lv {corpse['level']}). Looks like they were killed by a {corpse['killer']}.",
-                    COLOR_RED)
+                self._tell(player, MSG_CORPSE_INFO, COLOR_RED, ctx={
+                    "corpse": corpse["name"],
+                    "corpse_level": corpse["level"],
+                    "killer": corpse["killer"],
+                })
 
     def _do_combat_attack(self, player, enemy):
         damage = self.do_attack(
@@ -1044,20 +744,14 @@ class Game:
             enemy["name"], enemy["defense"])
         enemy["hp"] -= damage
         self._broadcast(enemy["x"], enemy["y"], player.depth,
-                        f"{{name}} hit the {enemy['name']} for {damage} damage!", COLOR_WHITE, subject=player)
-        self._ambient_sound(enemy["x"], enemy["y"], player.depth, [
-            "You hear the sharp clash of steel nearby.",
-            "A sudden clash echoes through the dungeon.",
-            "You hear something being struck in the distance.",
-        ], COLOR_WHITE, source=player, chance=0.5, range=38, flat=True)
+                        MSG_PLAYER_HIT_ENEMY, COLOR_WHITE, subject=player, ctx={"enemy": enemy["name"], "damage": damage})
+        self._ambient_sound(enemy["x"], enemy["y"], player.depth, COMBAT_CLASH_AMBIENT,
+            COLOR_WHITE, source=player, chance=0.5, range=38, flat=True)
         if enemy["hp"] <= 0:
             self._broadcast(enemy["x"], enemy["y"], player.depth,
-                            f"The {enemy['name']} dies!", COLOR_RED)
-            self._ambient_sound(enemy["x"], enemy["y"], player.depth, [
-                "You hear something collapse in the distance.",
-                "A dying groan echoes nearby.",
-                "You hear a wet thud from somewhere nearby.",
-            ], COLOR_RED, source=player, chance=1.0, range=38, flat=True)
+                            MSG_ENEMY_DIES, COLOR_RED, ctx={"enemy": enemy["name"]})
+            self._ambient_sound(enemy["x"], enemy["y"], player.depth, ENEMY_DEATH_AMBIENT,
+                COLOR_RED, source=player, chance=1.0, range=38, flat=True)
             player.xp += enemy["xp"]
             self._check_level_up(player)
 
@@ -1071,7 +765,7 @@ class Game:
             player.defense += 1
             player.next_level_xp = int(player.next_level_xp * 1.5)
             self._broadcast(player.x, player.y, player.depth,
-                            f"{{name}} is now level {player.level}!", COLOR_YELLOW, subject=player)
+                            MSG_LEVEL_UP, COLOR_YELLOW, subject=player, ctx={"level": player.level})
 
     def _process_tick(self):
         if self.game_over:
@@ -1120,11 +814,8 @@ class Game:
                     break
             if moved:
                 self._ambient_sound(enemy["x"], enemy["y"], depth,
-                    ENEMY_SOUNDS.get(enemy["name"], [
-                        "You hear a faint scuttling in the darkness.",
-                        "Something shifts in the shadows nearby.",
-                        "You hear a low growl in the distance.",
-                    ]), COLOR_WHITE, chance=0.09, range=37)
+                    ENEMY_SOUNDS.get(enemy["name"], ENEMY_SOUNDS_DEFAULT),
+                    COLOR_WHITE, chance=0.09, range=37)
             enemy["next_tick"] = self.tick + TICK_MOVE
             return
         dungeon = self._get_dungeon(depth)
@@ -1143,16 +834,11 @@ class Game:
                 enemy["name"], enemy["attack"],
                 target.name, target.defense_total(), 1)
             target.hp -= damage
-            hit_template = random.choice(ENEMY_HIT_MESSAGES.get(enemy["name"], [
-                f"The {enemy['name']} hits {{name}} for {{damage}} damage!",
-            ]))
+            hit_template = random.choice(ENEMY_HIT_MESSAGES.get(enemy["name"], [ENEMY_HIT_DEFAULT]))
             self._broadcast(target.x, target.y, depth,
                             hit_template, enemy["color"], subject=target, ctx={"damage": damage})
-            self._ambient_sound(target.x, target.y, depth, [
-                "You hear the sharp clash of steel nearby.",
-                "A cry of pain echoes through the dungeon.",
-                "You hear something being struck in the distance.",
-            ], COLOR_WHITE, chance=0.5, range=38, flat=True)
+            self._ambient_sound(target.x, target.y, depth, COMBAT_CLASH_AMBIENT,
+                COLOR_WHITE, chance=0.5, range=38, flat=True)
             enemy["next_tick"] = self.tick + TICK_ATTACK
             if target.hp <= 0:
                 target.hp = 0
@@ -1165,12 +851,9 @@ class Game:
                     "killer": enemy["name"],
                 })
                 self._broadcast(target.x, target.y, depth,
-                                "{name} has died!", COLOR_RED, subject=target)
-                self._ambient_sound(target.x, target.y, depth, [
-                    "You hear someone cry out in agony nearby.",
-                    "A terrible scream echoes through the dungeon.",
-                    "You hear a body collapse in the distance.",
-                ], COLOR_RED, chance=1.0, range=38, flat=True)
+                                MSG_PLAYER_DIED, COLOR_RED, subject=target)
+                self._ambient_sound(target.x, target.y, depth, PLAYER_DEATH_AMBIENT,
+                    COLOR_RED, chance=1.0, range=38, flat=True)
                 alive = any(p and not p.dead and not p.game_win for p in self.players)
                 if not alive:
                     self.game_over = True
@@ -1198,11 +881,8 @@ class Game:
                         break
             if moved:
                 self._ambient_sound(enemy["x"], enemy["y"], depth,
-                    ENEMY_SOUNDS.get(enemy["name"], [
-                        "You hear something heavy moving nearby.",
-                        "A low growl echoes from somewhere in the dark.",
-                        "You hear claws scraping against stone.",
-                    ]), COLOR_WHITE, chance=0.09, range=37)
+                    ENEMY_SOUNDS.get(enemy["name"], ENEMY_SOUNDS_DEFAULT),
+                    COLOR_WHITE, chance=0.09, range=37)
             enemy["next_tick"] = self.tick + TICK_MOVE
         else:
             moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
@@ -1216,11 +896,8 @@ class Game:
                     break
             if moved:
                 self._ambient_sound(enemy["x"], enemy["y"], depth,
-                    ENEMY_SOUNDS.get(enemy["name"], [
-                        "You hear a faint scuttling in the darkness.",
-                        "Something shifts in the shadows nearby.",
-                        "You hear a low growl in the distance.",
-                    ]), COLOR_WHITE, chance=0.09, range=37)
+                    ENEMY_SOUNDS.get(enemy["name"], ENEMY_SOUNDS_DEFAULT),
+                    COLOR_WHITE, chance=0.09, range=37)
             enemy["next_tick"] = self.tick + TICK_MOVE
 
     def _do_go_down_stairs(self, player):
@@ -1229,7 +906,7 @@ class Game:
             new_depth = player.depth + 1
             if new_depth >= MAX_DEPTH:
                 self._broadcast(player.x, player.y, player.depth,
-                                "{name} has conquered the dungeon!", COLOR_YELLOW, subject=player)
+                                MSG_CONQUERED, COLOR_YELLOW, subject=player)
                 player.game_win = True
                 return
             self._ensure_level(new_depth)
@@ -1238,20 +915,14 @@ class Game:
             player.depth = new_depth
             player.x, player.y = self._find_open_spawn(stairs_up_x, stairs_up_y, new_depth, exclude_player=player)
             self._ensure_player_explored(player)
-            self._ambient_sound(old_x, old_y, old_depth, [
-                "You hear footsteps descending the stairs.",
-                "The sound of boots echoing down the staircase.",
-                "Footsteps fade into the depths below.",
-            ], COLOR_CYAN, source=player, chance=1.0, skip_visible=True, range=38, flat=True)
-            self._ambient_depth(new_depth, [
-                "You hear footsteps descending from above.",
-                "Boots echo down the staircase.",
-                "Footsteps approach from the stairs above.",
-            ], COLOR_CYAN, source=player, chance=1.0, skip_visible=True)
+            self._ambient_sound(old_x, old_y, old_depth, STAIRS_DOWN_AMBIENT,
+                COLOR_CYAN, source=player, chance=1.0, skip_visible=True, range=38, flat=True)
+            self._ambient_depth(new_depth, STAIRS_DOWN_DEPTH_AMBIENT,
+                COLOR_CYAN, source=player, chance=1.0, skip_visible=True)
             self._broadcast(old_x, old_y, old_depth,
-                            f"{{name}} descended deeper. (Depth: {new_depth + 1})", COLOR_CYAN, subject=player)
+                            MSG_DESCENDED, COLOR_CYAN, subject=player, ctx={"depth": new_depth + 1})
         else:
-            self._tell(player, "{name}: no stairs down here.", COLOR_CYAN)
+            self._tell(player, MSG_NO_STAIRS_DOWN, COLOR_CYAN)
 
     def _do_go_up_stairs(self, player):
         dungeon = self._get_dungeon(player.depth)
@@ -1264,46 +935,40 @@ class Game:
                 player.depth = new_depth
                 player.x, player.y = self._find_open_spawn(stairs_down_x, stairs_down_y, new_depth, exclude_player=player)
                 self._ensure_player_explored(player)
-                self._ambient_sound(old_x, old_y, old_depth, [
-                    "You hear footsteps ascending the stairs.",
-                    "The sound of boots echoing up the staircase.",
-                    "Footsteps fade upward into the darkness.",
-                ], COLOR_CYAN, source=player, chance=1.0, skip_visible=True, range=38, flat=True)
-                self._ambient_depth(new_depth, [
-                    "You hear footsteps ascending from below.",
-                    "Boots echo up the staircase.",
-                    "Footsteps approach from the stairs below.",
-                ], COLOR_CYAN, source=player, chance=1.0, skip_visible=True)
+                self._ambient_sound(old_x, old_y, old_depth, STAIRS_UP_AMBIENT,
+                    COLOR_CYAN, source=player, chance=1.0, skip_visible=True, range=38, flat=True)
+                self._ambient_depth(new_depth, STAIRS_UP_DEPTH_AMBIENT,
+                    COLOR_CYAN, source=player, chance=1.0, skip_visible=True)
                 self._broadcast(old_x, old_y, old_depth,
-                                f"{{name}} went back up. (Depth: {new_depth + 1})", COLOR_CYAN, subject=player)
+                                MSG_ASCENDED, COLOR_CYAN, subject=player, ctx={"depth": new_depth + 1})
             else:
-                self._tell(player, "{name}: can't go up further.", COLOR_CYAN)
+                self._tell(player, MSG_CANNOT_GO_UP, COLOR_CYAN)
         else:
-            self._tell(player, "{name}: no stairs up here.", COLOR_CYAN)
+            self._tell(player, MSG_NO_STAIRS_UP, COLOR_CYAN)
 
     def _do_grab_item(self, player):
         idx, item = self.get_item_at(player.x, player.y, player.depth)
         if item is None:
-            self._tell(player, "{name}: nothing to grab here.", COLOR_CYAN)
+            self._tell(player, MSG_NOTHING_TO_GRAB, COLOR_CYAN)
             return
         kind = item["kind"]
         if kind == ITEM_POTION:
             heal = random.randint(5, 10)
             player.hp = min(player.hp + heal, player.max_hp)
             self._broadcast(player.x, player.y, player.depth,
-                            f"{{name}} drank a potion. Recovered {heal} HP.", COLOR_RED, subject=player)
+                            MSG_DRANK_POTION, COLOR_RED, subject=player, ctx={"heal": heal})
         elif kind == ITEM_SWORD:
             player.weapon_bonus += item["bonus"]
             self._broadcast(player.x, player.y, player.depth,
-                            f"{{name}} equipped a sword (+{item['bonus']} attack).", COLOR_WHITE, subject=player)
+                            MSG_EQUIPPED_SWORD, COLOR_WHITE, subject=player, ctx={"bonus": item["bonus"]})
         elif kind == ITEM_SHIELD:
             player.armor_bonus += item["bonus"]
             self._broadcast(player.x, player.y, player.depth,
-                            f"{{name}} equipped a shield (+{item['bonus']} defense).", COLOR_CYAN, subject=player)
+                            MSG_EQUIPPED_SHIELD, COLOR_CYAN, subject=player, ctx={"bonus": item["bonus"]})
         elif kind == ITEM_GOLD:
             player.gold += item["value"]
             self._broadcast(player.x, player.y, player.depth,
-                            f"{{name}} picked up {item['value']} gold.", COLOR_YELLOW, subject=player)
+                            MSG_PICKED_UP_GOLD, COLOR_YELLOW, subject=player, ctx={"gold": item["value"]})
         self._get_items(player.depth).pop(idx)
 
     def _do_rest(self, player):
@@ -1313,10 +978,10 @@ class Game:
         if player.hp < player.max_hp:
             player.hp += 1
             self._broadcast(player.x, player.y, player.depth,
-                            "{name} rested for a moment. (+1 HP)", COLOR_GREEN, subject=player)
+                            MSG_REST_HEAL, COLOR_GREEN, subject=player)
         else:
             self._broadcast(player.x, player.y, player.depth,
-                            "{name} rested for a moment.", COLOR_GREEN, subject=player)
+                            MSG_REST_NO_HEAL, COLOR_GREEN, subject=player)
         chance = 0.05 * player._consecutive_waits + 0.02 * player.depth
         chance = min(chance, 0.7)
         if random.random() < chance:
@@ -1357,12 +1022,8 @@ class Game:
                 "next_tick": self.tick + random.randint(0, 99),
             }
             self._get_enemies(depth).append(enemy)
-            self._broadcast(sx, sy, depth, f"A {prop['name']} appears!", COLOR_RED)
-            self._ambient_sound(sx, sy, depth, [
-                "You hear a sudden growl in the distance.",
-                "Something stirs in the darkness nearby.",
-                "A cold chill runs down your spine.",
-            ], COLOR_RED, chance=0.09)
+            self._broadcast(sx, sy, depth, MSG_ENEMY_APPEARS, COLOR_RED, ctx={"enemy": prop["name"]})
+            self._ambient_sound(sx, sy, depth, ENEMY_SPAWN_AMBIENT, COLOR_RED, chance=0.09)
             return
 
     def get_char_at(self, mx, my, player_idx=0):
