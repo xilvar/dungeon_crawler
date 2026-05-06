@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""
-Dungeon Crawler Server - runs the game and exposes a REST API.
-"""
+"""Multiplayer HTTP server that manages game state, player registration,
+actions, visibility-filtered state responses, and smart spawn placement."""
 import json
 import random
 import threading
@@ -34,6 +33,7 @@ class GameServer:
     ]
 
     def __init__(self):
+        """Initialize the server with a fresh game instance."""
         self.lock = threading.Lock()
         self.game = None
         self.running = False
@@ -50,11 +50,13 @@ class GameServer:
         self.game.player_visible = []
 
     def start(self):
+        """Start the game loop in a background daemon thread."""
         self.running = True
         self.thread = threading.Thread(target=self._loop, daemon=True)
         self.thread.start()
 
     def _loop(self):
+        """Main game loop: advance ticks and process game state."""
         while self.running:
             with self.lock:
                 self.game.tick += 1
@@ -62,25 +64,15 @@ class GameServer:
             _sleep_ms(10)
 
     def stop(self):
+        """Signal the game loop thread to stop."""
         self.running = False
-
-    @staticmethod
-    def _random_floor_pos(dungeon):
-        """Pick a random floor tile from the dungeon."""
-        positions = []
-        for y in range(MAP_HEIGHT):
-            for x in range(MAP_WIDTH):
-                if dungeon[y][x] != TILE_WALL:
-                    positions.append((x, y))
-        if not positions:
-            return 10, 10
-        return random.choice(positions)
 
     def _update_visibility(self, g):
         """Recompute visibility from all alive players."""
         g._update_visibility()
 
     def register_player(self):
+        """Register a new (or returning) player. Returns {"client_id": id, "player_id": id}."""
         with self.lock:
             g = self.game
             inactive = None
@@ -111,6 +103,7 @@ class GameServer:
             return {"client_id": pid, "player_id": pid}
 
     def deregister_player(self, player_id):
+        """Remove a player from the active game, keeping their state for re-entry."""
         with self.lock:
             g = self.game
             target = None
@@ -129,6 +122,7 @@ class GameServer:
             return {"error": "player not found"}
 
     def get_state(self, player_id=0):
+        """Return the visibility-filtered game state for the given player."""
         with self.lock:
             g = self.game
             if not g.players:
@@ -261,6 +255,7 @@ class GameServer:
             }
 
     def send_action(self, player_id, action):
+        """Queue an action for the given player. Returns {"ok": True} or an error."""
         with self.lock:
             g = self.game
             target_idx = None
@@ -283,6 +278,7 @@ class GameHandler(http.server.BaseHTTPRequestHandler):
         pass  # Suppress request logging
 
     def _send_json(self, data, status=200):
+        """Serialize data as JSON and send an HTTP response."""
         body = json.dumps(data).encode()
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
@@ -346,12 +342,13 @@ class GameHandler(http.server.BaseHTTPRequestHandler):
 
 
 def _sleep_ms(ms):
-    """Sleep with interruptibility."""
+    """Sleep for the given number of milliseconds."""
     import time
     time.sleep(ms / 1000.0)
 
 
 def main():
+    """Start the HTTP server and game loop on the given port (default 9999)."""
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 9999
 
     gs = GameServer()

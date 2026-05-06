@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-"""
-Dungeon Crawler Client - dumb terminal renderer.
-Connects to the server via HTTP.
-"""
+"""Curses-based terminal client that connects to the server, renders the map
+with colored overlays, and handles player input."""
 import curses
 import json
 import sys
@@ -92,14 +90,13 @@ def deregister(url, player_id):
 
 
 def render(stdscr, state, my_player_id):
-    """Render the game state to the terminal."""
+    """Render the game map, overlays, status bar, messages, and help text."""
     stdscr.erase()
     max_y, max_x = stdscr.getmaxyx()
 
     map_lines = state.get("map", [])
     players = state.get("players", [])
     enemies = state.get("enemies", [])
-    corpses = state.get("corpses", [])
     messages = state.get("messages", [])
 
     start_x = state.get("start_x", 0)
@@ -220,6 +217,7 @@ def render(stdscr, state, my_player_id):
 
 
 def main(stdscr):
+    """Main event loop: register, fetch state, render, and handle input."""
     curses.curs_set(0)
     curses.start_color()
     curses.use_default_colors()
@@ -287,9 +285,9 @@ def main(stdscr):
             send_action(url, player_id, {"type": "stairs_down"})
         elif key in (ord('<'), ord('-')):
             send_action(url, player_id, {"type": "stairs_up"})
-        elif key in (ord('g'),):
+        elif key == ord('g'):
             send_action(url, player_id, {"type": "grab"})
-        elif key in (ord('/'),):
+        elif key == ord('/'):
             send_action(url, player_id, {"type": "rest"})
 
 

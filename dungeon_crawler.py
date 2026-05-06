@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-"""
-Dungeon Crawler - A terminal roguelike game.
-Use arrow keys or WASD to move. Bump into enemies to attack.
-Press > or . to go down stairs. g to grab items.
-"""
+"""Core game logic: dungeon generation, FOV, combat, entities, items, corpses,
+ambient sounds, player state, and a text-mode renderer for debugging."""
 
 import random
 
@@ -45,7 +42,6 @@ from dungeon_messages import (
 
 # --- Constants ---
 # Color constants (match curses.COLOR_* values for compatibility)
-COLOR_BLACK = 0
 COLOR_RED = 1
 COLOR_GREEN = 2
 COLOR_YELLOW = 3
@@ -86,14 +82,6 @@ TILE_CHAR = {
     TILE_DOOR: "+",
     TILE_STAIRS_DOWN: ">",
     TILE_STAIRS_UP: "<",
-}
-
-TILE_COLOR = {
-    TILE_WALL: COLOR_BLUE,
-    TILE_FLOOR: COLOR_BLUE,
-    TILE_DOOR: COLOR_YELLOW,
-    TILE_STAIRS_DOWN: COLOR_YELLOW,
-    TILE_STAIRS_UP: COLOR_YELLOW,
 }
 
 # Entity types
@@ -190,16 +178,8 @@ ITEM_PROPS = {
 }
 
 
-class GameOverError(Exception):
-    pass
-
-
-class GameWinError(Exception):
-    pass
-
-
-# --- Dungeon Generation ---
 class Room:
+    """Represents a rectangular room in a dungeon."""
     def __init__(self, x1, y1, x2, y2):
         self.x1, self.y1 = x1, y1
         self.x2, self.y2 = x2, y2
@@ -208,7 +188,7 @@ class Room:
 
 
 def create_dungeon(depth):
-    """Generate a random dungeon with rooms and corridors."""
+    """Generate a random dungeon with rooms, corridors, and doors. Returns (grid, rooms)."""
     dungeon = [[TILE_WALL for _ in range(MAP_WIDTH)] for _ in range(MAP_HEIGHT)]
     rooms = []
 
@@ -294,7 +274,7 @@ def create_dungeon(depth):
 
 
 def place_entities(rooms, dungeon, depth):
-    """Place player, enemies, items, and stairs in rooms."""
+    """Place enemies and items in rooms. Returns (spawn_x, spawn_y, enemies, items)."""
     enemies = []
     items = []
 
@@ -379,6 +359,7 @@ def place_entities(rooms, dungeon, depth):
 
 # --- Field of View (raycasting) ---
 def compute_fov(map_grid, px, py, radius):
+    """Return a 2D boolean grid of tiles visible from (px, py) within the given radius."""
     visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
     visible[py][px] = True
     r2 = radius * radius
@@ -397,6 +378,7 @@ def compute_fov(map_grid, px, py, radius):
 
 
 def _has_line_of_sight(map_grid, x0, y0, x1, y1):
+    """Bresenham line-of-sight check between two points on the map grid."""
     dx = abs(x1 - x0)
     dy = abs(y1 - y0)
     sx = 1 if x0 < x1 else -1
@@ -419,6 +401,7 @@ def _has_line_of_sight(map_grid, x0, y0, x1, y1):
 
 # --- Player ---
 class Player:
+    """Represents a player character with stats, position, and inventory."""
     def __init__(self, name, char, x, y, color=COLOR_WHITE, depth=0):
         self.name = name
         self.char = char
@@ -447,15 +430,19 @@ class Player:
         self.explored = {}
 
     def attack_total(self):
+        """Return total attack including weapon bonus."""
         return self.attack + self.weapon_bonus
 
     def defense_total(self):
+        """Return total defense including armor bonus."""
         return self.defense + self.armor_bonus
 
 
 # --- Game State ---
 class Game:
+    """Manages the full game state: levels, players, enemies, ticks, and messaging."""
     def __init__(self):
+        """Create a new game with level 0 pre-generated."""
         self.game_over = False
         self.players = []
         self.levels = {}
@@ -464,18 +451,23 @@ class Game:
         self._init_level(0)
 
     def _get_dungeon(self, depth):
+        """Return the dungeon grid for the given depth."""
         return self.levels[depth]["dungeon"]
 
     def _get_enemies(self, depth):
+        """Return the enemy list for the given depth."""
         return self.levels[depth]["enemies"]
 
     def _get_items(self, depth):
+        """Return the item list for the given depth."""
         return self.levels[depth]["items"]
 
     def _get_stairs_down(self, depth):
+        """Return (x, y) of the stairs-down tile at the given depth."""
         return self.levels[depth]["stairs_down_x"], self.levels[depth]["stairs_down_y"]
 
     def _get_stairs_up(self, depth):
+        """Return (x, y) of the stairs-up tile at the given depth."""
         return self.levels[depth]["stairs_up_x"], self.levels[depth]["stairs_up_y"]
 
     def _ensure_level(self, depth):
@@ -484,7 +476,7 @@ class Game:
             self._init_level(depth)
 
     def _init_level(self, depth):
-        """Generate a new dungeon level at the given depth."""
+        """Generate a new dungeon level at the given depth with enemies, items, and stairs."""
         dungeon, rooms = create_dungeon(depth)
         px, py, enemies, items = place_entities(rooms, dungeon, depth)
 
@@ -518,11 +510,12 @@ class Game:
             e["next_tick"] = self.tick + random.randint(0, 99)
 
     def _ensure_player_explored(self, player):
-        """Ensure a player has an explored grid for their current depth."""
+        """Ensure the player has an explored grid for their current depth."""
         if player.depth not in player.explored:
             player.explored[player.depth] = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
 
     def _update_visibility(self):
+        """Recompute FOV for all players and announce newly visible enemies."""
         old_visible = self.player_visible if hasattr(self, 'player_visible') else []
         self.player_visible = []
         for i, p in enumerate(self.players):
@@ -546,6 +539,7 @@ class Game:
                     self._tell(p, MSG_ENEMY_INTO_VIEW, e["color"], ctx={"enemy": e["name"]})
 
     def _update_explored(self):
+        """Mark newly visible tiles as explored for each player."""
         for i, p in enumerate(self.players):
             if p.dead:
                 continue
@@ -648,20 +642,20 @@ class Game:
         return True
 
     def is_passable(self, x, y, depth):
+        """Return True if (x, y) is within bounds and not a wall."""
         if x < 0 or x >= MAP_WIDTH or y < 0 or y >= MAP_HEIGHT:
             return False
-        tile = self._get_dungeon(depth)[y][x]
-        if tile == TILE_WALL:
-            return False
-        return True
+        return self._get_dungeon(depth)[y][x] != TILE_WALL
 
     def get_enemy_at(self, x, y, depth):
+        """Return the living enemy at (x, y) on the given depth, or None."""
         for e in self._get_enemies(depth):
             if e["x"] == x and e["y"] == y and e["hp"] > 0:
                 return e
         return None
 
     def get_item_at(self, x, y, depth):
+        """Return (index, item) for the item at (x, y), or (None, None)."""
         items = self._get_items(depth)
         for i, item in enumerate(items):
             if item["x"] == x and item["y"] == y:
@@ -669,19 +663,23 @@ class Game:
         return None, None
 
     def _get_corpses(self, depth):
+        """Return the corpse list for the given depth."""
         return self.levels[depth]["corpses"]
 
     def get_corpse_at(self, x, y, depth):
+        """Return the corpse at (x, y) on the given depth, or None."""
         for c in self._get_corpses(depth):
             if c["x"] == x and c["y"] == y:
                 return c
         return None
 
     def do_attack(self, attacker_name, attacker_atk, defender_name, defender_def, damage_variance=2):
+        """Calculate damage: (atk - def) +/- random variance, minimum 1."""
         damage = max(1, attacker_atk - defender_def + random.randint(-damage_variance, damage_variance))
         return damage
 
     def queue_player_action(self, player_idx, action):
+        """Queue an action for the given player to execute on their next tick."""
         if self.game_over:
             return
         player = self.players[player_idx]
@@ -690,6 +688,7 @@ class Game:
         player.queued_action = action
 
     def execute_player_action(self, player_idx):
+        """Execute the queued action for the given player."""
         player = self.players[player_idx]
         action = player.queued_action
         player.queued_action = None
@@ -714,6 +713,7 @@ class Game:
             player.next_tick = player.rest_end_tick
 
     def _do_move(self, player, dx, dy):
+        """Move the player by (dx, dy). Rejects diagonal movement."""
         if dx != 0 and dy != 0:
             player.next_tick = self.tick + TICK_WAIT
             return
@@ -739,6 +739,7 @@ class Game:
                 })
 
     def _do_combat_attack(self, player, enemy):
+        """Resolve a player attacking an adjacent enemy."""
         damage = self.do_attack(
             player.name, player.attack_total(),
             enemy["name"], enemy["defense"])
@@ -756,6 +757,7 @@ class Game:
             self._check_level_up(player)
 
     def _check_level_up(self, player):
+        """Process level-ups while the player has enough XP."""
         while player.xp >= player.next_level_xp:
             player.xp -= player.next_level_xp
             player.level += 1
@@ -768,6 +770,7 @@ class Game:
                             MSG_LEVEL_UP, COLOR_YELLOW, subject=player, ctx={"level": player.level})
 
     def _process_tick(self):
+        """Advance the game by one tick: process player actions, enemy AI, and visibility."""
         if self.game_over:
             return
         for i, player in enumerate(self.players):
@@ -788,6 +791,7 @@ class Game:
         self._update_explored()
 
     def _get_nearest_player(self, ex, ey, depth):
+        """Return (player, distance) of the nearest alive player on the given depth."""
         best = None
         best_dist = float('inf')
         for p in self.players:
@@ -800,6 +804,7 @@ class Game:
         return best, best_dist
 
     def _process_enemy_action(self, enemy, depth):
+        """Process one action for an enemy: attack, chase, or wander."""
         ex, ey = enemy["x"], enemy["y"]
         target, dist = self._get_nearest_player(ex, ey, depth)
         if target is None:
@@ -901,6 +906,7 @@ class Game:
             enemy["next_tick"] = self.tick + TICK_MOVE
 
     def _do_go_down_stairs(self, player):
+        """Move the player down one level via stairs-down tile."""
         dungeon = self._get_dungeon(player.depth)
         if dungeon[player.y][player.x] == TILE_STAIRS_DOWN:
             new_depth = player.depth + 1
@@ -925,6 +931,7 @@ class Game:
             self._tell(player, MSG_NO_STAIRS_DOWN, COLOR_CYAN)
 
     def _do_go_up_stairs(self, player):
+        """Move the player up one level via stairs-up tile."""
         dungeon = self._get_dungeon(player.depth)
         if dungeon[player.y][player.x] == TILE_STAIRS_UP:
             if player.depth > 0:
@@ -947,6 +954,7 @@ class Game:
             self._tell(player, MSG_NO_STAIRS_UP, COLOR_CYAN)
 
     def _do_grab_item(self, player):
+        """Pick up and apply the item at the player's position."""
         idx, item = self.get_item_at(player.x, player.y, player.depth)
         if item is None:
             self._tell(player, MSG_NOTHING_TO_GRAB, COLOR_CYAN)
@@ -972,6 +980,7 @@ class Game:
         self._get_items(player.depth).pop(idx)
 
     def _do_rest(self, player):
+        """Rest for a moment: heal 1 HP if wounded, with a chance to spawn an enemy."""
         if not hasattr(player, '_consecutive_waits'):
             player._consecutive_waits = 0
         player._consecutive_waits += 1
@@ -1027,7 +1036,7 @@ class Game:
             return
 
     def get_char_at(self, mx, my, player_idx=0):
-        """Return the character to display at map position (mx, my)."""
+        """Return the display character at (mx, my) respecting explored/visible state."""
         if mx < 0 or mx >= MAP_WIDTH or my < 0 or my >= MAP_HEIGHT:
             return ' '
         player = self.players[player_idx] if 0 <= player_idx < len(self.players) else None
@@ -1056,7 +1065,7 @@ class Game:
         return TILE_CHAR.get(tile, '?')
 
     def print_text_map(self):
-        """Print the map as plain text (no curses)."""
+        """Print the current map view as plain text for debugging."""
         view_h = MAX_SCREEN_Y - 4
         view_w = MAX_SCREEN_X
         p = self.players[0] if self.players else None
@@ -1089,7 +1098,7 @@ class Game:
 
 
 def run_text_mode():
-    """Run a single frame in text mode for debugging."""
+    """Create a game with two test players and render one frame as plain text."""
     game = Game()
     game._init_level(0)
     spawn_x, spawn_y = game.levels[0]["spawn_x"], game.levels[0]["spawn_y"]
