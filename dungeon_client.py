@@ -4,6 +4,8 @@ with colored overlays, and handles player input."""
 import curses
 import json
 import sys
+import time
+from collections import deque
 import urllib.request
 
 DEFAULT_HOST = '127.0.0.1'
@@ -38,10 +40,11 @@ COLOR_MAP = {
 
 
 def fetch_state(url, player_id=0):
-    """Fetch game state from server."""
+    """Fetch game state from server. Returns (state_dict, byte_count)."""
     req = urllib.request.Request(f"{url}/state?player_id={player_id}")
     with urllib.request.urlopen(req, timeout=1) as resp:
-        return json.loads(resp.read())
+        raw = resp.read()
+    return json.loads(raw), len(raw)
 
 
 def send_action(url, player_id, action):
@@ -89,7 +92,7 @@ def deregister(url, player_id):
         return {"error": "connection failed"}
 
 
-def render(stdscr, state, my_player_id):
+def render(stdscr, state, my_player_id, bandwidth=0.0):
     """Render the game map, overlays, status bar, messages, and help text."""
     stdscr.erase()
     max_y, max_x = stdscr.getmaxyx()
@@ -186,10 +189,11 @@ def render(stdscr, state, my_player_id):
     # Help bar
     depth = state.get("depth", 0)
     max_depth = state.get("max_depth", 10)
+    bw_label = f"{bandwidth / 1024:.1f} KB/s" if bandwidth > 0 else "--- KB/s"
     help_text = (
-        f"You: {my_player['name']}  "
         f">:Down  <:Up  g:Grab  /:Rest  "
-        f"Depth {depth + 1}/{max_depth}  q:Quit"
+        f"Depth {depth + 1}/{max_depth}  q:Quit  "
+        f"↓ {bw_label}"
     )
     try:
         stdscr.addstr(max_y - 1, 0, help_text.ljust(max_x)[:max_x])
@@ -246,9 +250,13 @@ def main(stdscr):
         return
     player_id = result["player_id"]
 
+    byte_log = deque()
+    window = 3.0
+
     while True:
+        now = time.monotonic()
         try:
-            state = fetch_state(url, player_id)
+            state, nbytes = fetch_state(url, player_id)
         except Exception:
             state = {
                 "map": [" " * 80 for _ in range(20)],
@@ -261,8 +269,14 @@ def main(stdscr):
                 "depth": 0, "max_depth": 10,
                 "game_over": False, "game_win": False,
             }
+            nbytes = 0
 
-        render(stdscr, state, player_id)
+        byte_log.append((now, nbytes))
+        while byte_log and now - byte_log[0][0] > window:
+            byte_log.popleft()
+        bandwidth = sum(b for _, b in byte_log) / window
+
+        render(stdscr, state, player_id, bandwidth)
 
         if state.get("game_over") or state.get("game_win"):
             key = stdscr.getch()
