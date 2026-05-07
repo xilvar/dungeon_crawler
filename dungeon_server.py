@@ -3,14 +3,13 @@
 actions, visibility-filtered state responses, and smart spawn placement."""
 import asyncio
 import json
-import os
 import sys
 import threading
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from aiohttp import web  # noqa: E402
-from dungeon_crawler import (  # noqa: E402
+from aiohttp import web
+
+from dungeon_crawler import (
     COLOR_CYAN,
     COLOR_GREEN,
     COLOR_MAGENTA,
