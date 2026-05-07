@@ -194,8 +194,10 @@ def render(stdscr, state, my_player_id):
     # Game over / win overlay
     if state.get("game_over"):
         try:
-            stdscr.addstr(10, 25, "YOU HAVE DIED",
-                          curses.color_pair(curses.COLOR_RED + 1) | curses.A_BOLD)
+            stdscr.addstr(
+                10, 25, "YOU HAVE DIED",
+                curses.color_pair(curses.COLOR_RED + 1)
+                | curses.A_BOLD)
         except curses.error:
             pass
         try:
@@ -204,8 +206,10 @@ def render(stdscr, state, my_player_id):
             pass
     elif state.get("game_win"):
         try:
-            stdscr.addstr(10, 20, "YOU CONQUERED THE DUNGEON!",
-                          curses.color_pair(curses.COLOR_GREEN + 1) | curses.A_BOLD)
+            stdscr.addstr(
+                10, 20, "YOU CONQUERED THE DUNGEON!",
+                curses.color_pair(curses.COLOR_GREEN + 1)
+                | curses.A_BOLD)
         except curses.error:
             pass
         try:

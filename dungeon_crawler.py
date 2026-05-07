@@ -121,47 +121,147 @@ ENEMY_DRAGON = "dragon"
 
 ENEMY_PROPS = {
     # Tier 1 - vermin/scavengers
-    ENEMY_RAT: {"char": "r", "color": COLOR_YELLOW, "name": "Rat", "hp": 3, "attack": 1, "defense": 0, "xp": 1},
-    ENEMY_BAT: {"char": "b", "color": COLOR_YELLOW, "name": "Bat", "hp": 2, "attack": 1, "defense": 0, "xp": 1},
-    ENEMY_SPIDER: {"char": "S", "color": COLOR_YELLOW, "name": "Spider", "hp": 4, "attack": 2, "defense": 0, "xp": 2},
-    ENEMY_KOBOLD: {"char": "k", "color": COLOR_YELLOW, "name": "Kobold", "hp": 5, "attack": 2, "defense": 0, "xp": 2},
-    ENEMY_GNOME: {"char": "g", "color": COLOR_YELLOW, "name": "Goblin", "hp": 7, "attack": 2, "defense": 0, "xp": 2},
+    ENEMY_RAT: {
+        "char": "r", "color": COLOR_YELLOW, "name": "Rat",
+        "hp": 3, "attack": 1, "defense": 0, "xp": 1,
+    },
+    ENEMY_BAT: {
+        "char": "b", "color": COLOR_YELLOW, "name": "Bat",
+        "hp": 2, "attack": 1, "defense": 0, "xp": 1,
+    },
+    ENEMY_SPIDER: {
+        "char": "S", "color": COLOR_YELLOW, "name": "Spider",
+        "hp": 4, "attack": 2, "defense": 0, "xp": 2,
+    },
+    ENEMY_KOBOLD: {
+        "char": "k", "color": COLOR_YELLOW, "name": "Kobold",
+        "hp": 5, "attack": 2, "defense": 0, "xp": 2,
+    },
+    ENEMY_GNOME: {
+        "char": "g", "color": COLOR_YELLOW, "name": "Goblin",
+        "hp": 7, "attack": 2, "defense": 0, "xp": 2,
+    },
     # Tier 2 - common threats
-    ENEMY_IMP: {"char": "i", "color": COLOR_RED, "name": "Imp", "hp": 6, "attack": 3, "defense": 0, "xp": 4},
-    ENEMY_SKELETON: {"char": "s", "color": COLOR_WHITE, "name": "Skeleton", "hp": 8, "attack": 3, "defense": 1, "xp": 4},
-    ENEMY_ZOMBIE: {"char": "Z", "color": COLOR_GREEN, "name": "Zombie", "hp": 12, "attack": 2, "defense": 0, "xp": 3},
-    ENEMY_WOLF: {"char": "W", "color": COLOR_WHITE, "name": "Wolf", "hp": 8, "attack": 4, "defense": 0, "xp": 3},
+    ENEMY_IMP: {
+        "char": "i", "color": COLOR_RED, "name": "Imp",
+        "hp": 6, "attack": 3, "defense": 0, "xp": 4,
+    },
+    ENEMY_SKELETON: {
+        "char": "s", "color": COLOR_WHITE, "name": "Skeleton",
+        "hp": 8, "attack": 3, "defense": 1, "xp": 4,
+    },
+    ENEMY_ZOMBIE: {
+        "char": "Z", "color": COLOR_GREEN, "name": "Zombie",
+        "hp": 12, "attack": 2, "defense": 0, "xp": 3,
+    },
+    ENEMY_WOLF: {
+        "char": "W", "color": COLOR_WHITE, "name": "Wolf",
+        "hp": 8, "attack": 4, "defense": 0, "xp": 3,
+    },
     # Tier 3 - undead/horrors
-    ENEMY_HYDRA: {"char": "H", "color": COLOR_GREEN, "name": "Hydra", "hp": 35, "attack": 8, "defense": 3, "xp": 30},
-    ENEMY_MUMMY: {"char": "M", "color": COLOR_YELLOW, "name": "Mummy", "hp": 18, "attack": 4, "defense": 2, "xp": 10},
-    ENEMY_WRAITH: {"char": "W", "color": COLOR_CYAN, "name": "Wraith", "hp": 15, "attack": 5, "defense": 2, "xp": 12},
-    ENEMY_TROLL: {"char": "T", "color": COLOR_GREEN, "name": "Troll", "hp": 25, "attack": 6, "defense": 2, "xp": 20},
+    ENEMY_HYDRA: {
+        "char": "H", "color": COLOR_GREEN, "name": "Hydra",
+        "hp": 35, "attack": 8, "defense": 3, "xp": 30,
+    },
+    ENEMY_MUMMY: {
+        "char": "M", "color": COLOR_YELLOW, "name": "Mummy",
+        "hp": 18, "attack": 4, "defense": 2, "xp": 10,
+    },
+    ENEMY_WRAITH: {
+        "char": "W", "color": COLOR_CYAN, "name": "Wraith",
+        "hp": 15, "attack": 5, "defense": 2, "xp": 12,
+    },
+    ENEMY_TROLL: {
+        "char": "T", "color": COLOR_GREEN, "name": "Troll",
+        "hp": 25, "attack": 6, "defense": 2, "xp": 20,
+    },
     # Tier 4 - formidable beasts
-    ENEMY_MINOTAUR: {"char": "N", "color": COLOR_YELLOW, "name": "Minotaur", "hp": 25, "attack": 7, "defense": 2, "xp": 20},
-    ENEMY_MEDUSA: {"char": "m", "color": COLOR_GREEN, "name": "Medusa", "hp": 24, "attack": 6, "defense": 2, "xp": 20},
-    ENEMY_OWLBEAR: {"char": "O", "color": COLOR_YELLOW, "name": "Owlbear", "hp": 22, "attack": 6, "defense": 1, "xp": 15},
-    ENEMY_HOOK_HORROR: {"char": "h", "color": COLOR_YELLOW, "name": "Hook Horror", "hp": 26, "attack": 7, "defense": 2, "xp": 20},
+    ENEMY_MINOTAUR: {
+        "char": "N", "color": COLOR_YELLOW, "name": "Minotaur",
+        "hp": 25, "attack": 7, "defense": 2, "xp": 20,
+    },
+    ENEMY_MEDUSA: {
+        "char": "m", "color": COLOR_GREEN, "name": "Medusa",
+        "hp": 24, "attack": 6, "defense": 2, "xp": 20,
+    },
+    ENEMY_OWLBEAR: {
+        "char": "O", "color": COLOR_YELLOW, "name": "Owlbear",
+        "hp": 22, "attack": 6, "defense": 1, "xp": 15,
+    },
+    ENEMY_HOOK_HORROR: {
+        "char": "h", "color": COLOR_YELLOW, "name": "Hook Horror",
+        "hp": 26, "attack": 7, "defense": 2, "xp": 20,
+    },
     # Tier 5 - exotic threats
-    ENEMY_PHASE_SPIDER: {"char": "P", "color": COLOR_RED, "name": "Phase Spider", "hp": 18, "attack": 5, "defense": 1, "xp": 12},
-    ENEMY_BASILISK: {"char": "B", "color": COLOR_GREEN, "name": "Basilisk", "hp": 20, "attack": 6, "defense": 3, "xp": 18},
-    ENEMY_WYVERN: {"char": "Y", "color": COLOR_GREEN, "name": "Wyvern", "hp": 32, "attack": 9, "defense": 3, "xp": 25},
+    ENEMY_PHASE_SPIDER: {
+        "char": "P", "color": COLOR_RED, "name": "Phase Spider",
+        "hp": 18, "attack": 5, "defense": 1, "xp": 12,
+    },
+    ENEMY_BASILISK: {
+        "char": "B", "color": COLOR_GREEN, "name": "Basilisk",
+        "hp": 20, "attack": 6, "defense": 3, "xp": 18,
+    },
+    ENEMY_WYVERN: {
+        "char": "Y", "color": COLOR_GREEN, "name": "Wyvern",
+        "hp": 32, "attack": 9, "defense": 3, "xp": 25,
+    },
     # Tier 6 - powerful creatures
-    ENEMY_PHOENIX: {"char": "F", "color": COLOR_RED, "name": "Phoenix", "hp": 28, "attack": 8, "defense": 2, "xp": 22},
-    ENEMY_GRUE: {"char": "X", "color": COLOR_MAGENTA, "name": "Grue", "hp": 15, "attack": 5, "defense": 1, "xp": 12},
-    ENEMY_GELATINOUS_CUBE: {"char": "C", "color": COLOR_CYAN, "name": "Gelatinous Cube", "hp": 28, "attack": 4, "defense": 1, "xp": 15},
-    ENEMY_REMORHAZ: {"char": "R", "color": COLOR_RED, "name": "Remorhaz", "hp": 40, "attack": 10, "defense": 4, "xp": 35},
-    ENEMY_ICE_DEVIL: {"char": "I", "color": COLOR_CYAN, "name": "Ice Devil", "hp": 35, "attack": 9, "defense": 3, "xp": 30},
+    ENEMY_PHOENIX: {
+        "char": "F", "color": COLOR_RED, "name": "Phoenix",
+        "hp": 28, "attack": 8, "defense": 2, "xp": 22,
+    },
+    ENEMY_GRUE: {
+        "char": "X", "color": COLOR_MAGENTA, "name": "Grue",
+        "hp": 15, "attack": 5, "defense": 1, "xp": 12,
+    },
+    ENEMY_GELATINOUS_CUBE: {
+        "char": "C", "color": COLOR_CYAN,
+        "name": "Gelatinous Cube",
+        "hp": 28, "attack": 4, "defense": 1, "xp": 15,
+    },
+    ENEMY_REMORHAZ: {
+        "char": "R", "color": COLOR_RED, "name": "Remorhaz",
+        "hp": 40, "attack": 10, "defense": 4, "xp": 35,
+    },
+    ENEMY_ICE_DEVIL: {
+        "char": "I", "color": COLOR_CYAN, "name": "Ice Devil",
+        "hp": 35, "attack": 9, "defense": 3, "xp": 30,
+    },
     # Tier 7 - legendary threats
-    ENEMY_LICH: {"char": "L", "color": COLOR_WHITE, "name": "Lich", "hp": 45, "attack": 10, "defense": 4, "xp": 45},
-    ENEMY_BEHOLDER: {"char": "E", "color": COLOR_YELLOW, "name": "Beholder", "hp": 40, "attack": 9, "defense": 4, "xp": 40},
+    ENEMY_LICH: {
+        "char": "L", "color": COLOR_WHITE, "name": "Lich",
+        "hp": 45, "attack": 10, "defense": 4, "xp": 45,
+    },
+    ENEMY_BEHOLDER: {
+        "char": "E", "color": COLOR_YELLOW, "name": "Beholder",
+        "hp": 40, "attack": 9, "defense": 4, "xp": 40,
+    },
     # Tier 8 - ultimate bosses
-    ENEMY_BALOR: {"char": "B", "color": COLOR_RED, "name": "Balor", "hp": 60, "attack": 14, "defense": 5, "xp": 60},
+    ENEMY_BALOR: {
+        "char": "B", "color": COLOR_RED, "name": "Balor",
+        "hp": 60, "attack": 14, "defense": 5, "xp": 60,
+    },
     # Keep old enemies for compatibility
-    ENEMY_ORC: {"char": "o", "color": COLOR_GREEN, "name": "Orc", "hp": 10, "attack": 3, "defense": 1, "xp": 5},
-    ENEMY_GOLEM: {"char": "G", "color": COLOR_CYAN, "name": "Golem", "hp": 20, "attack": 5, "defense": 4, "xp": 15},
-    ENEMY_SNAKE: {"char": "n", "color": COLOR_RED, "name": "Snake", "hp": 5, "attack": 2, "defense": 0, "xp": 3},
-    ENEMY_DEMON: {"char": "D", "color": COLOR_RED, "name": "Demon", "hp": 30, "attack": 8, "defense": 3, "xp": 30},
-    ENEMY_DRAGON: {"char": "d", "color": COLOR_RED, "name": "Dragon", "hp": 50, "attack": 12, "defense": 5, "xp": 50},
+    ENEMY_ORC: {
+        "char": "o", "color": COLOR_GREEN, "name": "Orc",
+        "hp": 10, "attack": 3, "defense": 1, "xp": 5,
+    },
+    ENEMY_GOLEM: {
+        "char": "G", "color": COLOR_CYAN, "name": "Golem",
+        "hp": 20, "attack": 5, "defense": 4, "xp": 15,
+    },
+    ENEMY_SNAKE: {
+        "char": "n", "color": COLOR_RED, "name": "Snake",
+        "hp": 5, "attack": 2, "defense": 0, "xp": 3,
+    },
+    ENEMY_DEMON: {
+        "char": "D", "color": COLOR_RED, "name": "Demon",
+        "hp": 30, "attack": 8, "defense": 3, "xp": 30,
+    },
+    ENEMY_DRAGON: {
+        "char": "d", "color": COLOR_RED, "name": "Dragon",
+        "hp": 50, "attack": 12, "defense": 5, "xp": 50,
+    },
 }
 
 
@@ -188,8 +288,12 @@ class Room:
 
 
 def create_dungeon(depth):
-    """Generate a random dungeon with rooms, corridors, and doors. Returns (grid, rooms)."""
-    dungeon = [[TILE_WALL for _ in range(MAP_WIDTH)] for _ in range(MAP_HEIGHT)]
+    """Generate a random dungeon with rooms, corridors, and doors.
+
+    Returns (grid, rooms).
+    """
+    dungeon = [[TILE_WALL for _ in range(MAP_WIDTH)]
+               for _ in range(MAP_HEIGHT)]
     rooms = []
 
     for _ in range(MAX_ROOMS):
@@ -257,7 +361,7 @@ def create_dungeon(depth):
                     if 0 <= ny < MAP_HEIGHT and 0 <= nx < MAP_WIDTH:
                         if dungeon[ny][nx] == TILE_WALL:
                             neighbors_wall += 1
-                # If exactly 2 wall neighbors in a line, it's a corridor opening
+                # If exactly 2 wall neighbors in a line, it's a corridor
                 if neighbors_wall == 2:
                     vertical = y - 1 >= 0 and \
                         dungeon[y - 1][x] == TILE_WALL and \
@@ -274,7 +378,10 @@ def create_dungeon(depth):
 
 
 def place_entities(rooms, dungeon, depth):
-    """Place enemies and items in rooms. Returns (spawn_x, spawn_y, enemies, items)."""
+    """Place enemies and items in rooms.
+
+    Returns (spawn_x, spawn_y, enemies, items).
+    """
     enemies = []
     items = []
 
@@ -293,12 +400,30 @@ def place_entities(rooms, dungeon, depth):
     enemy_types_by_depth = {
         0: [ENEMY_RAT, ENEMY_RAT, ENEMY_BAT, ENEMY_SPIDER, ENEMY_SNAKE],
         1: [ENEMY_RAT, ENEMY_SPIDER, ENEMY_KOBOLD, ENEMY_GNOME, ENEMY_SNAKE],
-        2: [ENEMY_KOBOLD, ENEMY_GNOME, ENEMY_IMP, ENEMY_SKELETON, ENEMY_ZOMBIE, ENEMY_WOLF],
-        3: [ENEMY_GNOME, ENEMY_SKELETON, ENEMY_ZOMBIE, ENEMY_WOLF, ENEMY_MUMMY, ENEMY_WRAITH],
-        4: [ENEMY_SKELETON, ENEMY_WOLF, ENEMY_MUMMY, ENEMY_TROLL, ENEMY_MINOTAUR, ENEMY_MEDUSA],
-        5: [ENEMY_MUMMY, ENEMY_TROLL, ENEMY_MINOTAUR, ENEMY_OWLBEAR, ENEMY_HOOK_HORROR, ENEMY_PHASE_SPIDER],
-        6: [ENEMY_TROLL, ENEMY_MEDUSA, ENEMY_BASILISK, ENEMY_WYVERN, ENEMY_GELATINOUS_CUBE, ENEMY_REMORHAZ],
-        7: [ENEMY_MINOTAUR, ENEMY_WYVERN, ENEMY_PHOENIX, ENEMY_ICE_DEVIL, ENEMY_LICH, ENEMY_BEHOLDER],
+        2: [
+            ENEMY_KOBOLD, ENEMY_GNOME, ENEMY_IMP,
+            ENEMY_SKELETON, ENEMY_ZOMBIE, ENEMY_WOLF,
+        ],
+        3: [
+            ENEMY_GNOME, ENEMY_SKELETON, ENEMY_ZOMBIE,
+            ENEMY_WOLF, ENEMY_MUMMY, ENEMY_WRAITH,
+        ],
+        4: [
+            ENEMY_SKELETON, ENEMY_WOLF, ENEMY_MUMMY,
+            ENEMY_TROLL, ENEMY_MINOTAUR, ENEMY_MEDUSA,
+        ],
+        5: [
+            ENEMY_MUMMY, ENEMY_TROLL, ENEMY_MINOTAUR,
+            ENEMY_OWLBEAR, ENEMY_HOOK_HORROR, ENEMY_PHASE_SPIDER,
+        ],
+        6: [
+            ENEMY_TROLL, ENEMY_MEDUSA, ENEMY_BASILISK,
+            ENEMY_WYVERN, ENEMY_GELATINOUS_CUBE, ENEMY_REMORHAZ,
+        ],
+        7: [
+            ENEMY_MINOTAUR, ENEMY_WYVERN, ENEMY_PHOENIX,
+            ENEMY_ICE_DEVIL, ENEMY_LICH, ENEMY_BEHOLDER,
+        ],
         8: [ENEMY_LICH, ENEMY_BEHOLDER, ENEMY_BALOR, ENEMY_HYDRA],
         9: [ENEMY_LICH, ENEMY_BEHOLDER, ENEMY_BALOR, ENEMY_DRAGON],
     }
@@ -344,22 +469,33 @@ def place_entities(rooms, dungeon, depth):
         if random.random() < 0.3:
             ix = random.randint(room.x1 + 1, room.x2 - 1)
             iy = random.randint(room.y1 + 1, room.y2 - 1)
-            items.append({"x": ix, "y": iy, "kind": ITEM_GOLD, "value": random.randint(5, 15) * (depth + 1)})
+            items.append({
+                "x": ix, "y": iy, "kind": ITEM_GOLD,
+                "value": random.randint(5, 15) * (depth + 1)})
         if random.random() < 0.15:
             ix = random.randint(room.x1 + 1, room.x2 - 1)
             iy = random.randint(room.y1 + 1, room.y2 - 1)
-            items.append({"x": ix, "y": iy, "kind": ITEM_SWORD, "bonus": random.randint(1, 3)})
+            items.append({
+                "x": ix, "y": iy, "kind": ITEM_SWORD,
+                "bonus": random.randint(1, 3),
+            })
         if random.random() < 0.1:
             ix = random.randint(room.x1 + 1, room.x2 - 1)
             iy = random.randint(room.y1 + 1, room.y2 - 1)
-            items.append({"x": ix, "y": iy, "kind": ITEM_SHIELD, "bonus": random.randint(1, 2)})
+            items.append({
+                "x": ix, "y": iy, "kind": ITEM_SHIELD,
+                "bonus": random.randint(1, 2),
+            })
 
     return player_x, player_y, enemies, items
 
 
 # --- Field of View (raycasting) ---
 def compute_fov(map_grid, px, py, radius):
-    """Return a 2D boolean grid of tiles visible from (px, py) within the given radius."""
+    """Return a 2D boolean grid of tiles visible from (px, py).
+
+    Visibility is computed within the given radius.
+    """
     visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
     visible[py][px] = True
     r2 = radius * radius
@@ -440,7 +576,10 @@ class Player:
 
 # --- Game State ---
 class Game:
-    """Manages the full game state: levels, players, enemies, ticks, and messaging."""
+    """Manages the full game state.
+
+    Handles levels, players, enemies, ticks, and messaging.
+    """
     def __init__(self):
         """Create a new game with level 0 pre-generated."""
         self.game_over = False
@@ -464,11 +603,13 @@ class Game:
 
     def _get_stairs_down(self, depth):
         """Return (x, y) of the stairs-down tile at the given depth."""
-        return self.levels[depth]["stairs_down_x"], self.levels[depth]["stairs_down_y"]
+        sd = self.levels[depth]
+        return sd["stairs_down_x"], sd["stairs_down_y"]
 
     def _get_stairs_up(self, depth):
         """Return (x, y) of the stairs-up tile at the given depth."""
-        return self.levels[depth]["stairs_up_x"], self.levels[depth]["stairs_up_y"]
+        su = self.levels[depth]
+        return su["stairs_up_x"], su["stairs_up_y"]
 
     def _ensure_level(self, depth):
         """Ensure a level exists at the given depth, creating it if needed."""
@@ -476,7 +617,10 @@ class Game:
             self._init_level(depth)
 
     def _init_level(self, depth):
-        """Generate a new dungeon level at the given depth with enemies, items, and stairs."""
+        """Generate a new dungeon level at the given depth.
+
+        Populates enemies, items, and stairs.
+        """
         dungeon, rooms = create_dungeon(depth)
         px, py, enemies, items = place_entities(rooms, dungeon, depth)
 
@@ -512,11 +656,14 @@ class Game:
     def _ensure_player_explored(self, player):
         """Ensure the player has an explored grid for their current depth."""
         if player.depth not in player.explored:
-            player.explored[player.depth] = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+            player.explored[player.depth] = (
+                [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+            )
 
     def _update_visibility(self):
         """Recompute FOV for all players and announce newly visible enemies."""
-        old_visible = self.player_visible if hasattr(self, 'player_visible') else []
+        old_visible = (self.player_visible
+                       if hasattr(self, 'player_visible') else [])
         self.player_visible = []
         for i, p in enumerate(self.players):
             if not p.dead:
@@ -524,19 +671,27 @@ class Game:
                 fov = compute_fov(dungeon, p.x, p.y, FOV_RADIUS)
                 self.player_visible.append(fov)
             else:
-                self.player_visible.append([[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
+                self.player_visible.append(
+                    [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
 
         # Detect enemies that just came into view
         for i, p in enumerate(self.players):
             if p.dead:
                 continue
-            old_fov = old_visible[i] if i < len(old_visible) else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+            old_fov = (
+                old_visible[i] if i < len(old_visible)
+                else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+            )
             new_fov = self.player_visible[i]
             for e in self._get_enemies(p.depth):
                 if e["hp"] <= 0:
                     continue
-                if new_fov[e["y"]][e["x"]] and not old_fov[e["y"]][e["x"]]:
-                    self._tell(p, MSG_ENEMY_INTO_VIEW, e["color"], ctx={"enemy": e["name"]})
+                if (new_fov[e["y"]][e["x"]]
+                        and not old_fov[e["y"]][e["x"]]):
+                    self._tell(
+                        p, MSG_ENEMY_INTO_VIEW, e["color"],
+                        ctx={"enemy": e["name"]},
+                    )
 
     def _update_explored(self):
         """Mark newly visible tiles as explored for each player."""
@@ -560,9 +715,14 @@ class Game:
         if len(player.messages) > MAX_MSGS:
             player.messages.pop(0)
 
-    def _broadcast(self, x, y, depth, text, color=COLOR_WHITE, subject=None, ctx=None):
-        """Send a message to all alive players on the same depth who can see (x, y).
-        Resolves {name} to 'You' for the subject player, actual name for others."""
+    def _broadcast(
+        self, x, y, depth, text,
+        color=COLOR_WHITE, subject=None, ctx=None,
+    ):
+        """Send a message to all alive players on the same depth.
+
+        Only players who can see (x, y) receive it.
+        """
         dungeon = self._get_dungeon(depth)
         for p in self.players:
             if p.dead or p.depth != depth:
@@ -572,14 +732,20 @@ class Game:
                 if subject and p is subject:
                     resolved = text.replace("{name}", "You")
                 else:
-                    resolved = text.replace("{name}", subject.name if subject else "")
+                    resolved = text.replace(
+                        "{name}", subject.name if subject else "",
+                    )
                 if ctx:
                     resolved = resolved.format(**ctx)
                 p.messages.append((resolved, color))
                 if len(p.messages) > MAX_MSGS:
                     p.messages.pop(0)
 
-    def _ambient_sound(self, x, y, depth, messages, color, source=None, chance=0.35, skip_visible=False, range=25, flat=False):
+    def _ambient_sound(
+        self, x, y, depth, messages, color,
+        source=None, chance=0.35,
+        skip_visible=False, range=25, flat=False,
+    ):
         """Send a random ambient message to nearby players on the same depth,
         with probability decreasing by distance. Skips the source player.
         When skip_visible is True, also skips players who can see the source.
@@ -599,10 +765,14 @@ class Game:
             if random.random() < prob:
                 self._tell(p, random.choice(messages), color)
 
-    def _ambient_depth(self, depth, messages, color, source=None, chance=0.5, skip_visible=False):
+    def _ambient_depth(
+        self, depth, messages, color,
+        source=None, chance=0.5, skip_visible=False,
+    ):
         """Send a random ambient message to all alive players on a depth,
         regardless of distance. Skips the source player.
-        When skip_visible is True, also skips players who can see the source."""
+        When skip_visible is True, also skips players who
+        can see the source."""
         dungeon = self._get_dungeon(depth)
         for p in self.players:
             if p.dead or p.depth != depth or p is source:
@@ -620,16 +790,21 @@ class Game:
         Only searches within 2 tiles of the intended position."""
         if self._is_tile_free(x, y, depth, exclude_player):
             return x, y
-        for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0),
-                        (-1, -1), (1, -1), (-1, 1), (1, 1),
-                        (0, -2), (0, 2), (-2, 0), (2, 0)]:
+        for dx, dy in [
+            (0, -1), (0, 1), (-1, 0), (1, 0),
+            (-1, -1), (1, -1), (-1, 1), (1, 1),
+            (0, -2), (0, 2), (-2, 0), (2, 0),
+        ]:
             nx, ny = x + dx, y + dy
             if self._is_tile_free(nx, ny, depth, exclude_player):
                 return nx, ny
         return x, y
 
     def _is_tile_free(self, x, y, depth, exclude_player=None):
-        """Check if a tile is passable and not occupied by another player or enemy."""
+        """Check if a tile is passable.
+
+        Returns False if occupied by another player or enemy.
+        """
         if not self.is_passable(x, y, depth):
             return False
         if self.get_enemy_at(x, y, depth):
@@ -673,13 +848,23 @@ class Game:
                 return c
         return None
 
-    def do_attack(self, attacker_name, attacker_atk, defender_name, defender_def, damage_variance=2):
+    def do_attack(
+        self, attacker_name, attacker_atk,
+        defender_name, defender_def,
+        damage_variance=2,
+    ):
         """Calculate damage: (atk - def) +/- random variance, minimum 1."""
-        damage = max(1, attacker_atk - defender_def + random.randint(-damage_variance, damage_variance))
+        damage = max(
+            1, attacker_atk - defender_def
+            + random.randint(-damage_variance, damage_variance),
+        )
         return damage
 
     def queue_player_action(self, player_idx, action):
-        """Queue an action for the given player to execute on their next tick."""
+        """Queue an action for the given player.
+
+        The action executes on their next tick.
+        """
         if self.game_over:
             return
         player = self.players[player_idx]
@@ -728,8 +913,11 @@ class Game:
         else:
             player.x, player.y = nx, ny
             player.next_tick = self.tick + TICK_PLAYER_MOVE
-            self._ambient_sound(nx, ny, player.depth, PLAYER_MOVE_AMBIENT,
-                COLOR_WHITE, source=player, chance=0.08, skip_visible=True, range=38, flat=True)
+            self._ambient_sound(
+                nx, ny, player.depth, PLAYER_MOVE_AMBIENT,
+                COLOR_WHITE, source=player, chance=0.08,
+                skip_visible=True, range=38, flat=True,
+            )
             corpse = self.get_corpse_at(nx, ny, player.depth)
             if corpse:
                 self._tell(player, MSG_CORPSE_INFO, COLOR_RED, ctx={
@@ -744,15 +932,29 @@ class Game:
             player.name, player.attack_total(),
             enemy["name"], enemy["defense"])
         enemy["hp"] -= damage
-        self._broadcast(enemy["x"], enemy["y"], player.depth,
-                        MSG_PLAYER_HIT_ENEMY, COLOR_WHITE, subject=player, ctx={"enemy": enemy["name"], "damage": damage})
-        self._ambient_sound(enemy["x"], enemy["y"], player.depth, COMBAT_CLASH_AMBIENT,
-            COLOR_WHITE, source=player, chance=0.5, range=38, flat=True)
+        self._broadcast(
+            enemy["x"], enemy["y"], player.depth,
+            MSG_PLAYER_HIT_ENEMY, COLOR_WHITE,
+            subject=player,
+            ctx={"enemy": enemy["name"], "damage": damage},
+        )
+        self._ambient_sound(
+            enemy["x"], enemy["y"], player.depth,
+            COMBAT_CLASH_AMBIENT,
+            COLOR_WHITE, source=player, chance=0.5,
+            range=38, flat=True,
+        )
         if enemy["hp"] <= 0:
-            self._broadcast(enemy["x"], enemy["y"], player.depth,
-                            MSG_ENEMY_DIES, COLOR_RED, ctx={"enemy": enemy["name"]})
-            self._ambient_sound(enemy["x"], enemy["y"], player.depth, ENEMY_DEATH_AMBIENT,
-                COLOR_RED, source=player, chance=1.0, range=38, flat=True)
+            self._broadcast(
+                enemy["x"], enemy["y"], player.depth,
+                MSG_ENEMY_DIES, COLOR_RED,
+                ctx={"enemy": enemy["name"]},
+            )
+            self._ambient_sound(
+                enemy["x"], enemy["y"], player.depth,
+                ENEMY_DEATH_AMBIENT,
+                COLOR_RED, source=player, chance=1.0,
+                range=38, flat=True)
             player.xp += enemy["xp"]
             self._check_level_up(player)
 
@@ -766,11 +968,17 @@ class Game:
             player.attack += 1
             player.defense += 1
             player.next_level_xp = int(player.next_level_xp * 1.5)
-            self._broadcast(player.x, player.y, player.depth,
-                            MSG_LEVEL_UP, COLOR_YELLOW, subject=player, ctx={"level": player.level})
+            self._broadcast(
+                player.x, player.y, player.depth,
+                MSG_LEVEL_UP, COLOR_YELLOW,
+                subject=player, ctx={"level": player.level},
+            )
 
     def _process_tick(self):
-        """Advance the game by one tick: process player actions, enemy AI, and visibility."""
+        """Advance the game by one tick.
+
+        Process player actions, enemy AI, and visibility.
+        """
         if self.game_over:
             return
         for i, player in enumerate(self.players):
@@ -791,7 +999,10 @@ class Game:
         self._update_explored()
 
     def _get_nearest_player(self, ex, ey, depth):
-        """Return (player, distance) of the nearest alive player on the given depth."""
+        """Return (player, distance) of the nearest alive player.
+
+        Only considers players on the given depth.
+        """
         best = None
         best_dist = float('inf')
         for p in self.players:
@@ -813,18 +1024,23 @@ class Game:
             moved = False
             for wdx, wdy in moves:
                 wx, wy = ex + wdx, ey + wdy
-                if self.is_passable(wx, wy, depth) and not self.get_enemy_at(wx, wy, depth):
+                if (self.is_passable(wx, wy, depth)
+                        and not self.get_enemy_at(wx, wy, depth)):
                     enemy["x"], enemy["y"] = wx, wy
                     moved = True
                     break
             if moved:
-                self._ambient_sound(enemy["x"], enemy["y"], depth,
-                    ENEMY_SOUNDS.get(enemy["name"], ENEMY_SOUNDS_DEFAULT),
+                self._ambient_sound(
+                    enemy["x"], enemy["y"], depth,
+                    ENEMY_SOUNDS.get(enemy["name"],
+                                     ENEMY_SOUNDS_DEFAULT),
                     COLOR_WHITE, chance=0.09, range=37)
             enemy["next_tick"] = self.tick + TICK_MOVE
             return
         dungeon = self._get_dungeon(depth)
-        player_on_depth = [p for p in self.players if p.depth == depth and not p.dead]
+        player_on_depth = [
+            p for p in self.players
+            if p.depth == depth and not p.dead]
         combined_visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
         for p in player_on_depth:
             fov = compute_fov(dungeon, p.x, p.y, FOV_RADIUS)
@@ -832,17 +1048,24 @@ class Game:
                 for x in range(MAP_WIDTH):
                     if fov[y][x]:
                         combined_visible[y][x] = True
-        can_see = combined_visible[enemy["y"]][enemy["x"]] and dist <= FOV_RADIUS + 2
+        can_see = (combined_visible[enemy["y"]][enemy["x"]]
+                   and dist <= FOV_RADIUS + 2)
 
         if dist == 1:
             damage = self.do_attack(
                 enemy["name"], enemy["attack"],
                 target.name, target.defense_total(), 1)
             target.hp -= damage
-            hit_template = random.choice(ENEMY_HIT_MESSAGES.get(enemy["name"], [ENEMY_HIT_DEFAULT]))
-            self._broadcast(target.x, target.y, depth,
-                            hit_template, enemy["color"], subject=target, ctx={"damage": damage})
-            self._ambient_sound(target.x, target.y, depth, COMBAT_CLASH_AMBIENT,
+            hit_template = random.choice(
+                ENEMY_HIT_MESSAGES.get(enemy["name"],
+                                       [ENEMY_HIT_DEFAULT]))
+            self._broadcast(
+                target.x, target.y, depth,
+                hit_template, enemy["color"],
+                subject=target, ctx={"damage": damage},
+            )
+            self._ambient_sound(
+                target.x, target.y, depth, COMBAT_CLASH_AMBIENT,
                 COLOR_WHITE, chance=0.5, range=38, flat=True)
             enemy["next_tick"] = self.tick + TICK_ATTACK
             if target.hp <= 0:
@@ -857,9 +1080,13 @@ class Game:
                 })
                 self._broadcast(target.x, target.y, depth,
                                 MSG_PLAYER_DIED, COLOR_RED, subject=target)
-                self._ambient_sound(target.x, target.y, depth, PLAYER_DEATH_AMBIENT,
-                    COLOR_RED, chance=1.0, range=38, flat=True)
-                alive = any(p and not p.dead and not p.game_win for p in self.players)
+                self._ambient_sound(
+                    target.x, target.y, depth, PLAYER_DEATH_AMBIENT,
+                    COLOR_RED, chance=1.0, range=38, flat=True,
+                )
+                alive = any(
+                    p and not p.dead and not p.game_win
+                    for p in self.players)
                 if not alive:
                     self.game_over = True
                     return
@@ -872,7 +1099,9 @@ class Game:
                 dy = 1 if target.y > ey else -1
             nx, ny = ex + dx, ey + dy
             moved = False
-            if self.is_passable(nx, ny, depth) and not self.get_enemy_at(nx, ny, depth) and (nx != target.x or ny != target.y):
+            if (self.is_passable(nx, ny, depth)
+                    and not self.get_enemy_at(nx, ny, depth)
+                    and (nx != target.x or ny != target.y)):
                 enemy["x"], enemy["y"] = nx, ny
                 moved = True
             else:
@@ -880,14 +1109,17 @@ class Game:
                 random.shuffle(moves)
                 for wdx, wdy in moves:
                     wx, wy = ex + wdx, ey + wdy
-                    if self.is_passable(wx, wy, depth) and not self.get_enemy_at(wx, wy, depth):
+                    if (self.is_passable(wx, wy, depth)
+                            and not self.get_enemy_at(wx, wy, depth)):
                         enemy["x"], enemy["y"] = wx, wy
                         moved = True
                         break
             if moved:
-                self._ambient_sound(enemy["x"], enemy["y"], depth,
+                self._ambient_sound(
+                    enemy["x"], enemy["y"], depth,
                     ENEMY_SOUNDS.get(enemy["name"], ENEMY_SOUNDS_DEFAULT),
-                    COLOR_WHITE, chance=0.09, range=37)
+                    COLOR_WHITE, chance=0.09, range=37,
+                )
             enemy["next_tick"] = self.tick + TICK_MOVE
         else:
             moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
@@ -895,13 +1127,16 @@ class Game:
             moved = False
             for wdx, wdy in moves:
                 wx, wy = ex + wdx, ey + wdy
-                if self.is_passable(wx, wy, depth) and not self.get_enemy_at(wx, wy, depth):
+                if (self.is_passable(wx, wy, depth)
+                        and not self.get_enemy_at(wx, wy, depth)):
                     enemy["x"], enemy["y"] = wx, wy
                     moved = True
                     break
             if moved:
-                self._ambient_sound(enemy["x"], enemy["y"], depth,
-                    ENEMY_SOUNDS.get(enemy["name"], ENEMY_SOUNDS_DEFAULT),
+                self._ambient_sound(
+                    enemy["x"], enemy["y"], depth,
+                    ENEMY_SOUNDS.get(enemy["name"],
+                                     ENEMY_SOUNDS_DEFAULT),
                     COLOR_WHITE, chance=0.09, range=37)
             enemy["next_tick"] = self.tick + TICK_MOVE
 
@@ -919,14 +1154,26 @@ class Game:
             stairs_up_x, stairs_up_y = self._get_stairs_up(new_depth)
             old_x, old_y, old_depth = player.x, player.y, player.depth
             player.depth = new_depth
-            player.x, player.y = self._find_open_spawn(stairs_up_x, stairs_up_y, new_depth, exclude_player=player)
+            player.x, player.y = self._find_open_spawn(
+                stairs_up_x, stairs_up_y, new_depth,
+                exclude_player=player)
             self._ensure_player_explored(player)
-            self._ambient_sound(old_x, old_y, old_depth, STAIRS_DOWN_AMBIENT,
-                COLOR_CYAN, source=player, chance=1.0, skip_visible=True, range=38, flat=True)
-            self._ambient_depth(new_depth, STAIRS_DOWN_DEPTH_AMBIENT,
-                COLOR_CYAN, source=player, chance=1.0, skip_visible=True)
-            self._broadcast(old_x, old_y, old_depth,
-                            MSG_DESCENDED, COLOR_CYAN, subject=player, ctx={"depth": new_depth + 1})
+            self._ambient_sound(
+                old_x, old_y, old_depth, STAIRS_DOWN_AMBIENT,
+                COLOR_CYAN, source=player, chance=1.0,
+                skip_visible=True, range=38, flat=True,
+            )
+            self._ambient_depth(
+                new_depth, STAIRS_DOWN_DEPTH_AMBIENT,
+                COLOR_CYAN, source=player,
+                chance=1.0, skip_visible=True,
+            )
+            self._broadcast(
+                old_x, old_y, old_depth,
+                MSG_DESCENDED, COLOR_CYAN,
+                subject=player,
+                ctx={"depth": new_depth + 1},
+            )
         else:
             self._tell(player, MSG_NO_STAIRS_DOWN, COLOR_CYAN)
 
@@ -940,14 +1187,26 @@ class Game:
                 stairs_down_x, stairs_down_y = self._get_stairs_down(new_depth)
                 old_x, old_y, old_depth = player.x, player.y, player.depth
                 player.depth = new_depth
-                player.x, player.y = self._find_open_spawn(stairs_down_x, stairs_down_y, new_depth, exclude_player=player)
+                player.x, player.y = self._find_open_spawn(
+                    stairs_down_x, stairs_down_y, new_depth,
+                    exclude_player=player)
                 self._ensure_player_explored(player)
-                self._ambient_sound(old_x, old_y, old_depth, STAIRS_UP_AMBIENT,
-                    COLOR_CYAN, source=player, chance=1.0, skip_visible=True, range=38, flat=True)
-                self._ambient_depth(new_depth, STAIRS_UP_DEPTH_AMBIENT,
-                    COLOR_CYAN, source=player, chance=1.0, skip_visible=True)
-                self._broadcast(old_x, old_y, old_depth,
-                                MSG_ASCENDED, COLOR_CYAN, subject=player, ctx={"depth": new_depth + 1})
+                self._ambient_sound(
+                    old_x, old_y, old_depth, STAIRS_UP_AMBIENT,
+                    COLOR_CYAN, source=player, chance=1.0,
+                    skip_visible=True, range=38, flat=True,
+                )
+                self._ambient_depth(
+                    new_depth, STAIRS_UP_DEPTH_AMBIENT,
+                    COLOR_CYAN, source=player,
+                    chance=1.0, skip_visible=True,
+                )
+                self._broadcast(
+                    old_x, old_y, old_depth,
+                    MSG_ASCENDED, COLOR_CYAN,
+                    subject=player,
+                    ctx={"depth": new_depth + 1},
+                )
             else:
                 self._tell(player, MSG_CANNOT_GO_UP, COLOR_CYAN)
         else:
@@ -963,24 +1222,39 @@ class Game:
         if kind == ITEM_POTION:
             heal = random.randint(5, 10)
             player.hp = min(player.hp + heal, player.max_hp)
-            self._broadcast(player.x, player.y, player.depth,
-                            MSG_DRANK_POTION, COLOR_RED, subject=player, ctx={"heal": heal})
+            self._broadcast(
+                player.x, player.y, player.depth,
+                MSG_DRANK_POTION, COLOR_RED,
+                subject=player, ctx={"heal": heal},
+            )
         elif kind == ITEM_SWORD:
             player.weapon_bonus += item["bonus"]
-            self._broadcast(player.x, player.y, player.depth,
-                            MSG_EQUIPPED_SWORD, COLOR_WHITE, subject=player, ctx={"bonus": item["bonus"]})
+            self._broadcast(
+                player.x, player.y, player.depth,
+                MSG_EQUIPPED_SWORD, COLOR_WHITE,
+                subject=player, ctx={"bonus": item["bonus"]},
+            )
         elif kind == ITEM_SHIELD:
             player.armor_bonus += item["bonus"]
-            self._broadcast(player.x, player.y, player.depth,
-                            MSG_EQUIPPED_SHIELD, COLOR_CYAN, subject=player, ctx={"bonus": item["bonus"]})
+            self._broadcast(
+                player.x, player.y, player.depth,
+                MSG_EQUIPPED_SHIELD, COLOR_CYAN,
+                subject=player, ctx={"bonus": item["bonus"]},
+            )
         elif kind == ITEM_GOLD:
             player.gold += item["value"]
-            self._broadcast(player.x, player.y, player.depth,
-                            MSG_PICKED_UP_GOLD, COLOR_YELLOW, subject=player, ctx={"gold": item["value"]})
+            self._broadcast(
+                player.x, player.y, player.depth,
+                MSG_PICKED_UP_GOLD, COLOR_YELLOW,
+                subject=player, ctx={"gold": item["value"]},
+            )
         self._get_items(player.depth).pop(idx)
 
     def _do_rest(self, player):
-        """Rest for a moment: heal 1 HP if wounded, with a chance to spawn an enemy."""
+        """Rest for a moment.
+
+        Heal 1 HP if wounded, with a chance to spawn an enemy.
+        """
         if not hasattr(player, '_consecutive_waits'):
             player._consecutive_waits = 0
         player._consecutive_waits += 1
@@ -1031,20 +1305,32 @@ class Game:
                 "next_tick": self.tick + random.randint(0, 99),
             }
             self._get_enemies(depth).append(enemy)
-            self._broadcast(sx, sy, depth, MSG_ENEMY_APPEARS, COLOR_RED, ctx={"enemy": prop["name"]})
-            self._ambient_sound(sx, sy, depth, ENEMY_SPAWN_AMBIENT, COLOR_RED, chance=0.09)
+            self._broadcast(
+                sx, sy, depth, MSG_ENEMY_APPEARS,
+                COLOR_RED, ctx={"enemy": prop["name"]})
+            self._ambient_sound(
+                sx, sy, depth, ENEMY_SPAWN_AMBIENT,
+                COLOR_RED, chance=0.09)
             return
 
     def get_char_at(self, mx, my, player_idx=0):
-        """Return the display character at (mx, my) respecting explored/visible state."""
+        """Return the display character at (mx, my).
+
+        Respects explored/visible state.
+        """
         if mx < 0 or mx >= MAP_WIDTH or my < 0 or my >= MAP_HEIGHT:
             return ' '
-        player = self.players[player_idx] if 0 <= player_idx < len(self.players) else None
+        player = (self.players[player_idx]
+                  if 0 <= player_idx < len(self.players) else None)
         if player is None:
             return ' '
         depth = player.depth
-        explored_grid = player.explored.get(depth, [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
-        p_visible = self.player_visible[player_idx] if 0 <= player_idx < len(self.player_visible) else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+        explored_grid = player.explored.get(
+            depth, [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
+        p_visible = (
+            self.player_visible[player_idx]
+            if 0 <= player_idx < len(self.player_visible)
+            else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
         is_explored = explored_grid[my][mx]
         is_visible = p_visible[my][mx]
         if not is_explored:
@@ -1053,7 +1339,8 @@ class Game:
         if enemy and is_visible:
             return enemy["char"]
         for p in self.players:
-            if p.depth == depth and mx == p.x and my == p.y and not p.dead and is_visible:
+            if (p.depth == depth and mx == p.x and my == p.y
+                    and not p.dead and is_visible):
                 return p.char
         _, item = self.get_item_at(mx, my, depth)
         if item and is_visible:
@@ -1077,10 +1364,12 @@ class Game:
 
         print(f"{'=' * view_w}")
         for pl in self.players:
-            bar = (f"{pl.name} | D{pl.depth + 1} | Lv{pl.level} | HP {pl.hp}/{pl.max_hp} | "
-                   f"ATK {pl.attack_total()} | DEF {pl.defense_total()} | "
-                   f"XP {pl.xp}/{pl.next_level_xp} | Gold {pl.gold} "
-                   f"{'[WIN]' if pl.game_win else '[DEAD]' if pl.dead else ''}")
+            bar = (
+                f"{pl.name} | D{pl.depth + 1} | Lv{pl.level} | "
+                f"HP {pl.hp}/{pl.max_hp} | "
+                f"ATK {pl.attack_total()} | DEF {pl.defense_total()} | "
+                f"XP {pl.xp}/{pl.next_level_xp} | Gold {pl.gold} "
+                f"{'[WIN]' if pl.game_win else '[DEAD]' if pl.dead else ''}")
             print(bar.ljust(view_w))
 
         for sy in range(view_h):
@@ -1098,7 +1387,10 @@ class Game:
 
 
 def run_text_mode():
-    """Create a game with two test players and render one frame as plain text."""
+    """Create a game with two test players.
+
+    Render one frame as plain text.
+    """
     game = Game()
     game._init_level(0)
     spawn_x, spawn_y = game.levels[0]["spawn_x"], game.levels[0]["spawn_y"]

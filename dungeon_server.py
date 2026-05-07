@@ -5,20 +5,26 @@ import asyncio
 import json
 import os
 import sys
-import time
 import threading
-
-import aiohttp
-from aiohttp import web
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from dungeon_crawler import (
-    Game, Player,
-    ITEM_PROPS, TILE_WALL,
-    MAP_WIDTH, MAP_HEIGHT, MAX_SCREEN_X, MAX_SCREEN_Y,
-    MAX_DEPTH, TICK_PLAYER_REST,
-    COLOR_YELLOW, COLOR_GREEN, COLOR_CYAN, COLOR_MAGENTA, COLOR_RED,
+from aiohttp import web  # noqa: E402
+from dungeon_crawler import (  # noqa: E402
+    COLOR_CYAN,
+    COLOR_GREEN,
+    COLOR_MAGENTA,
+    COLOR_RED,
+    COLOR_YELLOW,
+    Game,
+    ITEM_PROPS,
+    MAP_HEIGHT,
+    MAP_WIDTH,
+    MAX_DEPTH,
+    MAX_SCREEN_X,
+    MAX_SCREEN_Y,
+    Player,
+    TICK_PLAYER_REST,
 )
 
 
@@ -73,7 +79,10 @@ class GameServer:
         g._update_visibility()
 
     def register_player(self):
-        """Register a new (or returning) player. Returns {"client_id": id, "player_id": id}."""
+        """Register a new (or returning) player.
+
+        Returns {"client_id": id, "player_id": id}.
+        """
         with self.lock:
             g = self.game
             inactive = None
@@ -89,14 +98,17 @@ class GameServer:
                 pid = self._next_id
                 self._next_id += 1
                 color = self.PLAYER_COLORS[pid % len(self.PLAYER_COLORS)]
-                spawn_x, spawn_y = g.levels[0]["spawn_x"], g.levels[0]["spawn_y"]
+                spawn_x, spawn_y = (
+                    g.levels[0]["spawn_x"],
+                    g.levels[0]["spawn_y"])
                 p = Player(
                     f"Hero{pid + 1}", "@",
                     spawn_x, spawn_y,
                     color, depth=0)
                 p._server_id = pid
                 g.players.append(p)
-                p.x, p.y = g._find_open_spawn(spawn_x, spawn_y, 0, exclude_player=p)
+                p.x, p.y = g._find_open_spawn(
+                    spawn_x, spawn_y, 0, exclude_player=p)
             self.clients[pid] = p
             self._update_visibility(g)
             g._update_explored()
@@ -104,7 +116,10 @@ class GameServer:
             return {"client_id": pid, "player_id": pid}
 
     def deregister_player(self, player_id):
-        """Remove a player from the active game, keeping their state for re-entry."""
+        """Remove a player from the active game.
+
+        Keeps their state for re-entry.
+        """
         with self.lock:
             g = self.game
             target = None
@@ -134,7 +149,10 @@ class GameServer:
                     "view_w": MAX_SCREEN_X,
                     "start_x": 0,
                     "start_y": 0,
-                    "map": [" " * MAX_SCREEN_X for _ in range(MAX_SCREEN_Y - 4)],
+                    "map": [
+                        " " * MAX_SCREEN_X
+                        for _ in range(MAX_SCREEN_Y - 4)
+                    ],
                     "players": [],
                     "enemies": [],
                     "items": [],
@@ -168,7 +186,11 @@ class GameServer:
                     row.append(g.get_char_at(mx, my, target_idx))
                 chars.append(''.join(row))
 
-            p_visible = g.player_visible[target_idx] if 0 <= target_idx < len(g.player_visible) else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+            p_visible = (
+                g.player_visible[target_idx]
+                if 0 <= target_idx < len(g.player_visible)
+                else [[False] * MAP_WIDTH
+                      for _ in range(MAP_HEIGHT)])
             depth = target.depth
             enemies = []
             for e in g._get_enemies(depth):
@@ -190,7 +212,9 @@ class GameServer:
                     "char": ITEM_PROPS[it["kind"]]["char"],
                 })
 
-            explored_grid = target.explored.get(depth, [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
+            explored_grid = target.explored.get(
+                depth, [[False] * MAP_WIDTH
+                        for _ in range(MAP_HEIGHT)])
             corpses = []
             for c in g._get_corpses(depth):
                 if explored_grid[c["y"]][c["x"]]:
@@ -206,7 +230,10 @@ class GameServer:
                 if pl is target:
                     visible_to_me = True
                 else:
-                    visible_to_me = p_visible[pl.y][pl.x] if pl.depth == depth else False
+                    visible_to_me = (
+                        p_visible[pl.y][pl.x]
+                        if pl.depth == depth else False
+                    )
                 if not visible_to_me:
                     continue
                 ps = {
@@ -256,7 +283,10 @@ class GameServer:
             }
 
     def send_action(self, player_id, action):
-        """Queue an action for the given player. Returns {"ok": True} or an error."""
+        """Queue an action for the given player.
+
+        Returns {"ok": True} or an error.
+        """
         with self.lock:
             g = self.game
             target_idx = None
@@ -333,7 +363,10 @@ def create_app():
 
 
 def main():
-    """Start the aiohttp server and game loop on the given port (default 9999)."""
+    """Start the aiohttp server and game loop.
+
+   Uses the given port (default 9999).
+   """
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 9999
 
     gs = GameServer()

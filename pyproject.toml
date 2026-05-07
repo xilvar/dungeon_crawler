@@ -5,10 +5,9 @@ description = "A terminal-based roguelike dungeon crawler with multiplayer suppo
 requires-python = ">=3.11"
 dependencies = [
     "aiohttp>=3.9",
+    "windows-curses>=2.3; sys_platform == 'win32'",
 ]
 
 [dependency-groups]
 dev = []
 
-[tool.flake8]
-max-line-length = 120

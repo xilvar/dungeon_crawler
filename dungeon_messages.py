@@ -277,7 +277,10 @@ ENEMY_HIT_MESSAGES = {
     ],
     "Medusa": [
         "The Medusa strikes {name} with a serpent's hiss for {damage} damage!",
-        "The Medusa delivers a paralyzing touch to {name} for {damage} damage!",
+        (
+            "The Medusa delivers a paralyzing touch to {name} "
+            "for {damage} damage!"
+        ),
         "The Medusa lashes out with writhing snake hair for {damage} damage!",
     ],
     "Owlbear": [
@@ -288,15 +291,27 @@ ENEMY_HIT_MESSAGES = {
     "Hook Horror": [
         "The Hook Horror slashes {name} with razor hooks for {damage} damage!",
         "The Hook Horror drags its hooks across {name} for {damage} damage!",
-        "The Hook Horror strikes {name} with metal appendages for {damage} damage!",
+        (
+            "The Hook Horror strikes {name} with metal appendages "
+            "for {damage} damage!"
+        ),
     ],
     "Phase Spider": [
-        "The Phase Spider phases through the wall and bites {name} for {damage} damage!",
-        "The Phase Spider materializes and strikes {name} for {damage} damage!",
+        (
+            "The Phase Spider phases through the wall and bites "
+            "{name} for {damage} damage!"
+        ),
+        (
+            "The Phase Spider materializes and strikes {name} "
+            "for {damage} damage!"
+        ),
         "The Phase Spider injects venom into {name} for {damage} damage!",
     ],
     "Basilisk": [
-        "The Basilisk strikes {name} with a petrifying gaze for {damage} damage!",
+        (
+            "The Basilisk strikes {name} with a petrifying gaze "
+            "for {damage} damage!"
+        ),
         "The Basilisk delivers a venomous bite to {name} for {damage} damage!",
         "The Basilisk lashes {name} with its stony tail for {damage} damage!",
     ],
@@ -311,23 +326,41 @@ ENEMY_HIT_MESSAGES = {
         "The Phoenix delivers a searing blow to {name} for {damage} damage!",
     ],
     "Grue": [
-        "The Grue emerges from the darkness and strikes {name} for {damage} damage!",
+        (
+            "The Grue emerges from the darkness and strikes "
+            "{name} for {damage} damage!"
+        ),
         "The Grue delivers a chilling touch to {name} for {damage} damage!",
         "The Grue strikes {name} with shadowy claws for {damage} damage!",
     ],
     "Gelatinous Cube": [
-        "The Gelatinous Cube partially engulfs {name} and dissolves for {damage} damage!",
-        "The Gelatinous Cube delivers a squelching blow to {name} for {damage} damage!",
-        "The Gelatinous Cube oozes corrosive slime onto {name} for {damage} damage!",
+        (
+            "The Gelatinous Cube partially engulfs {name} "
+            "and dissolves for {damage} damage!"
+        ),
+        (
+            "The Gelatinous Cube delivers a squelching blow to {name} "
+            "for {damage} damage!"
+        ),
+        (
+            "The Gelatinous Cube oozes corrosive slime onto {name} "
+            "for {damage} damage!"
+        ),
     ],
     "Remorhaz": [
         "The Remorhaz burrows up and strikes {name} for {damage} damage!",
         "The Remorhaz breathes intense heat onto {name} for {damage} damage!",
-        "The Remorhaz delivers a devastating blow to {name} for {damage} damage!",
+        (
+            "The Remorhaz delivers a devastating blow to {name} "
+            "for {damage} damage!"
+        ),
     ],
     "Ice Devil": [
         "The Ice Devil strikes {name} with razor frost for {damage} damage!",
-        "The Ice Devil delivers a freezing blow to {name} for {damage} damage!",
+        (
+            "The Ice Devil delivers a freezing blow to {name} "
+            "for {damage} damage!"
+        ),
         "The Ice Devil scorches {name} with cold fire for {damage} damage!",
     ],
     "Lich": [
@@ -337,8 +370,14 @@ ENEMY_HIT_MESSAGES = {
     ],
     "Beholder": [
         "The Beholder fires a ray at {name} for {damage} damage!",
-        "The Beholder strikes {name} with writhing eyestalks for {damage} damage!",
-        "The Beholder blasts {name} with a debilitating ray for {damage} damage!",
+        (
+            "The Beholder strikes {name} with writhing eyestalks "
+            "for {damage} damage!"
+        ),
+        (
+            "The Beholder blasts {name} with a debilitating ray "
+            "for {damage} damage!"
+        ),
     ],
     "Balor": [
         "The Balor strikes {name} with a flaming sword for {damage} damage!",
@@ -356,14 +395,20 @@ ENEMY_HIT_MESSAGES = {
         "The Golem strikes {name} with metallic arms for {damage} damage!",
     ],
     "Demon": [
-        "The Demon strikes {name} with crackling hellfire for {damage} damage!",
+        (
+            "The Demon strikes {name} with crackling hellfire "
+            "for {damage} damage!"
+        ),
         "The Demon claws at {name} with demonic strength for {damage} damage!",
         "The Demon delivers a devastating blow to {name} for {damage} damage!",
     ],
     "Dragon": [
         "The Dragon breathes searing fire onto {name} for {damage} damage!",
         "The Dragon strikes {name} with massive claws for {damage} damage!",
-        "The Dragon delivers a devastating bite to {name} for {damage} damage!",
+        (
+            "The Dragon delivers a devastating bite to {name} "
+            "for {damage} damage!"
+        ),
     ],
 }
 
@@ -448,7 +493,10 @@ MSG_ENEMY_APPEARS = "A {enemy} appears!"
 # Direct player messages (_tell)
 # ---------------------------------------------------------------------------
 MSG_ENEMY_INTO_VIEW = "A {enemy} comes into view."
-MSG_CORPSE_INFO = "You see the corpse of {corpse} (lv {corpse_level}). Looks like they were killed by a {killer}."
+MSG_CORPSE_INFO = (
+    "You see the corpse of {corpse} (lv {corpse_level}). "
+    "Looks like they were killed by a {killer}."
+)
 MSG_NO_STAIRS_DOWN = "{name}: no stairs down here."
 MSG_CANNOT_GO_UP = "{name}: can't go up further."
 MSG_NO_STAIRS_UP = "{name}: no stairs up here."
