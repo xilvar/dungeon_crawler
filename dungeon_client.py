@@ -95,6 +95,7 @@ def render(stdscr, state, my_player_id):
     max_y, max_x = stdscr.getmaxyx()
 
     map_lines = state.get("map", [])
+    visible_lines = state.get("visible", [])
     players = state.get("players", [])
     enemies = state.get("enemies", [])
     messages = state.get("messages", [])
@@ -105,11 +106,15 @@ def render(stdscr, state, my_player_id):
     view_h = state.get("view_h", max_y - 4)
     for sy in range(min(view_h, max_y - 4)):
         line = map_lines[sy] if sy < len(map_lines) else ""
+        vis = visible_lines[sy] if sy < len(visible_lines) else ""
         line = line.ljust(max_x)[:max_x]
-        try:
-            stdscr.addstr(sy, 0, line)
-        except curses.error:
-            pass
+        vis = vis.ljust(max_x, '0')[:max_x]
+        for sx, ch in enumerate(line):
+            attr = curses.A_NORMAL if vis[sx] == '1' else curses.A_DIM
+            try:
+                stdscr.addch(sy, sx, ord(ch), attr)
+            except curses.error:
+                pass
 
     # Overlay players with color
     for pl in players:

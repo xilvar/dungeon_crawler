@@ -152,6 +152,10 @@ class GameServer:
                         " " * MAX_SCREEN_X
                         for _ in range(MAX_SCREEN_Y - 4)
                     ],
+                    "visible": [
+                        "0" * MAX_SCREEN_X
+                        for _ in range(MAX_SCREEN_Y - 4)
+                    ],
                     "players": [],
                     "enemies": [],
                     "items": [],
@@ -176,20 +180,28 @@ class GameServer:
             start_x = max(0, min(target.x - view_w // 2, MAP_WIDTH - view_w))
             start_y = max(0, min(target.y - view_h // 2, MAP_HEIGHT - view_h))
 
-            chars = []
-            for sy in range(view_h):
-                row = []
-                for sx in range(view_w):
-                    mx = sx + start_x
-                    my = sy + start_y
-                    row.append(g.get_char_at(mx, my, target_idx))
-                chars.append(''.join(row))
-
             p_visible = (
                 g.player_visible[target_idx]
                 if 0 <= target_idx < len(g.player_visible)
                 else [[False] * MAP_WIDTH
-                      for _ in range(MAP_HEIGHT)])
+                      for _ in range(MAP_HEIGHT)]
+            )
+
+            chars = []
+            visible_rows = []
+            for sy in range(view_h):
+                row = []
+                vis_row = []
+                for sx in range(view_w):
+                    mx = sx + start_x
+                    my = sy + start_y
+                    row.append(g.get_char_at(mx, my, target_idx))
+                    vis_row.append(
+                        '1' if p_visible[my][mx] else '0',
+                    )
+                chars.append(''.join(row))
+                visible_rows.append(''.join(vis_row))
+
             depth = target.depth
             enemies = []
             for e in g._get_enemies(depth):
@@ -271,6 +283,7 @@ class GameServer:
                 "start_x": start_x,
                 "start_y": start_y,
                 "map": chars,
+                "visible": visible_rows,
                 "players": player_stats,
                 "enemies": enemies,
                 "items": items,
