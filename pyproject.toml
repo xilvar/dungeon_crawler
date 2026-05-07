@@ -1,0 +1,14 @@
+[project]
+name = "dungeon-crawler"
+version = "0.1.0"
+description = "A terminal-based roguelike dungeon crawler with multiplayer support."
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.9",
+]
+
+[dependency-groups]
+dev = []
+
+[tool.flake8]
+max-line-length = 120

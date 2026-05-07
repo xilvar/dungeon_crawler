@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Multiplayer HTTP server that manages game state, player registration,
 actions, visibility-filtered state responses, and smart spawn placement."""
+import asyncio
 import json
-import random
-import threading
-import http.server
-import socketserver
-import sys
 import os
-from urllib.parse import urlparse, parse_qs
+import sys
+import time
+import threading
+
+import aiohttp
+from aiohttp import web
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -61,7 +62,7 @@ class GameServer:
             with self.lock:
                 self.game.tick += 1
                 self.game._process_tick()
-            _sleep_ms(10)
+            time.sleep(0.01)
 
     def stop(self):
         """Signal the game loop thread to stop."""
@@ -271,109 +272,91 @@ class GameServer:
             return {"ok": True}
 
 
-class GameHandler(http.server.BaseHTTPRequestHandler):
-    server_side = None  # type: GameServer | None
+# ---------------------------------------------------------------------------
+# Async HTTP handlers
+# ---------------------------------------------------------------------------
 
-    def log_message(self, format, *args):
-        pass  # Suppress request logging
-
-    def _send_json(self, data, status=200):
-        """Serialize data as JSON and send an HTTP response."""
-        body = json.dumps(data).encode()
-        self.send_response(status)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Content-Length', str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_GET(self):
-        if self.path.startswith('/state'):
-            if self.server_side is None:
-                self._send_json({"error": "no server"}, 500)
-                return
-            parsed = urlparse(self.path)
-            params = parse_qs(parsed.query)
-            player_id = int(params.get("player_id", [0])[0])
-            state = self.server_side.get_state(player_id)
-            self._send_json(state)
-        elif self.path == '/health':
-            self._send_json({"status": "ok"})
-        else:
-            self._send_json({"error": "not found"}, 404)
-
-    def do_POST(self):
-        if self.path == '/action':
-            if self.server_side is None:
-                self._send_json({"error": "no server"}, 500)
-                return
-            length = int(self.headers.get('Content-Length', 0))
-            raw = self.rfile.read(length)
-            try:
-                data = json.loads(raw)
-            except json.JSONDecodeError:
-                self._send_json({"error": "bad json"}, 400)
-                return
-            pid = data.get("player_id", 0)
-            action = data.get("action", {})
-            result = self.server_side.send_action(pid, action)
-            self._send_json(result)
-        elif self.path == '/register':
-            if self.server_side is None:
-                self._send_json({"error": "no server"}, 500)
-                return
-            result = self.server_side.register_player()
-            self._send_json(result)
-        elif self.path == '/deregister':
-            if self.server_side is None:
-                self._send_json({"error": "no server"}, 500)
-                return
-            length = int(self.headers.get('Content-Length', 0))
-            raw = self.rfile.read(length)
-            try:
-                data = json.loads(raw)
-            except json.JSONDecodeError:
-                self._send_json({"error": "bad json"}, 400)
-                return
-            pid = data.get("player_id", 0)
-            result = self.server_side.deregister_player(pid)
-            self._send_json(result)
-        else:
-            self._send_json({"error": "not found"}, 404)
+async def health(request):
+    """Health check endpoint."""
+    return web.json_response({"status": "ok"})
 
 
-def _sleep_ms(ms):
-    """Sleep for the given number of milliseconds."""
-    import time
-    time.sleep(ms / 1000.0)
+async def get_state(request):
+    """GET /state?player_id=N — return visibility-filtered game state."""
+    gs = request.app["gs"]
+    player_id = int(request.query.get("player_id", 0))
+    state = await asyncio.to_thread(gs.get_state, player_id)
+    return web.json_response(state)
+
+
+async def register_player(request):
+    """POST /register — register a new (or returning) player."""
+    gs = request.app["gs"]
+    result = await asyncio.to_thread(gs.register_player)
+    return web.json_response(result)
+
+
+async def deregister_player(request):
+    """POST /deregister — remove a player from the active game."""
+    gs = request.app["gs"]
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "bad json"}, status=400)
+    pid = data.get("player_id", 0)
+    result = await asyncio.to_thread(gs.deregister_player, pid)
+    return web.json_response(result)
+
+
+async def send_action(request):
+    """POST /action — queue an action for a player."""
+    gs = request.app["gs"]
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "bad json"}, status=400)
+    pid = data.get("player_id", 0)
+    action = data.get("action", {})
+    result = await asyncio.to_thread(gs.send_action, pid, action)
+    return web.json_response(result)
+
+
+def create_app():
+    """Build and return the aiohttp application with routes."""
+    app = web.Application()
+    app.router.add_get("/health", health)
+    app.router.add_get("/state", get_state)
+    app.router.add_post("/register", register_player)
+    app.router.add_post("/deregister", deregister_player)
+    app.router.add_post("/action", send_action)
+    return app
 
 
 def main():
-    """Start the HTTP server and game loop on the given port (default 9999)."""
+    """Start the aiohttp server and game loop on the given port (default 9999)."""
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 9999
 
     gs = GameServer()
-
-    class Handler(GameHandler):
-        pass
-
-    Handler.server_side = gs
-
-    class ThreadedHTTPServer(socketserver.ThreadingMixIn,
-                             http.server.HTTPServer):
-        allow_reuse_address = True
-        daemon_threads = True
-
-    server = ThreadedHTTPServer(('0.0.0.0', port), Handler)
-    print(f"Dungeon server on port {port}")
-
     gs.start()
+    app = create_app()
+    app["gs"] = gs
+
+    async def run():
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        await site.start()
+        print(f"Dungeon server on port {port}")
+        try:
+            await asyncio.Event().wait()
+        finally:
+            await runner.cleanup()
 
     try:
-        server.serve_forever()
+        asyncio.run(run())
     except KeyboardInterrupt:
         print("\nShutting down.")
         gs.stop()
-        server.shutdown()
 
 
 if __name__ == '__main__':

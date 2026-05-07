@@ -11,8 +11,9 @@ A terminal-based roguelike dungeon crawler with multiplayer support, implemented
 
 ## Running
 
-1. Start the server: `python3 dungeon_server.py [port]` (default port 9999)
-2. Connect clients: `python3 dungeon_client.py [host] [port]`
+1. Install dependencies: `uv sync` (or `pip install aiohttp`)
+2. Start the server: `python3 dungeon_server.py [port]` (default port 9999)
+3. Connect clients: `python3 dungeon_client.py [host] [port]`
 
 ## Features
 
