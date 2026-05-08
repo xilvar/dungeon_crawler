@@ -1327,27 +1327,8 @@ class Game:
         depth = player.depth
         explored_grid = player.explored.get(
             depth, [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
-        p_visible = (
-            self.player_visible[player_idx]
-            if 0 <= player_idx < len(self.player_visible)
-            else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)])
-        is_explored = explored_grid[my][mx]
-        is_visible = p_visible[my][mx]
-        if not is_explored:
+        if not explored_grid[my][mx]:
             return ' '
-        enemy = self.get_enemy_at(mx, my, depth)
-        if enemy and is_visible:
-            return enemy["char"]
-        for p in self.players:
-            if (p.depth == depth and mx == p.x and my == p.y
-                    and not p.dead and is_visible):
-                return p.char
-        _, item = self.get_item_at(mx, my, depth)
-        if item and is_visible:
-            return ITEM_PROPS[item["kind"]]["char"]
-        corpse = self.get_corpse_at(mx, my, depth)
-        if corpse and is_explored:
-            return "_"
         tile = self._get_dungeon(depth)[my][mx]
         return TILE_CHAR.get(tile, '?')
 

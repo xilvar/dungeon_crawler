@@ -190,7 +190,45 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0):
             except curses.error:
                 pass
 
-    # Overlay players with color
+    # Overlay enemies with color
+    for e in enemies:
+        ex = e["x"] - start_x
+        ey = e["y"] - start_y
+        if 0 <= ey < view_h and 0 <= ex < max_x:
+            color = COLOR_MAP.get(e.get("color", 1), curses.COLOR_RED)
+            attr = curses.color_pair(min(color + 1, 16)) | curses.A_BOLD
+            try:
+                stdscr.addch(ey, ex, ord(e["char"]), attr)
+            except curses.error:
+                pass
+
+    # Overlay items with color
+    items = state.get("items", [])
+    for it in items:
+        ix = it["x"] - start_x
+        iy = it["y"] - start_y
+        if 0 <= iy < view_h and 0 <= ix < max_x:
+            color = COLOR_MAP.get(
+                {"potion": 1, "sword": 7,
+                 "shield": 6, "gold": 3}.get(it["kind"], 7), 7)
+            attr = curses.color_pair(min(color + 1, 16))
+            try:
+                stdscr.addch(iy, ix, ord(it["char"]), attr)
+            except curses.error:
+                pass
+
+        # Overlay corpses (dimmed, explored but not necessarily visible)
+    corpses = state.get("corpses", [])
+    for c in corpses:
+        cx = c["x"] - start_x
+        cy = c["y"] - start_y
+        if 0 <= cy < view_h and 0 <= cx < max_x:
+            try:
+                stdscr.addch(cy, cx, ord(c["char"]), curses.A_DIM)
+            except curses.error:
+                pass
+
+    # Overlay players last so they appear on top of everything
     for pl in players:
         if pl["dead"] or not pl.get("visible", True):
             continue
@@ -201,18 +239,6 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0):
             attr = curses.color_pair(min(color + 1, 16)) | curses.A_BOLD
             try:
                 stdscr.addch(py, px, ord('@'), attr)
-            except curses.error:
-                pass
-
-    # Overlay enemies with color
-    for e in enemies:
-        ex = e["x"] - start_x
-        ey = e["y"] - start_y
-        if 0 <= ey < view_h and 0 <= ex < max_x:
-            color = COLOR_MAP.get(e.get("color", 1), curses.COLOR_RED)
-            attr = curses.color_pair(min(color + 1, 16)) | curses.A_BOLD
-            try:
-                stdscr.addch(ey, ex, ord(e["char"]), attr)
             except curses.error:
                 pass
 

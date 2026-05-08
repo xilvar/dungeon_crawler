@@ -273,6 +273,7 @@ class GameServer:
                 if explored_grid[c["y"]][c["x"]]:
                     corpses.append({
                         "x": c["x"], "y": c["y"],
+                        "char": "_",
                         "name": c["name"],
                         "level": c["level"],
                         "killer": c["killer"],
