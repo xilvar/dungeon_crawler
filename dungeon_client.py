@@ -7,6 +7,7 @@ import sys
 import time
 from collections import deque
 import urllib.request
+import gzip
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9999
@@ -92,10 +93,14 @@ def fetch_state(url, player_id=0, full=False):
     full_param = "1" if full else "0"
     req = urllib.request.Request(
         f"{url}/state?player_id={player_id}&full={full_param}",
+        headers={"Accept-Encoding": "gzip"},
     )
     with urllib.request.urlopen(req, timeout=1) as resp:
         raw = resp.read()
-    return json.loads(raw), len(raw)
+    wire_bytes = len(raw)
+    if resp.headers.get("Content-Encoding") == "gzip":
+        raw = gzip.decompress(raw)
+    return json.loads(raw), wire_bytes
 
 
 def send_action(url, player_id, action):

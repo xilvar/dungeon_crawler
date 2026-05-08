@@ -8,6 +8,7 @@ import threading
 import time
 
 from aiohttp import web
+import gzip
 
 from dungeon_crawler import (
     COLOR_CYAN,
@@ -25,6 +26,23 @@ from dungeon_crawler import (
     Player,
     TICK_PLAYER_REST,
 )
+
+
+def json_response(data, request=None, **kwargs):
+    """Return a JSON response, compressed with gzip if client accepts it."""
+    body = json.dumps(data).encode()
+    if request and "gzip" in request.headers.get("Accept-Encoding", ""):
+        compressed = gzip.compress(body, compresslevel=6)
+        return web.Response(
+            body=compressed,
+            content_type="application/json",
+            headers={
+                "Content-Encoding": "gzip",
+                "Content-Length": str(len(compressed)),
+            },
+            **kwargs,
+        )
+    return web.Response(body=body, content_type="application/json", **kwargs)
 
 
 class GameServer:
@@ -344,7 +362,7 @@ class GameServer:
 
 async def health(request):
     """Health check endpoint."""
-    return web.json_response({"status": "ok"})
+    return json_response({"status": "ok"}, request)
 
 
 async def get_state(request):
@@ -356,14 +374,14 @@ async def get_state(request):
     player_id = int(request.query.get("player_id", 0))
     full = request.query.get("full", "0") == "1"
     state = await asyncio.to_thread(gs.get_state, player_id, full=full)
-    return web.json_response(state)
+    return json_response(state, request)
 
 
 async def register_player(request):
     """POST /register — register a new (or returning) player."""
     gs = request.app["gs"]
     result = await asyncio.to_thread(gs.register_player)
-    return web.json_response(result)
+    return json_response(result, request)
 
 
 async def deregister_player(request):
@@ -372,10 +390,10 @@ async def deregister_player(request):
     try:
         data = await request.json()
     except json.JSONDecodeError:
-        return web.json_response({"error": "bad json"}, status=400)
+        return json_response({"error": "bad json"}, request, status=400)
     pid = data.get("player_id", 0)
     result = await asyncio.to_thread(gs.deregister_player, pid)
-    return web.json_response(result)
+    return json_response(result, request)
 
 
 async def send_action(request):
@@ -384,11 +402,11 @@ async def send_action(request):
     try:
         data = await request.json()
     except json.JSONDecodeError:
-        return web.json_response({"error": "bad json"}, status=400)
+        return json_response({"error": "bad json"}, request, status=400)
     pid = data.get("player_id", 0)
     action = data.get("action", {})
     result = await asyncio.to_thread(gs.send_action, pid, action)
-    return web.json_response(result)
+    return json_response(result, request)
 
 
 def create_app():
