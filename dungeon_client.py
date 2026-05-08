@@ -10,6 +10,55 @@ import urllib.request
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9999
+MAP_WIDTH = 80
+MAP_HEIGHT = 45
+
+
+class LocalMap:
+    """Maintains a local copy of the full explored map and visibility grid."""
+
+    def __init__(self):
+        self.chars = [[' '] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+        self.visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+        self.depth = -1
+
+    def needs_full_update(self, depth):
+        """Return True if depth changed and a full update is needed."""
+        return self.depth != depth
+
+    def merge(self, state):
+        """Merge a windowed or full map update into the local grid."""
+        mx = state.get("map_x", 0)
+        my = state.get("map_y", 0)
+        mw = state.get("map_w", MAP_WIDTH)
+        mh = state.get("map_h", MAP_HEIGHT)
+        map_lines = state.get("map", [])
+        vis_lines = state.get("visible", [])
+        for sy in range(mh):
+            if sy >= MAP_HEIGHT:
+                break
+            row = map_lines[sy] if sy < len(map_lines) else ""
+            vis = vis_lines[sy] if sy < len(vis_lines) else ""
+            for sx in range(mw):
+                if sx >= MAP_WIDTH:
+                    break
+                gx = sx + mx
+                gy = sy + my
+                if 0 <= gx < MAP_WIDTH and 0 <= gy < MAP_HEIGHT:
+                    self.chars[gy][gx] = row[sx] if sx < len(row) else ' '
+                    self.visible[gy][gx] = (
+                        vis[sx] == '1' if sx < len(vis) else False
+                    )
+        # Clear visibility for tiles outside the received window.
+        # The server's window covers all currently visible tiles,
+        # so anything outside it is no longer in view.
+        max_x = mx + mw
+        max_y = my + mh
+        for y in range(MAP_HEIGHT):
+            for x in range(MAP_WIDTH):
+                if x < mx or x >= max_x or y < my or y >= max_y:
+                    self.visible[y][x] = False
+
 
 ACTION_MAP = {
     curses.KEY_LEFT: (-1, 0),
@@ -39,9 +88,12 @@ COLOR_MAP = {
 }
 
 
-def fetch_state(url, player_id=0):
+def fetch_state(url, player_id=0, full=False):
     """Fetch game state from server. Returns (state_dict, byte_count)."""
-    req = urllib.request.Request(f"{url}/state?player_id={player_id}")
+    full_param = "1" if full else "0"
+    req = urllib.request.Request(
+        f"{url}/state?player_id={player_id}&full={full_param}",
+    )
     with urllib.request.urlopen(req, timeout=1) as resp:
         raw = resp.read()
     return json.loads(raw), len(raw)
@@ -92,28 +144,43 @@ def deregister(url, player_id):
         return {"error": "connection failed"}
 
 
-def render(stdscr, state, my_player_id, bandwidth=0.0):
+def render(stdscr, state, local_map, my_player_id, bandwidth=0.0):
     """Render the game map, overlays, status bar, messages, and help text."""
     stdscr.erase()
     max_y, max_x = stdscr.getmaxyx()
 
-    map_lines = state.get("map", [])
-    visible_lines = state.get("visible", [])
     players = state.get("players", [])
     enemies = state.get("enemies", [])
     messages = state.get("messages", [])
 
-    start_x = state.get("start_x", 0)
-    start_y = state.get("start_y", 0)
+    # Compute viewport centered on my player
+    my_player = None
+    for pl in players:
+        if pl["id"] == my_player_id:
+            my_player = pl
+            break
+    if my_player is None:
+        return
 
-    view_h = state.get("view_h", max_y - 4)
-    for sy in range(min(view_h, max_y - 4)):
-        line = map_lines[sy] if sy < len(map_lines) else ""
-        vis = visible_lines[sy] if sy < len(visible_lines) else ""
-        line = line.ljust(max_x)[:max_x]
-        vis = vis.ljust(max_x, '0')[:max_x]
-        for sx, ch in enumerate(line):
-            attr = curses.A_NORMAL if vis[sx] == '1' else curses.A_DIM
+    start_x = max(0, min(
+        my_player["x"] - max_x // 2, MAP_WIDTH - max_x))
+    start_y = max(0, min(
+        my_player["y"] - (max_y - 4) // 2,
+        MAP_HEIGHT - (max_y - 4)))
+
+    view_h = min(max_y - 4, MAP_HEIGHT - start_y)
+    view_w = min(max_x, MAP_WIDTH - start_x)
+
+    for sy in range(view_h):
+        gy = sy + start_y
+        for sx in range(view_w):
+            gx = sx + start_x
+            ch = local_map.chars[gy][gx]
+            attr = (
+                curses.A_NORMAL
+                if local_map.visible[gy][gx]
+                else curses.A_DIM
+            )
             try:
                 stdscr.addch(sy, sx, ord(ch), attr)
             except curses.error:
@@ -144,15 +211,6 @@ def render(stdscr, state, my_player_id, bandwidth=0.0):
                 stdscr.addch(ey, ex, ord(e["char"]), attr)
             except curses.error:
                 pass
-
-    # Find my player
-    my_player = None
-    for pl in players:
-        if pl["id"] == my_player_id:
-            my_player = pl
-            break
-    if my_player is None:
-        return
 
     # Player status bar
     dead = " [DEAD]" if my_player["dead"] else ""
@@ -250,6 +308,7 @@ def main(stdscr):
         return
     player_id = result["player_id"]
 
+    local_map = LocalMap()
     byte_log = deque()
     window = 3.0
 
@@ -259,24 +318,37 @@ def main(stdscr):
             state, nbytes = fetch_state(url, player_id)
         except Exception:
             state = {
-                "map": [" " * 80 for _ in range(20)],
+                "map_x": 0, "map_y": 0,
+                "map_w": 0, "map_h": 0,
+                "map": [], "visible": [],
                 "players": [],
                 "enemies": [],
                 "corpses": [],
                 "messages": [("Connecting to server...", 7)],
-                "view_h": 20, "view_w": 80,
-                "start_x": 0, "start_y": 0,
                 "depth": 0, "max_depth": 10,
                 "game_over": False, "game_win": False,
             }
             nbytes = 0
+
+        depth = state.get("depth", 0)
+        if local_map.needs_full_update(depth):
+            local_map.depth = depth
+            try:
+                full_state, full_bytes = fetch_state(
+                    url, player_id, full=True)
+                nbytes += full_bytes
+                local_map.merge(full_state)
+            except Exception:
+                pass
+
+        local_map.merge(state)
 
         byte_log.append((now, nbytes))
         while byte_log and now - byte_log[0][0] > window:
             byte_log.popleft()
         bandwidth = sum(b for _, b in byte_log) / window
 
-        render(stdscr, state, player_id, bandwidth)
+        render(stdscr, state, local_map, player_id, bandwidth)
 
         if state.get("game_over") or state.get("game_win"):
             key = stdscr.getch()
@@ -290,6 +362,7 @@ def main(stdscr):
                     print(f"Failed to register: {result['error']}")
                     break
                 player_id = result["player_id"]
+                local_map = LocalMap()
                 continue
             continue
 

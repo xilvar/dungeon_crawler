@@ -136,18 +136,22 @@ class GameServer:
                 return {"ok": True}
             return {"error": "player not found"}
 
-    def get_state(self, player_id=0):
-        """Return the visibility-filtered game state for the given player."""
+    def get_state(self, player_id=0, full=False):
+        """Return the visibility-filtered game state for the given player.
+
+        When full is True, sends the complete explored map.
+        When full is False, sends only the bounding box of visible tiles.
+        """
         with self.lock:
             g = self.game
             if not g.players:
                 return {
                     "tick": g.tick,
                     "depth": 0,
-                    "view_h": MAX_SCREEN_Y - 4,
-                    "view_w": MAX_SCREEN_X,
-                    "start_x": 0,
-                    "start_y": 0,
+                    "map_x": 0,
+                    "map_y": 0,
+                    "map_w": MAX_SCREEN_X,
+                    "map_h": MAX_SCREEN_Y - 4,
                     "map": [
                         " " * MAX_SCREEN_X
                         for _ in range(MAX_SCREEN_Y - 4)
@@ -175,10 +179,6 @@ class GameServer:
             if target is None:
                 target_idx = 0
                 target = g.players[target_idx]
-            view_h = MAX_SCREEN_Y - 4
-            view_w = MAX_SCREEN_X
-            start_x = max(0, min(target.x - view_w // 2, MAP_WIDTH - view_w))
-            start_y = max(0, min(target.y - view_h // 2, MAP_HEIGHT - view_h))
 
             p_visible = (
                 g.player_visible[target_idx]
@@ -187,14 +187,38 @@ class GameServer:
                       for _ in range(MAP_HEIGHT)]
             )
 
+            if full:
+                map_x, map_y = 0, 0
+                map_w, map_h = MAP_WIDTH, MAP_HEIGHT
+            else:
+                min_x, min_y = MAP_WIDTH, MAP_HEIGHT
+                max_x, max_y = -1, -1
+                for y in range(MAP_HEIGHT):
+                    for x in range(MAP_WIDTH):
+                        if p_visible[y][x]:
+                            if x < min_x:
+                                min_x = x
+                            if x > max_x:
+                                max_x = x
+                            if y < min_y:
+                                min_y = y
+                            if y > max_y:
+                                max_y = y
+                if max_x < 0:
+                    min_x = min_y = max_x = max_y = 0
+                map_x = max(0, min_x - 1)
+                map_y = max(0, min_y - 1)
+                map_w = min(MAP_WIDTH - map_x, max_x - min_x + 3)
+                map_h = min(MAP_HEIGHT - map_y, max_y - min_y + 3)
+
             chars = []
             visible_rows = []
-            for sy in range(view_h):
+            for sy in range(map_h):
                 row = []
                 vis_row = []
-                for sx in range(view_w):
-                    mx = sx + start_x
-                    my = sy + start_y
+                for sx in range(map_w):
+                    mx = sx + map_x
+                    my = sy + map_y
                     row.append(g.get_char_at(mx, my, target_idx))
                     vis_row.append(
                         '1' if p_visible[my][mx] else '0',
@@ -278,10 +302,10 @@ class GameServer:
             return {
                 "tick": g.tick,
                 "depth": depth,
-                "view_h": view_h,
-                "view_w": view_w,
-                "start_x": start_x,
-                "start_y": start_y,
+                "map_x": map_x,
+                "map_y": map_y,
+                "map_w": map_w,
+                "map_h": map_h,
                 "map": chars,
                 "visible": visible_rows,
                 "players": player_stats,
@@ -324,10 +348,14 @@ async def health(request):
 
 
 async def get_state(request):
-    """GET /state?player_id=N — return visibility-filtered game state."""
+    """GET /state?player_id=N&full=1 — return game state.
+
+    When full=1, sends complete explored map.
+    """
     gs = request.app["gs"]
     player_id = int(request.query.get("player_id", 0))
-    state = await asyncio.to_thread(gs.get_state, player_id)
+    full = request.query.get("full", "0") == "1"
+    state = await asyncio.to_thread(gs.get_state, player_id, full=full)
     return web.json_response(state)
 
 
