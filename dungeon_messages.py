@@ -533,3 +533,13 @@ MSG_SEE_PLAYER = [
     "You step right up to {player}.",
     "You walk alongside {player}.",
 ]
+MSG_OPEN_DOOR = [
+    "You push the door open with a creak.",
+    "You open the door.",
+    "The door swings open as you push it.",
+]
+MSG_SEE_DOOR_OPEN = [
+    "You step through the open doorway.",
+    "You walk across the open door.",
+    "You pass through the doorway.",
+]

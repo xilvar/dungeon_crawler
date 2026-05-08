@@ -228,14 +228,27 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0):
             except curses.error:
                 pass
 
-    # Overlay players last so they appear on top of everything
+    # Overlay players last so they appear on top of everything,
+    # with my own character drawn last so it's never obscured
     for pl in players:
+        if pl["id"] == my_player_id:
+            continue
         if pl["dead"] or not pl.get("visible", True):
             continue
         px = pl["x"] - start_x
         py = pl["y"] - start_y
         if 0 <= py < view_h and 0 <= px < max_x:
             color = COLOR_MAP.get(pl.get("color", 7), curses.COLOR_WHITE)
+            attr = curses.color_pair(min(color + 1, 16)) | curses.A_BOLD
+            try:
+                stdscr.addch(py, px, ord('@'), attr)
+            except curses.error:
+                pass
+    if my_player and not my_player["dead"]:
+        px = my_player["x"] - start_x
+        py = my_player["y"] - start_y
+        if 0 <= py < view_h and 0 <= px < max_x:
+            color = COLOR_MAP.get(my_player.get("color", 7), curses.COLOR_WHITE)
             attr = curses.color_pair(min(color + 1, 16)) | curses.A_BOLD
             try:
                 stdscr.addch(py, px, ord('@'), attr)

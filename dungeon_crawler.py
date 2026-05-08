@@ -42,6 +42,8 @@ from dungeon_messages import (
     MSG_SEE_STAIRS_DOWN,
     MSG_SEE_STAIRS_UP,
     MSG_SEE_PLAYER,
+    MSG_OPEN_DOOR,
+    MSG_SEE_DOOR_OPEN,
 )
 
 # --- Constants ---
@@ -75,17 +77,19 @@ TICK_PLAYER_REST = 200
 # Tile types
 TILE_WALL = 0
 TILE_FLOOR = 1
-TILE_DOOR = 2
+TILE_DOOR_CLOSED = 2
 TILE_STAIRS_DOWN = 3
 TILE_STAIRS_UP = 4
+TILE_DOOR_OPEN = 5
 
 # Tile rendering
 TILE_CHAR = {
     TILE_WALL: "#",
     TILE_FLOOR: ".",
-    TILE_DOOR: "+",
+    TILE_DOOR_CLOSED: "+",
     TILE_STAIRS_DOWN: ">",
     TILE_STAIRS_UP: "<",
+    TILE_DOOR_OPEN: "-",
 }
 
 # Entity types
@@ -278,7 +282,7 @@ ITEM_PROPS = {
     ITEM_POTION: {"char": "!", "color": COLOR_RED, "name": "Health Potion"},
     ITEM_SWORD: {"char": "/", "color": COLOR_WHITE, "name": "Sword"},
     ITEM_SHIELD: {"char": ")", "color": COLOR_CYAN, "name": "Shield"},
-    ITEM_GOLD: {"char": ",", "color": COLOR_YELLOW, "name": "Gold"},
+    ITEM_GOLD: {"char": "$", "color": COLOR_YELLOW, "name": "Gold"},
 }
 
 
@@ -354,29 +358,29 @@ def create_dungeon(depth):
     if len(rooms) < 2:
         return create_dungeon(depth)
 
-    # Place doors between adjacent floor tiles that border walls
-    for r in rooms:
-        for y in range(r.y1, r.y2 + 1):
-            for x in range(r.x1, r.x2 + 1):
-                # Check if this floor tile borders a wall outside the room
-                neighbors_wall = 0
-                for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                    ny, nx = y + dy, x + dx
-                    if 0 <= ny < MAP_HEIGHT and 0 <= nx < MAP_WIDTH:
-                        if dungeon[ny][nx] == TILE_WALL:
-                            neighbors_wall += 1
-                # If exactly 2 wall neighbors in a line, it's a corridor
-                if neighbors_wall == 2:
-                    vertical = y - 1 >= 0 and \
-                        dungeon[y - 1][x] == TILE_WALL and \
-                        y + 1 < MAP_HEIGHT and \
-                        dungeon[y + 1][x] == TILE_WALL
-                    horizontal = x - 1 >= 0 and \
-                        dungeon[y][x - 1] == TILE_WALL and \
-                        x + 1 < MAP_WIDTH and \
-                        dungeon[y][x + 1] == TILE_WALL
-                    if vertical or horizontal:
-                        dungeon[y][x] = TILE_DOOR
+    # Place doors flush with room walls at corridor-room boundaries.
+    # A door goes on the corridor tile adjacent to a room tile.
+    def in_room(rx, ry):
+        for r in rooms:
+            if r.x1 <= rx <= r.x2 and r.y1 <= ry <= r.y2:
+                return True
+        return False
+
+    for y in range(MAP_HEIGHT):
+        for x in range(MAP_WIDTH):
+            if dungeon[y][x] != TILE_FLOOR:
+                continue
+            if in_room(x, y):
+                continue
+            # This is a corridor tile — check if adjacent to a room
+            for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = x + dx, y + dy
+                if (0 <= nx < MAP_WIDTH and 0 <= ny < MAP_HEIGHT
+                        and in_room(nx, ny)
+                        and dungeon[ny][nx] == TILE_FLOOR):
+                    if random.random() < 0.5:
+                        dungeon[y][x] = TILE_DOOR_CLOSED
+                        break
 
     return dungeon, rooms
 
@@ -528,7 +532,7 @@ def _has_line_of_sight(map_grid, x0, y0, x1, y1):
     while True:
         if (x, y) == (x1, y1):
             return True
-        if map_grid[y][x] == TILE_WALL and (x, y) != (x0, y0):
+        if map_grid[y][x] in (TILE_WALL, TILE_DOOR_CLOSED) and (x, y) != (x0, y0):
             return False
         e2 = 2 * err
         if e2 > -dy:
@@ -821,10 +825,14 @@ class Game:
         return True
 
     def is_passable(self, x, y, depth):
-        """Return True if (x, y) is within bounds and not a wall."""
+        """Return True if (x, y) is within bounds and passable.
+
+        Walls and closed doors block movement.
+        """
         if x < 0 or x >= MAP_WIDTH or y < 0 or y >= MAP_HEIGHT:
             return False
-        return self._get_dungeon(depth)[y][x] != TILE_WALL
+        tile = self._get_dungeon(depth)[y][x]
+        return tile not in (TILE_WALL, TILE_DOOR_CLOSED)
 
     def get_enemy_at(self, x, y, depth):
         """Return the living enemy at (x, y) on the given depth, or None."""
@@ -916,6 +924,29 @@ class Game:
             player.next_tick = self.tick + TICK_WAIT
             return
         nx, ny = player.x + dx, player.y + dy
+        dungeon = self._get_dungeon(player.depth)
+        in_bounds = (0 <= nx < MAP_WIDTH and 0 <= ny < MAP_HEIGHT)
+        target_tile = dungeon[ny][nx] if in_bounds else TILE_WALL
+        if target_tile == TILE_DOOR_CLOSED:
+            dungeon[ny][nx] = TILE_DOOR_OPEN
+            player.next_tick = self.tick + TICK_PLAYER_MOVE
+            self._tell(player, random.choice(MSG_OPEN_DOOR), COLOR_WHITE)
+            return
+        if target_tile == TILE_DOOR_OPEN:
+            enemy = self.get_enemy_at(nx, ny, player.depth)
+            if enemy:
+                self._do_combat_attack(player, enemy)
+                player.next_tick = self.tick + TICK_ATTACK
+                return
+            player.x, player.y = nx, ny
+            player.next_tick = self.tick + TICK_PLAYER_MOVE
+            self._tell(player, random.choice(MSG_SEE_DOOR_OPEN), COLOR_WHITE)
+            self._ambient_sound(
+                nx, ny, player.depth, PLAYER_MOVE_AMBIENT,
+                COLOR_WHITE, source=player, chance=0.08,
+                skip_visible=True, range=38, flat=True,
+            )
+            return
         if not self.is_passable(nx, ny, player.depth):
             player.next_tick = self.tick + TICK_WAIT
             return
