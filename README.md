@@ -11,21 +11,31 @@ A terminal-based roguelike dungeon crawler with multiplayer support, implemented
 
 ## Running
 
-1. Install dependencies: `uv sync` (or `pip install aiohttp`)
-2. Start the server: `python3 dungeon_server.py [port]` (default port 9999)
-3. Connect clients: `python3 dungeon_client.py [host] [port]`
+**Server** — requires third-party dependencies listed in `pyproject.toml`. We recommend [uv](https://docs.astral.sh/uv/) for fast, hassle-free dependency management:
+
+```
+uv sync          # installs dependencies into a .venv
+uv run dungeon_server.py [port]   # default 9999
+```
+
+**Client** — no third-party dependencies beyond Python 3 and `curses` (included in the standard library on Linux/macOS; install via `python3-dev` or your package manager if missing).
+
+```
+python3 dungeon_client.py [host] [port]
+```
 
 ## Features
 
-- **Multiplayer** — Multiple players share the same dungeon, each with independent field of view.
+- **Multiplayer** — Multiple players share the same dungeon, each with independent field of view. Walk over other players to see contextual messages.
 - **Procedural Dungeons** — 10 randomly generated dungeon levels with rooms, corridors, and doors.
-- **Field of View** — Raycasted visibility; explored areas remain visible as fog.
+- **Field of View** — Raycasted visibility; explored-but-unseen areas render dimmed. Enemies, items, and corpses are overlaid on the map so they never leave stale characters behind.
 - **Combat & Leveling** — Bump enemies to attack. Gain XP, level up, and improve stats.
-- **Items** — Collect health potions, swords, shields, and gold.
-- **Corpses** — Dead players leave a `_` marker. Walk over a corpse to learn who died there and what killed them.
+- **Items** — Collect health potions, swords, shields, and gold. Walk over items, corpses, or stairs to see contextual messages.
+- **Corpses** — Dead players leave a `_` marker that overlays the terrain. Walk over a corpse to learn who died there and what killed them.
 - **Ambient Sounds** — Hear faint sounds of other players and monsters on the same level: footsteps, combat, death, stair movement, and enemy activity. Sounds from visible players are suppressed; only hidden actions produce ambient hints.
 - **Enemy Awareness** — A message announces when a new enemy comes into view.
 - **Smart Spawning** — New players and those arriving via stairs are placed in the nearest free tile (within 2 spaces), avoiding overlap with other players and enemies.
+- **Efficient Networking** — The server sends only the visible map window with gzip compression and bit-packed visibility data, keeping bandwidth low even at high poll rates.
 
 ## Controls
 
