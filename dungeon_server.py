@@ -157,7 +157,7 @@ class GameServer:
                         for _ in range(MAX_SCREEN_Y - 4)
                     ],
                     "visible": [
-                        "0" * MAX_SCREEN_X
+                        "0" * ((MAX_SCREEN_X + 3) // 4)
                         for _ in range(MAX_SCREEN_Y - 4)
                     ],
                     "players": [],
@@ -206,25 +206,25 @@ class GameServer:
                                 max_y = y
                 if max_x < 0:
                     min_x = min_y = max_x = max_y = 0
-                map_x = max(0, min_x - 1)
-                map_y = max(0, min_y - 1)
-                map_w = min(MAP_WIDTH - map_x, max_x - min_x + 3)
-                map_h = min(MAP_HEIGHT - map_y, max_y - min_y + 3)
+                map_x = min_x
+                map_y = min_y
+                map_w = max_x - min_x + 1
+                map_h = max_y - min_y + 1
 
             chars = []
-            visible_rows = []
+            visible_hex = []
+            hex_digits = (map_w + 3) // 4
             for sy in range(map_h):
                 row = []
-                vis_row = []
+                vis_bits = 0
                 for sx in range(map_w):
                     mx = sx + map_x
                     my = sy + map_y
                     row.append(g.get_char_at(mx, my, target_idx))
-                    vis_row.append(
-                        '1' if p_visible[my][mx] else '0',
-                    )
+                    if p_visible[my][mx]:
+                        vis_bits |= (1 << sx)
                 chars.append(''.join(row))
-                visible_rows.append(''.join(vis_row))
+                visible_hex.append(f"{vis_bits:0{hex_digits}x}")
 
             depth = target.depth
             enemies = []
@@ -307,7 +307,7 @@ class GameServer:
                 "map_w": map_w,
                 "map_h": map_h,
                 "map": chars,
-                "visible": visible_rows,
+                "visible": visible_hex,
                 "players": player_stats,
                 "enemies": enemies,
                 "items": items,

@@ -38,7 +38,8 @@ class LocalMap:
             if sy >= MAP_HEIGHT:
                 break
             row = map_lines[sy] if sy < len(map_lines) else ""
-            vis = vis_lines[sy] if sy < len(vis_lines) else ""
+            vis_hex = vis_lines[sy] if sy < len(vis_lines) else ""
+            vis_bits = int(vis_hex, 16) if vis_hex else 0
             for sx in range(mw):
                 if sx >= MAP_WIDTH:
                     break
@@ -46,9 +47,7 @@ class LocalMap:
                 gy = sy + my
                 if 0 <= gx < MAP_WIDTH and 0 <= gy < MAP_HEIGHT:
                     self.chars[gy][gx] = row[sx] if sx < len(row) else ' '
-                    self.visible[gy][gx] = (
-                        vis[sx] == '1' if sx < len(vis) else False
-                    )
+                    self.visible[gy][gx] = bool(vis_bits & (1 << sx))
         # Clear visibility for tiles outside the received window.
         # The server's window covers all currently visible tiles,
         # so anything outside it is no longer in view.
