@@ -33,11 +33,15 @@ from dungeon_messages import (
     MSG_REST_NO_HEAL,
     MSG_ENEMY_APPEARS,
     MSG_ENEMY_INTO_VIEW,
-    MSG_CORPSE_INFO,
     MSG_NO_STAIRS_DOWN,
     MSG_CANNOT_GO_UP,
     MSG_NO_STAIRS_UP,
     MSG_NOTHING_TO_GRAB,
+    MSG_SEE_ITEM,
+    MSG_SEE_CORPSE,
+    MSG_SEE_STAIRS_DOWN,
+    MSG_SEE_STAIRS_UP,
+    MSG_SEE_PLAYER,
 )
 
 # --- Constants ---
@@ -848,6 +852,15 @@ class Game:
                 return c
         return None
 
+    def _get_player_at(self, x, y, depth, exclude):
+        """Return another player at (x, y) on the given depth, or None."""
+        for p in self.players:
+            if p is exclude:
+                continue
+            if not p.dead and p.depth == depth and p.x == x and p.y == y:
+                return p
+        return None
+
     def do_attack(
         self, attacker_name, attacker_atk,
         defender_name, defender_def,
@@ -918,13 +931,39 @@ class Game:
                 COLOR_WHITE, source=player, chance=0.08,
                 skip_visible=True, range=38, flat=True,
             )
-            corpse = self.get_corpse_at(nx, ny, player.depth)
-            if corpse:
-                self._tell(player, MSG_CORPSE_INFO, COLOR_RED, ctx={
-                    "corpse": corpse["name"],
-                    "corpse_level": corpse["level"],
-                    "killer": corpse["killer"],
-                })
+            self._show_walk_over_messages(player, nx, ny)
+
+    def _show_walk_over_messages(self, player, x, y):
+        """Show a message when the player walks over an entity."""
+        depth = player.depth
+        other = self._get_player_at(x, y, depth, player)
+        if other:
+            self._tell(player, random.choice(MSG_SEE_PLAYER),
+                       COLOR_GREEN, ctx={"player": other.name})
+            return
+        corpse = self.get_corpse_at(x, y, depth)
+        if corpse:
+            self._tell(player, random.choice(MSG_SEE_CORPSE), COLOR_RED,
+                       ctx={
+                           "corpse": corpse["name"],
+                           "corpse_level": corpse["level"],
+                           "killer": corpse["killer"],
+                       })
+            return
+        _, item = self.get_item_at(x, y, depth)
+        if item:
+            item_name = ITEM_PROPS[item["kind"]]["name"].lower()
+            self._tell(player, random.choice(MSG_SEE_ITEM),
+                       COLOR_WHITE, ctx={"item": item_name})
+            return
+        dungeon = self._get_dungeon(depth)
+        tile = dungeon[y][x]
+        if tile == TILE_STAIRS_DOWN:
+            self._tell(player, random.choice(MSG_SEE_STAIRS_DOWN),
+                       COLOR_CYAN)
+        elif tile == TILE_STAIRS_UP:
+            self._tell(player, random.choice(MSG_SEE_STAIRS_UP),
+                       COLOR_CYAN)
 
     def _do_combat_attack(self, player, enemy):
         """Resolve a player attacking an adjacent enemy."""

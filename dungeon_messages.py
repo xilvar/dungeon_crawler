@@ -501,3 +501,35 @@ MSG_NO_STAIRS_DOWN = "{name}: no stairs down here."
 MSG_CANNOT_GO_UP = "{name}: can't go up further."
 MSG_NO_STAIRS_UP = "{name}: no stairs up here."
 MSG_NOTHING_TO_GRAB = "{name}: nothing to grab here."
+
+# ---------------------------------------------------------------------------
+# Walk-over messages (shown when player steps onto a tile with an entity)
+# ---------------------------------------------------------------------------
+MSG_SEE_ITEM = [
+    "You see a {item} here.",
+    "A {item} lies on the ground.",
+    "There's a {item} here.",
+]
+MSG_SEE_CORPSE = [
+    "You see the corpse of {corpse} (lv {corpse_level}). "
+    "Looks like they were killed by a {killer}.",
+    "The remains of {corpse} (lv {corpse_level}) lie here. "
+    "A {killer} was responsible.",
+    "You step near {corpse}'s corpse (lv {corpse_level}). "
+    "Killed by a {killer}.",
+]
+MSG_SEE_STAIRS_DOWN = [
+    "You see stairs leading down.",
+    "Stairs descend into darkness.",
+    "There are stairs heading deeper.",
+]
+MSG_SEE_STAIRS_UP = [
+    "You see stairs leading up.",
+    "Stairs ascend towards light.",
+    "There are stairs heading up.",
+]
+MSG_SEE_PLAYER = [
+    "You bump into {player}.",
+    "You step right up to {player}.",
+    "You walk alongside {player}.",
+]
