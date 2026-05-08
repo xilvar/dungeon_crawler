@@ -474,7 +474,43 @@ ENEMY_SPAWN_AMBIENT = [
 # ---------------------------------------------------------------------------
 # Broadcast messages (visible to all players who can see the event)
 # ---------------------------------------------------------------------------
-MSG_PLAYER_HIT_ENEMY = "{name} hit the {enemy} for {damage} damage!"
+MSG_PLAYER_HIT_ENEMY = {
+    0: [
+        "{name}'s attack glanced off the {enemy}!",
+        "{name} struck the {enemy} but did no damage.",
+        "{name} swung at the {enemy} and missed entirely.",
+    ],
+    1: [
+        "{name} scratched the {enemy} for {damage} damage.",
+        "{name} tapped the {enemy} for {damage} damage.",
+        "{name} grazed the {enemy} for {damage} damage.",
+    ],
+    2: [
+        "{name} landed a light blow on the {enemy} for {damage} damage.",
+        "{name} struck the {enemy} for {damage} damage.",
+        "{name} hit the {enemy} for {damage} damage.",
+    ],
+    3: [
+        "{name} landed a solid hit on the {enemy} for {damage} damage.",
+        "{name} struck the {enemy} hard for {damage} damage.",
+        "{name} connected with the {enemy} for {damage} damage.",
+    ],
+    5: [
+        "{name} smashed into the {enemy} for {damage} damage!",
+        "{name} landed a heavy blow on the {enemy} for {damage} damage!",
+        "{name} struck the {enemy} powerfully for {damage} damage!",
+    ],
+    8: [
+        "{name} devastated the {enemy} for {damage} damage!",
+        "{name} wrecked the {enemy} for {damage} damage!",
+        "{name} brutally struck the {enemy} for {damage} damage!",
+    ],
+    12: [
+        "{name} utterly obliterated the {enemy} for {damage} damage!",
+        "{name} annihilated the {enemy} for {damage} damage!",
+        "{name} absolutely demolished the {enemy} for {damage} damage!",
+    ],
+}
 MSG_ENEMY_DIES = "The {enemy} dies!"
 MSG_LEVEL_UP = "{name} is now level {level}!"
 MSG_PLAYER_DIED = "{name} has died!"

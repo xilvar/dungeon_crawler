@@ -64,6 +64,7 @@ class GameServer:
         self.clients = {}
         self.inactive_players = []
         self._next_id = 0
+        self._last_state_tick = {}
         self._init_game()
 
     def _init_game(self):
@@ -127,6 +128,7 @@ class GameServer:
                 p.x, p.y = g._find_open_spawn(
                     spawn_x, spawn_y, 0, exclude_player=p)
             self.clients[pid] = p
+            self._last_state_tick[pid] = 0
             self._update_visibility(g)
             g._update_explored()
             g.game_over = False
@@ -186,6 +188,8 @@ class GameServer:
                     "game_over": False,
                     "game_win": False,
                     "max_depth": MAX_DEPTH,
+                    "map_width": MAP_WIDTH,
+                    "map_height": MAP_HEIGHT,
                 }
             target = None
             target_idx = None
@@ -314,7 +318,10 @@ class GameServer:
                     ps["resting"] = False
                 player_stats.append(ps)
 
-            messages = [(m[0], m[1]) for m in target.messages[-3:]]
+            last_tick = self._last_state_tick.get(player_id, 0) if not full else 0
+            messages = [(m[0], m[1]) for m in target.messages if m[2] > last_tick]
+            if not full:
+                self._last_state_tick[player_id] = g.tick
 
             game_win = target.game_win
             game_over = target.dead
@@ -335,6 +342,8 @@ class GameServer:
                 "game_over": game_over,
                 "game_win": game_win,
                 "max_depth": MAX_DEPTH,
+                "map_width": MAP_WIDTH,
+                "map_height": MAP_HEIGHT,
             }
 
     def send_action(self, player_id, action):

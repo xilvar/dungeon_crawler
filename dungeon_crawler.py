@@ -58,8 +58,8 @@ COLOR_WHITE = 7
 
 MAX_SCREEN_X = 80
 MAX_SCREEN_Y = 24
-MAP_WIDTH = 80
-MAP_HEIGHT = 45
+MAP_WIDTH = 60
+MAP_HEIGHT = 60
 MAX_ROOMS = 30
 MIN_ROOM_SIZE = 4
 MAX_ROOM_SIZE = 12
@@ -282,7 +282,7 @@ ITEM_PROPS = {
     ITEM_POTION: {"char": "!", "color": COLOR_RED, "name": "Health Potion"},
     ITEM_SWORD: {"char": "/", "color": COLOR_WHITE, "name": "Sword"},
     ITEM_SHIELD: {"char": ")", "color": COLOR_CYAN, "name": "Shield"},
-    ITEM_GOLD: {"char": "$", "color": COLOR_YELLOW, "name": "Gold"},
+    ITEM_GOLD: {"char": "$", "color": COLOR_YELLOW, "name": "Pile of Gold"},
 }
 
 
@@ -719,7 +719,7 @@ class Game:
         resolved = text.replace("{name}", "You")
         if ctx:
             resolved = resolved.format(**ctx)
-        player.messages.append((resolved, color))
+        player.messages.append((resolved, color, self.tick))
         if len(player.messages) > MAX_MSGS:
             player.messages.pop(0)
 
@@ -745,7 +745,7 @@ class Game:
                     )
                 if ctx:
                     resolved = resolved.format(**ctx)
-                p.messages.append((resolved, color))
+                p.messages.append((resolved, color, self.tick))
                 if len(p.messages) > MAX_MSGS:
                     p.messages.pop(0)
 
@@ -1002,9 +1002,15 @@ class Game:
             player.name, player.attack_total(),
             enemy["name"], enemy["defense"])
         enemy["hp"] -= damage
+        tier_keys = sorted(MSG_PLAYER_HIT_ENEMY.keys())
+        tier = tier_keys[0]
+        for tk in tier_keys:
+            if damage >= tk:
+                tier = tk
+        hit_msg = random.choice(MSG_PLAYER_HIT_ENEMY[tier])
         self._broadcast(
             enemy["x"], enemy["y"], player.depth,
-            MSG_PLAYER_HIT_ENEMY, COLOR_WHITE,
+            hit_msg, COLOR_WHITE,
             subject=player,
             ctx={"enemy": enemy["name"], "damage": damage},
         )
@@ -1431,7 +1437,7 @@ class Game:
                 row.append(self.get_char_at(mx, my))
             print(''.join(row))
 
-        for msg_text, _ in self.players[0].messages[-3:]:
+        for msg_text, _, _ in self.players[0].messages[-3:]:
             print(msg_text[:view_w])
         print("P1:Arrows  P2:WASD  >:Down  <:Up  g/G:Grab  /*:Rest  q:Quit")
         print(f"{'=' * view_w}")

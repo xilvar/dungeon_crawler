@@ -11,17 +11,31 @@ import gzip
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9999
-MAP_WIDTH = 80
-MAP_HEIGHT = 45
+MAP_WIDTH = 60
+MAP_HEIGHT = 60
+MAX_MSGS = 6
 
 
 class LocalMap:
     """Maintains a local copy of the full explored map and visibility grid."""
 
     def __init__(self):
-        self.chars = [[' '] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
-        self.visible = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+        self.width = MAP_WIDTH
+        self.height = MAP_HEIGHT
+        self.chars = [[' '] * self.width for _ in range(self.height)]
+        self.visible = [[False] * self.width for _ in range(self.height)]
         self.depth = -1
+
+    def _resize(self, state):
+        """Resize internal buffers to match server-provided map dimensions."""
+        w = state.get("map_width", self.width)
+        h = state.get("map_height", self.height)
+        if w == self.width and h == self.height:
+            return
+        self.width = w
+        self.height = h
+        self.chars = [[' '] * w for _ in range(h)]
+        self.visible = [[False] * w for _ in range(h)]
 
     def needs_full_update(self, depth):
         """Return True if depth changed and a full update is needed."""
@@ -29,24 +43,25 @@ class LocalMap:
 
     def merge(self, state):
         """Merge a windowed or full map update into the local grid."""
+        self._resize(state)
         mx = state.get("map_x", 0)
         my = state.get("map_y", 0)
-        mw = state.get("map_w", MAP_WIDTH)
-        mh = state.get("map_h", MAP_HEIGHT)
+        mw = state.get("map_w", self.width)
+        mh = state.get("map_h", self.height)
         map_lines = state.get("map", [])
         vis_lines = state.get("visible", [])
         for sy in range(mh):
-            if sy >= MAP_HEIGHT:
+            if sy >= self.height:
                 break
             row = map_lines[sy] if sy < len(map_lines) else ""
             vis_hex = vis_lines[sy] if sy < len(vis_lines) else ""
             vis_bits = int(vis_hex, 16) if vis_hex else 0
             for sx in range(mw):
-                if sx >= MAP_WIDTH:
+                if sx >= self.width:
                     break
                 gx = sx + mx
                 gy = sy + my
-                if 0 <= gx < MAP_WIDTH and 0 <= gy < MAP_HEIGHT:
+                if 0 <= gx < self.width and 0 <= gy < self.height:
                     self.chars[gy][gx] = row[sx] if sx < len(row) else ' '
                     self.visible[gy][gx] = bool(vis_bits & (1 << sx))
         # Clear visibility for tiles outside the received window.
@@ -54,8 +69,8 @@ class LocalMap:
         # so anything outside it is no longer in view.
         max_x = mx + mw
         max_y = my + mh
-        for y in range(MAP_HEIGHT):
-            for x in range(MAP_WIDTH):
+        for y in range(self.height):
+            for x in range(self.width):
                 if x < mx or x >= max_x or y < my or y >= max_y:
                     self.visible[y][x] = False
 
@@ -148,14 +163,16 @@ def deregister(url, player_id):
         return {"error": "connection failed"}
 
 
-def render(stdscr, state, local_map, my_player_id, bandwidth=0.0):
+def render(stdscr, state, local_map, my_player_id, bandwidth=0.0,
+           messages=None):
     """Render the game map, overlays, status bar, messages, and help text."""
     stdscr.erase()
     max_y, max_x = stdscr.getmaxyx()
 
     players = state.get("players", [])
     enemies = state.get("enemies", [])
-    messages = state.get("messages", [])
+    if messages is None:
+        messages = state.get("messages", [])
 
     # Compute viewport centered on my player
     my_player = None
@@ -167,13 +184,15 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0):
         return
 
     start_x = max(0, min(
-        my_player["x"] - max_x // 2, MAP_WIDTH - max_x))
+        my_player["x"] - max_x // 2, local_map.width - max_x))
+    msg_rows = max(3, (max_y - 22) // 2 + 1)
+    baseline_h = max_y - msg_rows - 2
     start_y = max(0, min(
-        my_player["y"] - (max_y - 4) // 2,
-        MAP_HEIGHT - (max_y - 4)))
+        my_player["y"] - baseline_h // 2,
+        local_map.height - baseline_h))
 
-    view_h = min(max_y - 4, MAP_HEIGHT - start_y)
-    view_w = min(max_x, MAP_WIDTH - start_x)
+    view_h = min(max_y - msg_rows - 2, local_map.height - start_y)
+    view_w = min(max_x, local_map.width - start_x)
 
     for sy in range(view_h):
         gy = sy + start_y
@@ -272,10 +291,10 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0):
     except curses.error:
         pass
 
-    # Messages (last 3, right-aligned; newest in normal color, older in grey)
+    # Messages (oldest on top in grey, newest at bottom in normal color)
     msg_start = view_h + 1
     msg_end = max_y - 2  # row just above the help bar
-    last_msgs = messages[-3:]
+    last_msgs = messages[-msg_rows:]
     offset = msg_end - (msg_start + len(last_msgs) - 1)
     for j, msg in enumerate(last_msgs):
         row = msg_start + offset + j
@@ -352,6 +371,7 @@ def main(stdscr):
     player_id = result["player_id"]
 
     local_map = LocalMap()
+    local_messages = []
     byte_log = deque()
     window = 3.0
 
@@ -374,24 +394,32 @@ def main(stdscr):
             nbytes = 0
 
         depth = state.get("depth", 0)
-        if local_map.needs_full_update(depth):
+        full_update = local_map.needs_full_update(depth)
+        if full_update:
             local_map.depth = depth
             try:
                 full_state, full_bytes = fetch_state(
                     url, player_id, full=True)
                 nbytes += full_bytes
                 local_map.merge(full_state)
+                local_messages = list(full_state.get("messages", []))
             except Exception:
                 pass
 
         local_map.merge(state)
+        new_msgs = state.get("messages", [])
+        if new_msgs:
+            local_messages.extend(new_msgs)
+            if len(local_messages) > MAX_MSGS:
+                local_messages = local_messages[-MAX_MSGS:]
 
         byte_log.append((now, nbytes))
         while byte_log and now - byte_log[0][0] > window:
             byte_log.popleft()
         bandwidth = sum(b for _, b in byte_log) / window
 
-        render(stdscr, state, local_map, player_id, bandwidth)
+        render(stdscr, state, local_map, player_id, bandwidth,
+               local_messages)
 
         if state.get("game_over") or state.get("game_win"):
             key = stdscr.getch()
