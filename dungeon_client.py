@@ -14,6 +14,7 @@ DEFAULT_PORT = 9999
 MAP_WIDTH = 60
 MAP_HEIGHT = 60
 MAX_MSGS = 6
+PLAYER_CACHE_FILE = 'dungeon_client.json'
 
 
 class LocalMap:
@@ -118,6 +119,140 @@ def fetch_state(url, player_id=0, full=False):
     return json.loads(raw), wire_bytes
 
 
+def load_heroes():
+    """Load list of heroes from local file."""
+    try:
+        with open(PLAYER_CACHE_FILE, 'r') as f:
+            data = json.load(f)
+            return data.get("heroes", [])
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+def save_heroes(heroes):
+    """Save list of heroes to local file."""
+    try:
+        with open(PLAYER_CACHE_FILE, 'w') as f:
+            json.dump({"heroes": heroes}, f)
+    except OSError:
+        pass
+
+
+def remove_hero(player_id):
+    """Remove a hero from the local file."""
+    heroes = load_heroes()
+    heroes = [h for h in heroes if h["player_id"] != player_id]
+    save_heroes(heroes)
+
+
+def add_hero(player_id, name):
+    """Add or update a hero in the local file."""
+    heroes = load_heroes()
+    for h in heroes:
+        if h["player_id"] == player_id:
+            h["name"] = name
+            return
+    heroes.append({"player_id": player_id, "name": name})
+    save_heroes(heroes)
+
+
+def select_hero():
+    """Display hero selection menu. Returns (player_id, name) or (None, None)."""
+    heroes = load_heroes()
+    if not heroes:
+        return None, None
+
+    print("Existing heroes:")
+    for i, h in enumerate(heroes):
+        name = h.get("name") or f"Hero (no name)"
+        print(f"  {i + 1}. {name}")
+
+    while True:
+        try:
+            choice = input("Select hero (q to quit, n for new): ").strip().lower()
+            if choice == 'q':
+                return None, "quit"
+            if choice == 'n':
+                return None, None
+            idx = int(choice) - 1
+            if 0 <= idx < len(heroes):
+                return heroes[idx]["player_id"], heroes[idx]["name"]
+            else:
+                print("Invalid choice.")
+        except (ValueError, KeyboardInterrupt):
+            print("\nCancelled.")
+            return None, "quit"
+
+
+def prompt_hero_name():
+    """Prompt the user for a new hero name."""
+    while True:
+        try:
+            name = input("Enter hero name: ").strip()
+            if name:
+                return name
+            else:
+                print("Name cannot be empty.")
+        except KeyboardInterrupt:
+            print("\nCancelled.")
+            return None
+
+
+def prompt_hero_name_curses(stdscr):
+    """Prompt the user for a new hero name using curses."""
+    max_y, max_x = stdscr.getmaxyx()
+    mid = max_y // 2
+    stdscr.nodelay(False)
+    stdscr.keypad(False)
+    try:
+        stdscr.erase()
+        stdscr.addstr(mid - 1, 2, "Enter hero name:")
+        stdscr.addstr(mid, 2, "_" * 20)
+        stdscr.refresh()
+
+        name = ""
+        cx = 22
+        while True:
+            ch = stdscr.getch()
+            if ch in (10, 13, ord('\r')):
+                return name.strip() if name.strip() else None
+            elif ch in (27, ord('q'), ord('Q')):
+                return None
+            elif ch in (curses.KEY_BACKSPACE, 127, 8):
+                if name and cx > 22:
+                    name = name[:-1]
+                    cx -= 1
+                    stdscr.addstr(mid, cx, " ")
+            elif 32 <= ch < 127 and len(name) < 20:
+                name += chr(ch)
+                stdscr.addch(mid, cx, ch)
+                cx += 1
+            stdscr.refresh()
+    finally:
+        stdscr.nodelay(True)
+        stdscr.keypad(True)
+
+
+def register(url, client_id=None, name=None):
+    """Register a new player on the server, optionally with a cached ID."""
+    payload = {}
+    if client_id:
+        payload["client_id"] = client_id
+    if name:
+        payload["name"] = name
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        url + '/register',
+        data=data,
+        headers={'Content-Type': 'application/json'},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            return json.loads(resp.read())
+    except Exception:
+        return {"error": "connection failed"}
+
+
 def send_action(url, player_id, action):
     """Send a player action to the server."""
     data = json.dumps({"player_id": player_id, "action": action}).encode()
@@ -128,21 +263,6 @@ def send_action(url, player_id, action):
     )
     try:
         with urllib.request.urlopen(req, timeout=1) as resp:
-            return json.loads(resp.read())
-    except Exception:
-        return {"error": "connection failed"}
-
-
-def register(url):
-    """Register a new player on the server."""
-    data = json.dumps({}).encode()
-    req = urllib.request.Request(
-        url + '/register',
-        data=data,
-        headers={'Content-Type': 'application/json'},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=2) as resp:
             return json.loads(resp.read())
     except Exception:
         return {"error": "connection failed"}
@@ -349,7 +469,7 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0,
     stdscr.refresh()
 
 
-def main(stdscr):
+def main(stdscr, url, player_id):
     """Main event loop: register, fetch state, render, and handle input."""
     curses.curs_set(0)
     curses.start_color()
@@ -359,16 +479,6 @@ def main(stdscr):
     stdscr.nodelay(True)
     stdscr.keypad(True)
     stdscr.timeout(100)
-
-    host = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_HOST
-    port = sys.argv[2] if len(sys.argv) > 2 else str(DEFAULT_PORT)
-    url = f"http://{host}:{port}"
-
-    result = register(url)
-    if "error" in result:
-        print(f"Failed to register: {result['error']}")
-        return
-    player_id = result["player_id"]
 
     local_map = LocalMap()
     local_messages = []
@@ -422,18 +532,24 @@ def main(stdscr):
                local_messages)
 
         if state.get("game_over") or state.get("game_win"):
+            if state.get("game_over"):
+                remove_hero(player_id)
             key = stdscr.getch()
             if key in (ord('q'), ord('Q'), 27):
                 deregister(url, player_id)
                 break
             if key == ord('n'):
                 deregister(url, player_id)
-                result = register(url)
+                hero_name = prompt_hero_name_curses(stdscr)
+                if not hero_name:
+                    break
+                result = register(url, name=hero_name)
                 if "error" in result:
-                    print(f"Failed to register: {result['error']}")
                     break
                 player_id = result["player_id"]
+                add_hero(player_id, hero_name)
                 local_map = LocalMap()
+                local_messages = []
                 continue
             continue
 
@@ -459,4 +575,30 @@ def main(stdscr):
 
 
 if __name__ == "__main__":
-    curses.wrapper(main)
+    host = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_HOST
+    port = sys.argv[2] if len(sys.argv) > 2 else str(DEFAULT_PORT)
+    url = f"http://{host}:{port}"
+
+    cached_id, hero_name = select_hero()
+    if hero_name == "quit":
+        sys.exit(0)
+    if cached_id is None and hero_name is None:
+        hero_name = prompt_hero_name()
+    if not hero_name:
+        sys.exit(0)
+    result = register(url, client_id=cached_id, name=hero_name)
+    if "error" in result:
+        if cached_id:
+            remove_hero(cached_id)
+            print(f"Hero no longer available. Creating new hero...")
+            hero_name = prompt_hero_name()
+            if not hero_name:
+                sys.exit(0)
+            result = register(url, name=hero_name)
+    if "error" in result:
+        print(f"Failed to register: {result['error']}")
+        sys.exit(1)
+    player_id = result["player_id"]
+    add_hero(player_id, hero_name)
+
+    curses.wrapper(lambda stdscr: main(stdscr, url, player_id))

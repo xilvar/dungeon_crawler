@@ -6,9 +6,12 @@ import json
 import sys
 import threading
 import time
+import uuid
 
 from aiohttp import web
 import gzip
+
+PLAYER_TIMEOUT = 30  # seconds of inactivity before considering a player disconnected
 
 from dungeon_crawler import (
     COLOR_CYAN,
@@ -26,6 +29,8 @@ from dungeon_crawler import (
     Player,
     TICK_PLAYER_REST,
 )
+
+SAVE_PATH = "dungeon_server.json"
 
 
 def json_response(data, request=None, **kwargs):
@@ -58,21 +63,128 @@ class GameServer:
 
     def __init__(self):
         """Initialize the server with a fresh game instance."""
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.game = None
         self.running = False
         self.clients = {}
         self.inactive_players = []
-        self._next_id = 0
         self._last_state_tick = {}
+        self._last_activity = {}
+        self._next_internal_id = 0
         self._init_game()
 
     def _init_game(self):
-        """Initialize game in headless mode."""
+        """Initialize game in headless mode, loading from file if available."""
+        if not self._load_state():
+            self.game = Game()
+            self.game.tick = 0
+            self.game.players = []
+            self.game.player_visible = []
+
+    def _save_state(self):
+        """Serialize game state to JSON file."""
+        def serialize_player(p):
+            return {
+                "name": p.name, "char": p.char,
+                "x": p.x, "y": p.y, "depth": p.depth,
+                "hp": p.hp, "max_hp": p.max_hp,
+                "attack": p.attack, "defense": p.defense,
+                "level": p.level, "xp": p.xp,
+                "next_level_xp": p.next_level_xp,
+                "weapon_bonus": p.weapon_bonus,
+                "armor_bonus": p.armor_bonus,
+                "gold": p.gold,
+                "dead": p.dead, "game_win": p.game_win,
+                "server_id": getattr(p, "_server_id", 0),
+                "client_id": getattr(p, "_client_id", None),
+                "next_tick": p.next_tick,
+                "rest_end_tick": p.rest_end_tick,
+                "explored": {int(d): grid for d, grid in p.explored.items()},
+            }
+
+        state = {
+            "tick": self.game.tick,
+            "next_internal_id": self._next_internal_id,
+            "levels": {},
+            "active_players": [serialize_player(p) for p in self.game.players],
+            "inactive_players": [serialize_player(p) for p in self.inactive_players],
+            "last_state_tick": self._last_state_tick,
+        }
+        for depth, lvl in self.game.levels.items():
+            state["levels"][depth] = {
+                "dungeon": lvl["dungeon"],
+                "enemies": lvl["enemies"],
+                "items": lvl["items"],
+                "corpses": lvl["corpses"],
+                "spawn_x": lvl["spawn_x"],
+                "spawn_y": lvl["spawn_y"],
+                "stairs_down_x": lvl["stairs_down_x"],
+                "stairs_down_y": lvl["stairs_down_y"],
+                "stairs_up_x": lvl["stairs_up_x"],
+                "stairs_up_y": lvl["stairs_up_y"],
+            }
+        try:
+            with open(SAVE_PATH, 'w') as f:
+                json.dump(state, f)
+        except OSError:
+            pass
+
+    def _load_state(self):
+        """Restore game state from JSON file."""
+        try:
+            with open(SAVE_PATH, 'r') as f:
+                state = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return False
+
         self.game = Game()
-        self.game.tick = 0
+        self.game.tick = state["tick"]
         self.game.players = []
         self.game.player_visible = []
+        self._next_internal_id = state["next_internal_id"]
+        self._last_state_tick = state.get("last_state_tick", {})
+
+        # Restore levels
+        self.game.levels = {}
+        for depth_str, lvl in state["levels"].items():
+            depth = int(depth_str)
+            self.game.levels[depth] = lvl
+
+        def deserialize_player(pd):
+            p = Player(pd["name"], pd["char"], pd["x"], pd["y"],
+                       depth=pd["depth"])
+            p.hp = pd["hp"]
+            p.max_hp = pd["max_hp"]
+            p.attack = pd["attack"]
+            p.defense = pd["defense"]
+            p.level = pd["level"]
+            p.xp = pd["xp"]
+            p.next_level_xp = pd["next_level_xp"]
+            p.weapon_bonus = pd["weapon_bonus"]
+            p.armor_bonus = pd["armor_bonus"]
+            p.gold = pd["gold"]
+            p.dead = pd["dead"]
+            p.game_win = pd["game_win"]
+            p._server_id = pd["server_id"]
+            p._client_id = pd.get("client_id")
+            p.next_tick = pd["next_tick"]
+            p.rest_end_tick = pd.get("rest_end_tick")
+            p.explored = {int(d): grid for d, grid in pd.get("explored", {}).items()}
+            return p
+
+        # Restore players
+        for pd in state["active_players"]:
+            p = deserialize_player(pd)
+            self.game.players.append(p)
+            if p._client_id:
+                self.clients[p._client_id] = p
+
+        for pd in state["inactive_players"]:
+            p = deserialize_player(pd)
+            self.inactive_players.append(p)
+
+        self._update_visibility(self.game)
+        return True
 
     def start(self):
         """Start the game loop in a background daemon thread."""
@@ -84,8 +196,17 @@ class GameServer:
         """Main game loop: advance ticks and process game state."""
         while self.running:
             with self.lock:
-                self.game.tick += 1
-                self.game._process_tick()
+                if self.game.players:
+                    self.game.tick += 1
+                    self.game._process_tick()
+                    if self.game.tick % 500 == 0:
+                        self._save_state()
+                # Detect and remove stale players
+                now = time.time()
+                stale = [pid for pid, t in self._last_activity.items()
+                         if now - t > PLAYER_TIMEOUT]
+                for pid in stale:
+                    self.deregister_player(pid)
             time.sleep(0.01)
 
     def stop(self):
@@ -96,43 +217,52 @@ class GameServer:
         """Recompute visibility from all alive players."""
         g._update_visibility()
 
-    def register_player(self):
+    def register_player(self, client_id=None, name=None):
         """Register a new (or returning) player.
 
-        Returns {"client_id": id, "player_id": id}.
+        If client_id is provided and matches an inactive player, re-activate them.
+        Returns {"client_id": uuid, "player_id": uuid}.
         """
         with self.lock:
             g = self.game
             inactive = None
-            for i, candidate in enumerate(self.inactive_players):
-                if not candidate.dead and not candidate.game_win:
-                    inactive = self.inactive_players.pop(i)
-                    break
+            if client_id:
+                for i, candidate in enumerate(self.inactive_players):
+                    if getattr(candidate, '_client_id', None) == client_id \
+                            and not candidate.dead and not candidate.game_win:
+                        inactive = self.inactive_players.pop(i)
+                        break
+                if not inactive:
+                    return {"error": "player not found"}
+            client_id = client_id or str(uuid.uuid4())
             if inactive:
                 p = inactive
+                p._client_id = client_id
                 g.players.append(p)
-                pid = p._server_id
             else:
-                pid = self._next_id
-                self._next_id += 1
-                color = self.PLAYER_COLORS[pid % len(self.PLAYER_COLORS)]
+                internal_id = self._next_internal_id
+                self._next_internal_id += 1
+                color = self.PLAYER_COLORS[internal_id % len(self.PLAYER_COLORS)]
                 spawn_x, spawn_y = (
                     g.levels[0]["spawn_x"],
                     g.levels[0]["spawn_y"])
+                hero_name = name or f"Hero{internal_id + 1}"
                 p = Player(
-                    f"Hero{pid + 1}", "@",
+                    hero_name, "@",
                     spawn_x, spawn_y,
                     color, depth=0)
-                p._server_id = pid
+                p._server_id = internal_id
+                p._client_id = client_id
                 g.players.append(p)
                 p.x, p.y = g._find_open_spawn(
                     spawn_x, spawn_y, 0, exclude_player=p)
-            self.clients[pid] = p
-            self._last_state_tick[pid] = 0
+            self.clients[client_id] = p
+            self._last_state_tick[client_id] = 0
+            self._last_activity[client_id] = time.time()
             self._update_visibility(g)
             g._update_explored()
             g.game_over = False
-            return {"client_id": pid, "player_id": pid}
+            return {"client_id": client_id, "player_id": client_id}
 
     def deregister_player(self, player_id):
         """Remove a player from the active game.
@@ -141,18 +271,21 @@ class GameServer:
         """
         with self.lock:
             g = self.game
-            target = None
-            target_idx = None
-            for i, pl in enumerate(g.players):
-                if pl._server_id == player_id:
-                    target = pl
-                    target_idx = i
-                    break
+            target = self.clients.get(player_id)
             if target is not None:
-                self.inactive_players.append(target)
-                g.players.pop(target_idx)
-                self._update_visibility(g)
+                target_idx = None
+                for i, pl in enumerate(g.players):
+                    if pl is target:
+                        target_idx = i
+                        break
+                if target_idx is not None:
+                    self.inactive_players.append(target)
+                    g.players.pop(target_idx)
+                    self._update_visibility(g)
                 self.clients.pop(player_id, None)
+                self._last_state_tick.pop(player_id, None)
+                self._last_activity.pop(player_id, None)
+                self._save_state()
                 return {"ok": True}
             return {"error": "player not found"}
 
@@ -163,6 +296,7 @@ class GameServer:
         When full is False, sends only the bounding box of visible tiles.
         """
         with self.lock:
+            self._last_activity[player_id] = time.time()
             g = self.game
             if not g.players:
                 return {
@@ -188,16 +322,16 @@ class GameServer:
                     "game_over": False,
                     "game_win": False,
                     "max_depth": MAX_DEPTH,
-                    "map_width": MAP_WIDTH,
+                   "map_width": MAP_WIDTH,
                     "map_height": MAP_HEIGHT,
                 }
-            target = None
+            target = self.clients.get(player_id)
             target_idx = None
-            for i, pl in enumerate(g.players):
-                if pl._server_id == player_id:
-                    target = pl
-                    target_idx = i
-                    break
+            if target:
+                for i, pl in enumerate(g.players):
+                    if pl is target:
+                        target_idx = i
+                        break
             if target is None:
                 target_idx = 0
                 target = g.players[target_idx]
@@ -295,7 +429,7 @@ class GameServer:
                 if not visible_to_me:
                     continue
                 ps = {
-                    "id": pl._server_id,
+                    "id": pl._client_id,
                     "name": pl.name, "char": pl.char,
                     "color": pl.color,
                     "x": pl.x, "y": pl.y,
@@ -352,13 +486,15 @@ class GameServer:
         Returns {"ok": True} or an error.
         """
         with self.lock:
+            self._last_activity[player_id] = time.time()
             g = self.game
+            target = self.clients.get(player_id)
+            if not target or target.dead:
+                return {"error": "invalid player"}
             target_idx = None
             for i, pl in enumerate(g.players):
-                if pl._server_id == player_id:
+                if pl is target:
                     target_idx = i
-                    if pl.dead:
-                        return {"error": "invalid player"}
                     break
             if target_idx is None:
                 return {"error": "invalid player"}
@@ -381,7 +517,7 @@ async def get_state(request):
     When full=1, sends complete explored map.
     """
     gs = request.app["gs"]
-    player_id = int(request.query.get("player_id", 0))
+    player_id = request.query.get("player_id", "")
     full = request.query.get("full", "0") == "1"
     state = await asyncio.to_thread(gs.get_state, player_id, full=full)
     return json_response(state, request)
@@ -390,7 +526,13 @@ async def get_state(request):
 async def register_player(request):
     """POST /register — register a new (or returning) player."""
     gs = request.app["gs"]
-    result = await asyncio.to_thread(gs.register_player)
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        data = {}
+    client_id = data.get("client_id")
+    name = data.get("name")
+    result = await asyncio.to_thread(gs.register_player, client_id=client_id, name=name)
     return json_response(result, request)
 
 
@@ -457,6 +599,7 @@ def main():
         asyncio.run(run())
     except KeyboardInterrupt:
         print("\nShutting down.")
+        gs._save_state()
         gs.stop()
 
 
