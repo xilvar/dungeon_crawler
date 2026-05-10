@@ -329,18 +329,6 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0,
             except curses.error:
                 pass
 
-    # Overlay enemies with color
-    for e in enemies:
-        ex = e["x"] - start_x
-        ey = e["y"] - start_y
-        if 0 <= ey < view_h and 0 <= ex < max_x:
-            color = COLOR_MAP.get(e.get("color", 1), curses.COLOR_RED)
-            attr = curses.color_pair(min(color + 1, 16)) | curses.A_BOLD
-            try:
-                stdscr.addch(ey, ex, ord(e["char"]), attr)
-            except curses.error:
-                pass
-
     # Overlay items with color
     items = state.get("items", [])
     for it in items:
@@ -356,7 +344,7 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0,
             except curses.error:
                 pass
 
-        # Overlay corpses (dimmed, explored but not necessarily visible)
+    # Overlay corpses (dimmed, explored but not necessarily visible)
     corpses = state.get("corpses", [])
     for c in corpses:
         cx = c["x"] - start_x
@@ -364,6 +352,18 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0,
         if 0 <= cy < view_h and 0 <= cx < max_x:
             try:
                 stdscr.addch(cy, cx, ord(c["char"]), curses.A_DIM)
+            except curses.error:
+                pass
+
+    # Overlay enemies on top of items, corpses, and stairs
+    for e in enemies:
+        ex = e["x"] - start_x
+        ey = e["y"] - start_y
+        if 0 <= ey < view_h and 0 <= ex < max_x:
+            color = COLOR_MAP.get(e.get("color", 1), curses.COLOR_RED)
+            attr = curses.color_pair(min(color + 1, 16)) | curses.A_BOLD
+            try:
+                stdscr.addch(ey, ex, ord(e["char"]), attr)
             except curses.error:
                 pass
 

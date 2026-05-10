@@ -73,6 +73,7 @@ TICK_ATTACK = 100
 TICK_WAIT = 50
 TICK_PLAYER_MOVE = 10
 TICK_PLAYER_REST = 200
+AMBIENT_COOLDOWN = 200  # 2 seconds at 100 ticks/sec
 
 # Tile types
 TILE_WALL = 0
@@ -385,6 +386,97 @@ def create_dungeon(depth):
     return dungeon, rooms
 
 
+DUNGEON_TYPES = ["rooms", "caves"]
+CAVE_FILL = 0.47
+CAVE_WALL_THRESHOLD = 4
+CAVE_SMOOTH_PASSES = 6
+CAVE_MIN_OPEN = 400
+
+
+def create_cave_dungeon(depth):
+    """Generate an organic cave dungeon using cellular automata.
+
+    Retries until a valid cave is produced.
+    Returns (grid, open_areas) where open_areas is a list of (x, y) floor tiles.
+    """
+    while True:
+        cave = [[TILE_WALL if random.random() < CAVE_FILL else TILE_FLOOR
+                 for _ in range(MAP_WIDTH)]
+                for _ in range(MAP_HEIGHT)]
+
+        for y in range(MAP_HEIGHT):
+            cave[y][0] = TILE_WALL
+            cave[y][MAP_WIDTH - 1] = TILE_WALL
+        for x in range(MAP_WIDTH):
+            cave[0][x] = TILE_WALL
+            cave[MAP_HEIGHT - 1][x] = TILE_WALL
+
+        for _ in range(CAVE_SMOOTH_PASSES):
+            new_cave = [[TILE_WALL] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+            for y in range(1, MAP_HEIGHT - 1):
+                for x in range(1, MAP_WIDTH - 1):
+                    wall_count = 0
+                    for dy in (-1, 0, 1):
+                        for dx in (-1, 0, 1):
+                            if cave[y + dy][x + dx] == TILE_WALL:
+                                wall_count += 1
+                    if wall_count > CAVE_WALL_THRESHOLD:
+                        new_cave[y][x] = TILE_WALL
+                    elif wall_count < CAVE_WALL_THRESHOLD:
+                        new_cave[y][x] = TILE_FLOOR
+                    else:
+                        new_cave[y][x] = cave[y][x]
+            cave = new_cave
+
+        visited = [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+        components = []
+        for y in range(MAP_HEIGHT):
+            for x in range(MAP_WIDTH):
+                if cave[y][x] == TILE_FLOOR and not visited[y][x]:
+                    component = _flood_fill(cave, visited, x, y)
+                    components.append(component)
+
+        if not components:
+            continue
+
+        largest = max(components, key=len)
+        largest_set = set((px, py) for px, py in largest)
+        for y in range(MAP_HEIGHT):
+            for x in range(MAP_WIDTH):
+                if (x, y) not in largest_set:
+                    cave[y][x] = TILE_WALL
+
+        open_areas = []
+        for py in range(1, MAP_HEIGHT - 1):
+            for px in range(1, MAP_WIDTH - 1):
+                if cave[py][px] != TILE_FLOOR:
+                    continue
+                neighbors = sum(1 for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]
+                               if cave[py + dy][px + dx] == TILE_FLOOR)
+                if neighbors >= 3:
+                    open_areas.append((px, py))
+
+        if len(open_areas) >= CAVE_MIN_OPEN:
+            return cave, open_areas
+
+
+def _flood_fill(grid, visited, sx, sy):
+    """BFS flood fill returning list of connected floor tiles."""
+    component = []
+    queue = [(sx, sy)]
+    visited[sy][sx] = True
+    while queue:
+        x, y = queue.pop(0)
+        component.append((x, y))
+        for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nx, ny = x + dx, y + dy
+            if (0 <= nx < MAP_WIDTH and 0 <= ny < MAP_HEIGHT
+                    and not visited[ny][nx] and grid[ny][nx] == TILE_FLOOR):
+                visited[ny][nx] = True
+                queue.append((nx, ny))
+    return component
+
+
 def place_entities(rooms, dungeon, depth):
     """Place enemies and items in rooms.
 
@@ -570,6 +662,7 @@ class Player:
         self.dead = False
         self.game_win = False
         self.messages = []
+        self._last_ambient_tick = 0
         # Per-depth explored grids: {depth: 2D boolean grid}
         self.explored = {}
 
@@ -619,6 +712,118 @@ class Game:
         su = self.levels[depth]
         return su["stairs_up_x"], su["stairs_up_y"]
 
+    def _pick_cave_spot(self, open_areas, px, py, exclude=None):
+        """Pick a random spot from open areas, avoiding given coordinates.
+
+        If exclude is set, prefers spots far from it.
+        """
+        candidates = [(x, y) for x, y in open_areas
+                      if (x, y) != (px, py) and (x, y) != exclude]
+        if not candidates:
+            candidates = list(open_areas)
+        if not exclude:
+            return random.choice(candidates)
+        # Weight by distance from exclude to prefer far spots
+        distances = [abs(x - exclude[0]) + abs(y - exclude[1])
+                     for x, y in candidates]
+        max_dist = max(distances) if distances else 1
+        weights = [(d + 1) ** 2 for d in distances]  # quadratic weighting
+        return random.choices(candidates, weights=weights, k=1)[0]
+
+    def _place_entities_cave(self, open_areas, dungeon, depth):
+        """Place player, enemies, and items in a cave dungeon."""
+        if not open_areas:
+            return 0, 0, [], []
+
+        # Player spawns at a random open area
+        px, py = random.choice(open_areas)
+        spawn = (px, py)
+
+        enemies = []
+        items = []
+        used = {spawn}
+
+        enemy_types_by_depth = {
+            0: [ENEMY_RAT, ENEMY_RAT, ENEMY_BAT, ENEMY_SPIDER, ENEMY_SNAKE],
+            1: [ENEMY_RAT, ENEMY_SPIDER, ENEMY_KOBOLD, ENEMY_GNOME, ENEMY_SNAKE],
+            2: [ENEMY_KOBOLD, ENEMY_GNOME, ENEMY_IMP,
+                ENEMY_SKELETON, ENEMY_ZOMBIE, ENEMY_WOLF],
+            3: [ENEMY_GNOME, ENEMY_SKELETON, ENEMY_ZOMBIE,
+                ENEMY_WOLF, ENEMY_MUMMY, ENEMY_WRAITH],
+            4: [ENEMY_SKELETON, ENEMY_WOLF, ENEMY_MUMMY,
+                ENEMY_TROLL, ENEMY_MINOTAUR, ENEMY_MEDUSA],
+            5: [ENEMY_MUMMY, ENEMY_TROLL, ENEMY_MINOTAUR,
+                ENEMY_OWLBEAR, ENEMY_HOOK_HORROR, ENEMY_PHASE_SPIDER],
+            6: [ENEMY_TROLL, ENEMY_MEDUSA, ENEMY_BASILISK,
+                ENEMY_WYVERN, ENEMY_GELATINOUS_CUBE, ENEMY_REMORHAZ],
+            7: [ENEMY_MINOTAUR, ENEMY_OWLBEAR, ENEMY_WYVERN,
+                ENEMY_ICE_DEVIL, ENEMY_LICH, ENEMY_BEHOLDER],
+            8: [ENEMY_LICH, ENEMY_BEHOLDER, ENEMY_BALOR, ENEMY_HYDRA],
+            9: [ENEMY_LICH, ENEMY_BEHOLDER, ENEMY_BALOR, ENEMY_DRAGON],
+        }
+        enemy_tier = max(0, min(depth - 1, 9))
+        enemy_pool = enemy_types_by_depth[enemy_tier]
+        max_enemies = min(16 + depth * 6, 60)
+
+        for _ in range(max_enemies):
+            spot = self._pick_open_spot(open_areas, used)
+            if spot is None:
+                break
+            ex, ey = spot
+            used.add(spot)
+            etype = random.choice(enemy_pool)
+            props = ENEMY_PROPS[etype]
+            e = {
+                "name": props["name"],
+                "char": props["char"],
+                "color": props["color"],
+                "x": ex, "y": ey,
+                "hp": props["hp"] + depth * 2,
+                "max_hp": props["hp"] + depth * 2,
+                "attack": props["attack"] + depth,
+                "defense": props["defense"] + depth // 2,
+                "xp": props["xp"] + depth * 5,
+                "depth": depth,
+            }
+            enemies.append(e)
+
+        # Items (reduced for caves)
+        for _ in range(2 + depth // 2):
+            spot = self._pick_open_spot(open_areas, used)
+            if spot is None:
+                break
+            used.add(spot)
+            roll = random.random()
+            if roll < 0.4:
+                kind = ITEM_POTION
+            elif roll < 0.6:
+                kind = ITEM_SWORD
+            elif roll < 0.75:
+                kind = ITEM_SHIELD
+            else:
+                kind = ITEM_GOLD
+            item = {
+                "kind": kind,
+                "x": spot[0], "y": spot[1],
+                "depth": depth,
+            }
+            if kind == ITEM_GOLD:
+                item["value"] = random.randint(5, 20) + depth * 5
+            elif kind == ITEM_SWORD:
+                item["bonus"] = random.randint(1, 2) + depth // 2
+            elif kind == ITEM_SHIELD:
+                item["bonus"] = random.randint(1, 2) + depth // 3
+            items.append(item)
+
+        return px, py, enemies, items
+
+    def _pick_open_spot(self, open_areas, used):
+        """Pick a random open area not in used set."""
+        available = [s for s in open_areas if s not in used]
+        if not available:
+            return None
+        return random.choice(available)
+
     def _ensure_level(self, depth):
         """Ensure a level exists at the given depth, creating it if needed."""
         if depth not in self.levels:
@@ -629,19 +834,25 @@ class Game:
 
         Populates enemies, items, and stairs.
         """
-        dungeon, rooms = create_dungeon(depth)
-        px, py, enemies, items = place_entities(rooms, dungeon, depth)
+        dungeon_type = random.choice(DUNGEON_TYPES)
+        if dungeon_type == "caves":
+            dungeon, open_areas = create_cave_dungeon(depth)
+            px, py, enemies, items = self._place_entities_cave(open_areas, dungeon, depth)
+            stairs_down_x, stairs_down_y = self._pick_cave_spot(open_areas, px, py)
+            stairs_up_x, stairs_up_y = self._pick_cave_spot(open_areas, px, py,
+                                                             exclude=(stairs_down_x, stairs_down_y))
+        else:
+            dungeon, rooms = create_dungeon(depth)
+            px, py, enemies, items = place_entities(rooms, dungeon, depth)
+            start_room = rooms[0]
+            end_room = rooms[-1]
+            stairs_down_x, stairs_down_y = end_room.center_x, end_room.center_y
+            stairs_up_x = start_room.center_x
+            stairs_up_y = start_room.center_y
+            while stairs_up_x == px and stairs_up_y == py:
+                stairs_up_y += 1
 
-        start_room = rooms[0]
-        end_room = rooms[-1]
-
-        stairs_down_x, stairs_down_y = end_room.center_x, end_room.center_y
-
-        stairs_up_x = start_room.center_x
-        stairs_up_y = start_room.center_y
-        while stairs_up_x == px and stairs_up_y == py:
-            stairs_up_y += 1
-
+        dungeon[stairs_down_y][stairs_down_x] = TILE_STAIRS_DOWN
         if depth > 0:
             dungeon[stairs_up_y][stairs_up_x] = TILE_STAIRS_UP
 
@@ -771,6 +982,9 @@ class Game:
                     continue
             prob = chance if flat else max(0, chance * (1 - dist / range))
             if random.random() < prob:
+                if self.tick - p._last_ambient_tick < AMBIENT_COOLDOWN:
+                    continue
+                p._last_ambient_tick = self.tick
                 self._tell(p, random.choice(messages), color)
 
     def _ambient_depth(
@@ -790,6 +1004,9 @@ class Game:
                 if fov[source.y][source.x]:
                     continue
             if random.random() < chance:
+                if self.tick - p._last_ambient_tick < AMBIENT_COOLDOWN:
+                    continue
+                p._last_ambient_tick = self.tick
                 self._tell(p, random.choice(messages), color)
 
     def _find_open_spawn(self, x, y, depth, exclude_player=None):
