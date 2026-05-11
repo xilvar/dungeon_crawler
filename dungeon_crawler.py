@@ -33,6 +33,11 @@ from dungeon_messages import (
     MSG_REST_NO_HEAL,
     MSG_ENEMY_APPEARS,
     MSG_ENEMY_INTO_VIEW,
+    MSG_GENERATOR_INTO_VIEW,
+    MSG_GENERATOR_SPAWNS,
+    MSG_HIT_GENERATOR,
+    MSG_GENERATOR_DESTROYED,
+    MSG_GENERATOR_RESPAWN,
     MSG_NO_STAIRS_DOWN,
     MSG_CANNOT_GO_UP,
     MSG_NO_STAIRS_UP,
@@ -69,11 +74,16 @@ MAX_DEPTH = 10
 FOV_RADIUS = 7
 TICKS_PER_SECOND = 100
 TICK_MOVE = 20
-TICK_ATTACK = 100
-TICK_WAIT = 50
+TICK_ATTACK = 50
+TICK_WAIT = 20
 TICK_PLAYER_MOVE = 10
 TICK_PLAYER_REST = 200
 AMBIENT_COOLDOWN = 200  # 2 seconds at 100 ticks/sec
+GENERATOR_SPAWN_MIN = 300  # 3 seconds minimum between spawns
+GENERATOR_SPAWN_MAX = 600  # 6 seconds maximum between spawns
+GENERATORS_PER_LEVEL = 3
+GENERATOR_RESPAWN_TIME = 6000  # 60 seconds to respawn after destruction
+GENERATOR_ENERGY_COST = 66  # energy needed to spawn one monster
 
 # Tile types
 TILE_WALL = 0
@@ -82,6 +92,7 @@ TILE_DOOR_CLOSED = 2
 TILE_STAIRS_DOWN = 3
 TILE_STAIRS_UP = 4
 TILE_DOOR_OPEN = 5
+TILE_GENERATOR = 6
 
 # Tile rendering
 TILE_CHAR = {
@@ -91,6 +102,7 @@ TILE_CHAR = {
     TILE_STAIRS_DOWN: ">",
     TILE_STAIRS_UP: "<",
     TILE_DOOR_OPEN: "-",
+    TILE_GENERATOR: "~",
 }
 
 # Entity types
@@ -824,6 +836,58 @@ class Game:
             return None
         return random.choice(available)
 
+    def _place_generators(self, dungeon, depth, occupied):
+        """Place monster generators on floor tiles not in occupied set.
+
+        Returns list of generator dicts with spawn timer and enemy type.
+        """
+        enemy_types_by_depth = {
+            0: [ENEMY_RAT, ENEMY_BAT, ENEMY_SPIDER],
+            1: [ENEMY_RAT, ENEMY_SPIDER, ENEMY_KOBOLD],
+            2: [ENEMY_KOBOLD, ENEMY_SKELETON, ENEMY_ZOMBIE],
+            3: [ENEMY_SKELETON, ENEMY_ZOMBIE, ENEMY_WOLF],
+            4: [ENEMY_WOLF, ENEMY_MUMMY, ENEMY_TROLL],
+            5: [ENEMY_TROLL, ENEMY_MINOTAUR, ENEMY_OWLBEAR],
+            6: [ENEMY_MINOTAUR, ENEMY_WYVERN, ENEMY_REMORHAZ],
+            7: [ENEMY_WYVERN, ENEMY_ICE_DEVIL, ENEMY_LICH],
+            8: [ENEMY_LICH, ENEMY_BEHOLDER, ENEMY_BALOR],
+            9: [ENEMY_BEHOLDER, ENEMY_BALOR, ENEMY_DRAGON],
+        }
+        enemy_pool = enemy_types_by_depth[min(depth, 9)]
+
+        # Collect all floor tiles
+        floor_tiles = []
+        for y in range(MAP_HEIGHT):
+            for x in range(MAP_WIDTH):
+                if dungeon[y][x] == TILE_FLOOR and (x, y) not in occupied:
+                    floor_tiles.append((x, y))
+
+        if not floor_tiles:
+            return []
+
+        generators = []
+        used = set()
+        for _ in range(GENERATORS_PER_LEVEL):
+            spot = self._pick_open_spot(floor_tiles, used | occupied)
+            if spot is None:
+                break
+            used.add(spot)
+            etype = random.choice(enemy_pool)
+            generators.append({
+                "x": spot[0], "y": spot[1],
+                "enemy_type": etype,
+                "spawn_tick": self.tick + random.randint(
+                    GENERATOR_SPAWN_MIN, GENERATOR_SPAWN_MAX),
+                "hp": ENEMY_PROPS[etype]["hp"] * 5 + depth * 10,
+                "max_hp": ENEMY_PROPS[etype]["hp"] * 5 + depth * 10,
+                "defense": 2 + depth // 2,
+                "destroyed": False,
+                "respawn_tick": 0,
+            })
+            dungeon[spot[1]][spot[0]] = TILE_GENERATOR
+
+        return generators
+
     def _ensure_level(self, depth):
         """Ensure a level exists at the given depth, creating it if needed."""
         if depth not in self.levels:
@@ -856,11 +920,18 @@ class Game:
         if depth > 0:
             dungeon[stairs_up_y][stairs_up_x] = TILE_STAIRS_UP
 
+        # Place monster generators
+        generators = self._place_generators(dungeon, depth,
+                                            {(px, py), (stairs_down_x, stairs_down_y),
+                                             (stairs_up_x, stairs_up_y)})
+
         self.levels[depth] = {
             "dungeon": dungeon,
             "enemies": enemies,
             "items": items,
             "corpses": [],
+            "generators": generators,
+            "energy": 0,
             "stairs_down_x": stairs_down_x,
             "stairs_down_y": stairs_down_y,
             "stairs_up_x": stairs_up_x,
@@ -910,6 +981,14 @@ class Game:
                     self._tell(
                         p, MSG_ENEMY_INTO_VIEW, e["color"],
                         ctx={"enemy": e["name"]},
+                    )
+            # Detect generators that just came into view
+            for gen in self.levels.get(p.depth, {}).get("generators", []):
+                if (new_fov[gen["y"]][gen["x"]]
+                        and not old_fov[gen["y"]][gen["x"]]):
+                    self._tell(
+                        p, random.choice(MSG_GENERATOR_INTO_VIEW),
+                        COLOR_MAGENTA,
                     )
 
     def _update_explored(self):
@@ -1051,6 +1130,13 @@ class Game:
         tile = self._get_dungeon(depth)[y][x]
         return tile not in (TILE_WALL, TILE_DOOR_CLOSED)
 
+    def _get_generator_at(self, x, y, depth):
+        """Return the generator at (x, y) on the given depth, or None."""
+        for gen in self.levels.get(depth, {}).get("generators", []):
+            if gen["x"] == x and gen["y"] == y:
+                return gen
+        return None
+
     def get_enemy_at(self, x, y, depth):
         """Return the living enemy at (x, y) on the given depth, or None."""
         for e in self._get_enemies(depth):
@@ -1149,6 +1235,30 @@ class Game:
             player.next_tick = self.tick + TICK_PLAYER_MOVE
             self._tell(player, random.choice(MSG_OPEN_DOOR), COLOR_WHITE)
             return
+        if target_tile == TILE_GENERATOR:
+            gen = self._get_generator_at(nx, ny, player.depth)
+            if gen and not gen["destroyed"]:
+                damage = self.do_attack(
+                    player.name, player.attack_total(),
+                    "portal", gen["defense"])
+                gen["hp"] -= damage
+                self._broadcast(
+                    nx, ny, player.depth,
+                    MSG_HIT_GENERATOR, COLOR_MAGENTA,
+                    subject=player,
+                    ctx={"damage": damage},
+                )
+                player.next_tick = self.tick + TICK_ATTACK
+                if gen["hp"] <= 0:
+                    gen["destroyed"] = True
+                    gen["respawn_tick"] = self.tick + GENERATOR_RESPAWN_TIME
+                    dungeon[ny][nx] = TILE_FLOOR
+                    self._broadcast(
+                        nx, ny, player.depth,
+                        MSG_GENERATOR_DESTROYED, COLOR_MAGENTA,
+                        subject=player,
+                    )
+                return
         if target_tile == TILE_DOOR_OPEN:
             enemy = self.get_enemy_at(nx, ny, player.depth)
             if enemy:
@@ -1278,8 +1388,13 @@ class Game:
             if player.dead or player.game_win:
                 continue
             if self.tick >= player.next_tick:
+                prev_tick = self.tick
                 if player.queued_action is not None:
                     self.execute_player_action(i)
+                    # Add energy to player's depth based on action cost
+                    action_cost = player.next_tick - prev_tick
+                    if action_cost > 0 and player.depth in self.levels:
+                        self.levels[player.depth]["energy"] += action_cost
                 else:
                     player.next_tick = self.tick + 1
         for depth in list(self.levels.keys()):
@@ -1288,8 +1403,117 @@ class Game:
                     continue
                 if self.tick >= enemy["next_tick"]:
                     self._process_enemy_action(enemy, depth)
+        # Process monster generators (only if players are on that depth)
+        for depth in list(self.levels.keys()):
+            depth_players = [p for p in self.players
+                             if not p.dead and p.depth == depth]
+            if not depth_players:
+                continue
+            lvl = self.levels[depth]
+            # Respawn destroyed generators
+            for gen in lvl.get("generators", []):
+                if gen["destroyed"] and self.tick >= gen["respawn_tick"]:
+                    self._respawn_generator(gen, depth)
+            # Spend energy to spawn from active generators
+            energy = lvl.get("energy", 0)
+            active_gens = [g for g in lvl.get("generators", [])
+                           if not g["destroyed"]]
+            while energy >= GENERATOR_ENERGY_COST and active_gens:
+                energy -= GENERATOR_ENERGY_COST
+                gen = random.choice(active_gens)
+                self._spawn_from_generator(gen, depth)
+            lvl["energy"] = energy
         self._update_visibility()
         self._update_explored()
+
+    def _spawn_from_generator(self, gen, depth):
+        """Spawn an enemy from a monster generator."""
+        gx, gy = gen["x"], gen["y"]
+        dungeon = self._get_dungeon(depth)
+        enemies = self._get_enemies(depth)
+
+        # Check if there's already an enemy on the generator
+        for e in enemies:
+            if e["x"] == gx and e["y"] == gy and e["hp"] > 0:
+                return  # blocked, don't spawn
+
+        # Check adjacent tiles for a free spot
+        adj = [(gx + dx, gy + dy) for dx, dy in
+               [(-1, 0), (1, 0), (0, -1), (0, 1)]]
+        random.shuffle(adj)
+        spawn_x, spawn_y = gx, gy  # default: spawn on generator itself
+        for sx, sy in adj:
+            if self._is_tile_free(sx, sy, depth):
+                spawn_x, spawn_y = sx, sy
+                break
+
+        etype = gen["enemy_type"]
+        props = ENEMY_PROPS[etype]
+        enemy = {
+            "name": props["name"],
+            "char": props["char"],
+            "color": props["color"],
+            "x": spawn_x, "y": spawn_y,
+            "hp": props["hp"] + depth * 2,
+            "max_hp": props["hp"] + depth * 2,
+            "attack": props["attack"] + depth,
+            "defense": props["defense"] + depth // 2,
+            "xp": props["xp"] + depth * 5,
+            "depth": depth,
+            "next_tick": self.tick + random.randint(0, 99),
+        }
+        enemies.append(enemy)
+
+        # Reschedule next spawn
+        gen["spawn_tick"] = self.tick + random.randint(
+            GENERATOR_SPAWN_MIN, GENERATOR_SPAWN_MAX)
+
+        # Notify nearby players
+        for p in self.players:
+            if p.dead or p.depth != depth:
+                continue
+            dist = abs(p.x - gx) + abs(p.y - gy)
+            if dist <= FOV_RADIUS:
+                self._tell(p, random.choice(MSG_GENERATOR_SPAWNS),
+                           COLOR_MAGENTA, ctx={"enemy": props["name"]})
+
+    def _respawn_generator(self, gen, depth):
+        """Respawn a destroyed generator at a new random location."""
+        dungeon = self._get_dungeon(depth)
+
+        # Find all floor tiles that are free
+        floor_tiles = []
+        for y in range(MAP_HEIGHT):
+            for x in range(MAP_WIDTH):
+                if dungeon[y][x] == TILE_FLOOR:
+                    # Check no enemy, item, player, or other generator here
+                    if (not self.get_enemy_at(x, y, depth)
+                            and not self.get_item_at(x, y, depth)[1]
+                            and not any(p.depth == depth and p.x == x and p.y == y
+                                       for p in self.players if not p.dead)):
+                        floor_tiles.append((x, y))
+
+        if not floor_tiles:
+            return
+
+        # Pick a new spot
+        spot = random.choice(floor_tiles)
+        gen["x"] = spot[0]
+        gen["y"] = spot[1]
+        gen["destroyed"] = False
+        gen["hp"] = gen["max_hp"]
+        gen["spawn_tick"] = self.tick + random.randint(
+            GENERATOR_SPAWN_MIN, GENERATOR_SPAWN_MAX)
+        dungeon[spot[1]][spot[0]] = TILE_GENERATOR
+
+        # Notify nearby players
+        for p in self.players:
+            if p.dead or p.depth != depth:
+                continue
+            dist = abs(p.x - spot[0]) + abs(p.y - spot[1])
+            if dist <= FOV_RADIUS:
+                self._tell(p, random.choice(MSG_GENERATOR_RESPAWN),
+                           COLOR_MAGENTA)
 
     def _get_nearest_player(self, ex, ey, depth):
         """Return (player, distance) of the nearest alive player.
@@ -1552,7 +1776,7 @@ class Game:
             player._consecutive_waits = 0
         player._consecutive_waits += 1
         if player.hp < player.max_hp:
-            player.hp += 1
+            player.hp = min(player.hp + 3, player.max_hp)
             self._broadcast(player.x, player.y, player.depth,
                             MSG_REST_HEAL, COLOR_GREEN, subject=player)
         else:

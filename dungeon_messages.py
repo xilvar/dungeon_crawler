@@ -529,6 +529,21 @@ MSG_ENEMY_APPEARS = "A {enemy} appears!"
 # Direct player messages (_tell)
 # ---------------------------------------------------------------------------
 MSG_ENEMY_INTO_VIEW = "A {enemy} comes into view."
+MSG_GENERATOR_INTO_VIEW = [
+    "You notice a pulsing portal shimmering in the shadows.",
+    "A faintly glowing pool catches your eye.",
+    "Something eerie glimmers ahead.",
+    "You see a swirling rift in the air.",
+]
+MSG_GENERATOR_SPAWNS = [
+    "A {enemy} emerges from a swirling portal!",
+    "A {enemy} materializes from a glowing pool!",
+    "A {enemy} crawls out of a dark rift!",
+    "Reality tears open and a {enemy} steps through!",
+]
+MSG_HIT_GENERATOR = "{name} strikes the portal for {damage} damage!"
+MSG_GENERATOR_DESTROYED = "The portal collapses in a flash of light!"
+MSG_GENERATOR_RESPAWN = "A new portal begins to form in the distance."
 MSG_CORPSE_INFO = (
     "You see the corpse of {corpse} (lv {corpse_level}). "
     "Looks like they were killed by a {killer}."

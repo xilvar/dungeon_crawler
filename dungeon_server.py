@@ -116,6 +116,8 @@ class GameServer:
                 "enemies": lvl["enemies"],
                 "items": lvl["items"],
                 "corpses": lvl["corpses"],
+                "generators": lvl.get("generators", []),
+                "energy": lvl.get("energy", 0),
                 "spawn_x": lvl["spawn_x"],
                 "spawn_y": lvl["spawn_y"],
                 "stairs_down_x": lvl["stairs_down_x"],
