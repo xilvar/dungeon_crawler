@@ -138,6 +138,18 @@ def save_heroes(heroes):
         pass
 
 
+def validate_hero(url, player_id):
+    """Check if a hero is still valid on the server."""
+    try:
+        req = urllib.request.Request(
+            f"{url}/validate?client_id={player_id}",
+        )
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            return json.loads(resp.read()).get("valid", False)
+    except Exception:
+        return False
+
+
 def remove_hero(player_id):
     """Remove a hero from the local file."""
     heroes = load_heroes()
@@ -156,9 +168,14 @@ def add_hero(player_id, name):
     save_heroes(heroes)
 
 
-def select_hero():
+def select_hero(url):
     """Display hero selection menu. Returns (player_id, name) or (None, None)."""
     heroes = load_heroes()
+    if not heroes:
+        return None, None
+    # Validate cached heroes against the server
+    heroes = [h for h in heroes if validate_hero(url, h["player_id"])]
+    save_heroes(heroes)
     if not heroes:
         return None, None
 
@@ -579,7 +596,7 @@ if __name__ == "__main__":
     port = sys.argv[2] if len(sys.argv) > 2 else str(DEFAULT_PORT)
     url = f"http://{host}:{port}"
 
-    cached_id, hero_name = select_hero()
+    cached_id, hero_name = select_hero(url)
     if hero_name == "quit":
         sys.exit(0)
     if cached_id is None and hero_name is None:

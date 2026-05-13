@@ -17,7 +17,6 @@ from dungeon_messages import (
     STAIRS_DOWN_DEPTH_AMBIENT,
     STAIRS_UP_AMBIENT,
     STAIRS_UP_DEPTH_AMBIENT,
-    ENEMY_SPAWN_AMBIENT,
     MSG_PLAYER_HIT_ENEMY,
     MSG_ENEMY_DIES,
     MSG_LEVEL_UP,
@@ -31,7 +30,6 @@ from dungeon_messages import (
     MSG_PICKED_UP_GOLD,
     MSG_REST_HEAL,
     MSG_REST_NO_HEAL,
-    MSG_ENEMY_APPEARS,
     MSG_ENEMY_INTO_VIEW,
     MSG_GENERATOR_INTO_VIEW,
     MSG_GENERATOR_SPAWNS,
@@ -79,11 +77,17 @@ TICK_WAIT = 20
 TICK_PLAYER_MOVE = 10
 TICK_PLAYER_REST = 200
 AMBIENT_COOLDOWN = 200  # 2 seconds at 100 ticks/sec
-GENERATOR_SPAWN_MIN = 300  # 3 seconds minimum between spawns
-GENERATOR_SPAWN_MAX = 600  # 6 seconds maximum between spawns
+GENERATOR_SPAWN_MIN = 200
+GENERATOR_SPAWN_MAX = 200
 GENERATORS_PER_LEVEL = 3
 GENERATOR_RESPAWN_TIME = 6000  # 60 seconds to respawn after destruction
-GENERATOR_ENERGY_COST = 66  # energy needed to spawn one monster
+MAX_ENEMIES_BASE = 10
+MAX_ENEMIES_PER_DEPTH = 3
+
+
+def max_enemies_for_depth(depth):
+    """Return the maximum number of living enemies allowed at a given depth."""
+    return MAX_ENEMIES_BASE + depth * MAX_ENEMIES_PER_DEPTH
 
 # Tile types
 TILE_WALL = 0
@@ -836,7 +840,7 @@ class Game:
             return None
         return random.choice(available)
 
-    def _place_generators(self, dungeon, depth, occupied):
+    def _place_generators(self, dungeon, depth, occupied, level_tick):
         """Place monster generators on floor tiles not in occupied set.
 
         Returns list of generator dicts with spawn timer and enemy type.
@@ -876,7 +880,7 @@ class Game:
             generators.append({
                 "x": spot[0], "y": spot[1],
                 "enemy_type": etype,
-                "spawn_tick": self.tick + random.randint(
+                "spawn_tick": level_tick + random.randint(
                     GENERATOR_SPAWN_MIN, GENERATOR_SPAWN_MAX),
                 "hp": ENEMY_PROPS[etype]["hp"] * 5 + depth * 10,
                 "max_hp": ENEMY_PROPS[etype]["hp"] * 5 + depth * 10,
@@ -923,7 +927,7 @@ class Game:
         # Place monster generators
         generators = self._place_generators(dungeon, depth,
                                             {(px, py), (stairs_down_x, stairs_down_y),
-                                             (stairs_up_x, stairs_up_y)})
+                                             (stairs_up_x, stairs_up_y)}, 0)
 
         self.levels[depth] = {
             "dungeon": dungeon,
@@ -931,7 +935,7 @@ class Game:
             "items": items,
             "corpses": [],
             "generators": generators,
-            "energy": 0,
+            "tick": 0,
             "stairs_down_x": stairs_down_x,
             "stairs_down_y": stairs_down_y,
             "stairs_up_x": stairs_up_x,
@@ -941,7 +945,7 @@ class Game:
         }
 
         for e in enemies:
-            e["next_tick"] = self.tick + random.randint(0, 99)
+            e["next_tick"] = 0
 
     def _ensure_player_explored(self, player):
         """Ensure the player has an explored grid for their current depth."""
@@ -1384,25 +1388,40 @@ class Game:
         """
         if self.game_over:
             return
+        # Snapshot level ticks to cap advancement per wall-clock tick
+        _prev_level_ticks = {d: self.levels[d]["tick"] for d in self.levels}
         for i, player in enumerate(self.players):
             if player.dead or player.game_win:
                 continue
             if self.tick >= player.next_tick:
-                prev_tick = self.tick
                 if player.queued_action is not None:
                     self.execute_player_action(i)
-                    # Add energy to player's depth based on action cost
-                    action_cost = player.next_tick - prev_tick
+                    # Advance level tick by action cost
+                    action_cost = player.next_tick - self.tick
                     if action_cost > 0 and player.depth in self.levels:
-                        self.levels[player.depth]["energy"] += action_cost
+                        self.levels[player.depth]["tick"] += action_cost
                 else:
                     player.next_tick = self.tick + 1
+          # Slow idle progression: advance level ticks by 1 every 10 wall-clock ticks
+        if self.tick % 10 == 0:
+            for depth in list(self.levels.keys()):
+                if any(p.depth == depth and not p.dead for p in self.players):
+                    self.levels[depth]["tick"] += 1
+        # Cap level tick advancement to max 4 players worth per wall-clock tick
+        _max_tick_advance = 4 * TICK_ATTACK
         for depth in list(self.levels.keys()):
+            prev = _prev_level_ticks.get(depth, 0)
+            advanced = self.levels[depth]["tick"] - prev
+            if advanced > _max_tick_advance:
+                self.levels[depth]["tick"] = prev + _max_tick_advance
+        # Process enemies per level using level tick
+        for depth in list(self.levels.keys()):
+            level_tick = self.levels[depth]["tick"]
             for enemy in self._get_enemies(depth):
                 if enemy["hp"] <= 0:
                     continue
-                if self.tick >= enemy["next_tick"]:
-                    self._process_enemy_action(enemy, depth)
+                if level_tick >= enemy["next_tick"]:
+                    self._process_enemy_action(enemy, depth, level_tick)
         # Process monster generators (only if players are on that depth)
         for depth in list(self.levels.keys()):
             depth_players = [p for p in self.players
@@ -1410,27 +1429,28 @@ class Game:
             if not depth_players:
                 continue
             lvl = self.levels[depth]
+            level_tick = lvl["tick"]
             # Respawn destroyed generators
             for gen in lvl.get("generators", []):
-                if gen["destroyed"] and self.tick >= gen["respawn_tick"]:
-                    self._respawn_generator(gen, depth)
-            # Spend energy to spawn from active generators
-            energy = lvl.get("energy", 0)
-            active_gens = [g for g in lvl.get("generators", [])
-                           if not g["destroyed"]]
-            while energy >= GENERATOR_ENERGY_COST and active_gens:
-                energy -= GENERATOR_ENERGY_COST
-                gen = random.choice(active_gens)
-                self._spawn_from_generator(gen, depth)
-            lvl["energy"] = energy
+                if gen["destroyed"] and level_tick >= gen["respawn_tick"]:
+                    self._respawn_generator(gen, depth, level_tick)
+            # Spawn from active generators when their spawn timer expires
+            for gen in lvl.get("generators", []):
+                if not gen["destroyed"] and level_tick >= gen["spawn_tick"]:
+                    self._spawn_from_generator(gen, depth, level_tick)
         self._update_visibility()
         self._update_explored()
 
-    def _spawn_from_generator(self, gen, depth):
+    def _spawn_from_generator(self, gen, depth, level_tick):
         """Spawn an enemy from a monster generator."""
         gx, gy = gen["x"], gen["y"]
         dungeon = self._get_dungeon(depth)
         enemies = self._get_enemies(depth)
+
+        # Check monster limit for this depth
+        living = sum(1 for e in enemies if e["hp"] > 0)
+        if living >= max_enemies_for_depth(depth):
+            return
 
         # Check if there's already an enemy on the generator
         for e in enemies:
@@ -1460,12 +1480,12 @@ class Game:
             "defense": props["defense"] + depth // 2,
             "xp": props["xp"] + depth * 5,
             "depth": depth,
-            "next_tick": self.tick + random.randint(0, 99),
+            "next_tick": level_tick,
         }
         enemies.append(enemy)
 
         # Reschedule next spawn
-        gen["spawn_tick"] = self.tick + random.randint(
+        gen["spawn_tick"] = level_tick + random.randint(
             GENERATOR_SPAWN_MIN, GENERATOR_SPAWN_MAX)
 
         # Notify nearby players
@@ -1477,7 +1497,7 @@ class Game:
                 self._tell(p, random.choice(MSG_GENERATOR_SPAWNS),
                            COLOR_MAGENTA, ctx={"enemy": props["name"]})
 
-    def _respawn_generator(self, gen, depth):
+    def _respawn_generator(self, gen, depth, level_tick):
         """Respawn a destroyed generator at a new random location."""
         dungeon = self._get_dungeon(depth)
 
@@ -1502,7 +1522,7 @@ class Game:
         gen["y"] = spot[1]
         gen["destroyed"] = False
         gen["hp"] = gen["max_hp"]
-        gen["spawn_tick"] = self.tick + random.randint(
+        gen["spawn_tick"] = level_tick + random.randint(
             GENERATOR_SPAWN_MIN, GENERATOR_SPAWN_MAX)
         dungeon[spot[1]][spot[0]] = TILE_GENERATOR
 
@@ -1531,7 +1551,7 @@ class Game:
                 best_dist = dist
         return best, best_dist
 
-    def _process_enemy_action(self, enemy, depth):
+    def _process_enemy_action(self, enemy, depth, level_tick):
         """Process one action for an enemy: attack, chase, or wander."""
         ex, ey = enemy["x"], enemy["y"]
         target, dist = self._get_nearest_player(ex, ey, depth)
@@ -1552,7 +1572,7 @@ class Game:
                     ENEMY_SOUNDS.get(enemy["name"],
                                      ENEMY_SOUNDS_DEFAULT),
                     COLOR_WHITE, chance=0.09, range=37)
-            enemy["next_tick"] = self.tick + TICK_MOVE
+            enemy["next_tick"] = level_tick + TICK_MOVE
             return
         dungeon = self._get_dungeon(depth)
         player_on_depth = [
@@ -1584,7 +1604,7 @@ class Game:
             self._ambient_sound(
                 target.x, target.y, depth, COMBAT_CLASH_AMBIENT,
                 COLOR_WHITE, chance=0.5, range=38, flat=True)
-            enemy["next_tick"] = self.tick + TICK_ATTACK
+            enemy["next_tick"] = level_tick + TICK_ATTACK
             if target.hp <= 0:
                 target.hp = 0
                 target.dead = True
@@ -1637,7 +1657,7 @@ class Game:
                     ENEMY_SOUNDS.get(enemy["name"], ENEMY_SOUNDS_DEFAULT),
                     COLOR_WHITE, chance=0.09, range=37,
                 )
-            enemy["next_tick"] = self.tick + TICK_MOVE
+            enemy["next_tick"] = level_tick + TICK_MOVE
         else:
             moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
             random.shuffle(moves)
@@ -1655,7 +1675,7 @@ class Game:
                     ENEMY_SOUNDS.get(enemy["name"],
                                      ENEMY_SOUNDS_DEFAULT),
                     COLOR_WHITE, chance=0.09, range=37)
-            enemy["next_tick"] = self.tick + TICK_MOVE
+            enemy["next_tick"] = level_tick + TICK_MOVE
 
     def _do_go_down_stairs(self, player):
         """Move the player down one level via stairs-down tile."""
@@ -1770,11 +1790,8 @@ class Game:
     def _do_rest(self, player):
         """Rest for a moment.
 
-        Heal 1 HP if wounded, with a chance to spawn an enemy.
+        Heal HP if wounded.
         """
-        if not hasattr(player, '_consecutive_waits'):
-            player._consecutive_waits = 0
-        player._consecutive_waits += 1
         if player.hp < player.max_hp:
             player.hp = min(player.hp + 3, player.max_hp)
             self._broadcast(player.x, player.y, player.depth,
@@ -1782,53 +1799,6 @@ class Game:
         else:
             self._broadcast(player.x, player.y, player.depth,
                             MSG_REST_NO_HEAL, COLOR_GREEN, subject=player)
-        chance = 0.05 * player._consecutive_waits + 0.02 * player.depth
-        chance = min(chance, 0.7)
-        if random.random() < chance:
-            self._spawn_nearby_enemy(player)
-
-    def _spawn_nearby_enemy(self, player):
-        """Spawn a random enemy near the given player on their level."""
-        depth = player.depth
-        for _ in range(10):
-            sx = player.x + random.randint(-5, 5)
-            sy = player.y + random.randint(-5, 5)
-            if sx == player.x and sy == player.y:
-                continue
-            if not (0 <= sx < MAP_WIDTH and 0 <= sy < MAP_HEIGHT):
-                continue
-            if not self.is_passable(sx, sy, depth):
-                continue
-            if self.get_enemy_at(sx, sy, depth):
-                continue
-            dist = abs(sx - player.x) + abs(sy - player.y)
-            if dist < 4:
-                continue
-            etypes = list(ENEMY_PROPS.keys())
-            etype = random.choice(etypes)
-            prop = ENEMY_PROPS[etype]
-            scale = 1 + depth * 0.15
-            enemy = {
-                "x": sx, "y": sy,
-                "kind": etype,
-                "name": prop["name"],
-                "char": prop["char"],
-                "color": prop["color"],
-                "hp": int(prop["hp"] * scale),
-                "max_hp": int(prop["hp"] * scale),
-                "attack": int(prop["attack"] * scale),
-                "defense": int(prop["defense"] * scale),
-                "xp": int(prop["xp"] * scale),
-                "next_tick": self.tick + random.randint(0, 99),
-            }
-            self._get_enemies(depth).append(enemy)
-            self._broadcast(
-                sx, sy, depth, MSG_ENEMY_APPEARS,
-                COLOR_RED, ctx={"enemy": prop["name"]})
-            self._ambient_sound(
-                sx, sy, depth, ENEMY_SPAWN_AMBIENT,
-                COLOR_RED, chance=0.09)
-            return
 
     def get_char_at(self, mx, my, player_idx=0):
         """Return the display character at (mx, my).

@@ -117,7 +117,7 @@ class GameServer:
                 "items": lvl["items"],
                 "corpses": lvl["corpses"],
                 "generators": lvl.get("generators", []),
-                "energy": lvl.get("energy", 0),
+                "tick": lvl["tick"],
                 "spawn_x": lvl["spawn_x"],
                 "spawn_y": lvl["spawn_y"],
                 "stairs_down_x": lvl["stairs_down_x"],
@@ -503,6 +503,16 @@ class GameServer:
             g.queue_player_action(target_idx, action)
             return {"ok": True}
 
+    def validate_player(self, client_id):
+        """Check if a client_id corresponds to a valid (active or inactive) player."""
+        with self.lock:
+            if client_id in self.clients:
+                return {"valid": True}
+            for p in self.inactive_players:
+                if getattr(p, '_client_id', None) == client_id:
+                    return {"valid": True}
+            return {"valid": False}
+
 
 # ---------------------------------------------------------------------------
 # Async HTTP handlers
@@ -563,6 +573,14 @@ async def send_action(request):
     return json_response(result, request)
 
 
+async def validate_player(request):
+    """GET /validate?client_id=X — check if a client_id is valid."""
+    gs = request.app["gs"]
+    client_id = request.query.get("client_id", "")
+    result = await asyncio.to_thread(gs.validate_player, client_id)
+    return json_response(result, request)
+
+
 def create_app():
     """Build and return the aiohttp application with routes."""
     app = web.Application()
@@ -571,6 +589,7 @@ def create_app():
     app.router.add_post("/register", register_player)
     app.router.add_post("/deregister", deregister_player)
     app.router.add_post("/action", send_action)
+    app.router.add_get("/validate", validate_player)
     return app
 
 
