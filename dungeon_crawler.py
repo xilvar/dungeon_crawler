@@ -75,7 +75,6 @@ TICK_MOVE = 20
 TICK_ATTACK = 50
 TICK_WAIT = 20
 TICK_PLAYER_MOVE = 10
-TICK_PLAYER_REST = 200
 AMBIENT_COOLDOWN = 200  # 2 seconds at 100 ticks/sec
 GENERATOR_SPAWN_MIN = 200
 GENERATOR_SPAWN_MAX = 200
@@ -673,8 +672,7 @@ class Player:
         self.gold = 0
         self.next_tick = random.randint(0, 99)
         self.queued_action = None
-        self.rest_end_tick = None
-        self.rest_progress_shown = 0
+        self.consecutive_rests = 0
         self.dead = False
         self.game_win = False
         self.messages = []
@@ -988,6 +986,8 @@ class Game:
                     )
             # Detect generators that just came into view
             for gen in self.levels.get(p.depth, {}).get("generators", []):
+                if gen["destroyed"]:
+                    continue
                 if (new_fov[gen["y"]][gen["x"]]
                         and not old_fov[gen["y"]][gen["x"]]):
                     self._tell(
@@ -1208,6 +1208,8 @@ class Game:
         if action is None:
             return
         action_type = action["type"]
+        if action_type != "rest":
+            player.consecutive_rests = 0
         if action_type == "move":
             self._do_move(player, action["dx"], action["dy"])
         elif action_type == "grab":
@@ -1221,9 +1223,7 @@ class Game:
             player.next_tick = self.tick + TICK_MOVE
         elif action_type == "rest":
             self._do_rest(player)
-            player.rest_end_tick = self.tick + TICK_PLAYER_REST
-            player.rest_progress_shown = 0
-            player.next_tick = player.rest_end_tick
+            player.next_tick = self.tick + TICK_MOVE
 
     def _do_move(self, player, dx, dy):
         """Move the player by (dx, dy). Rejects diagonal movement."""
@@ -1240,6 +1240,11 @@ class Game:
             self._tell(player, random.choice(MSG_OPEN_DOOR), COLOR_WHITE)
             return
         if target_tile == TILE_GENERATOR:
+            enemy = self.get_enemy_at(nx, ny, player.depth)
+            if enemy:
+                self._do_combat_attack(player, enemy)
+                player.next_tick = self.tick + TICK_ATTACK
+                return
             gen = self._get_generator_at(nx, ny, player.depth)
             if gen and not gen["destroyed"]:
                 damage = self.do_attack(
@@ -1255,7 +1260,7 @@ class Game:
                 player.next_tick = self.tick + TICK_ATTACK
                 if gen["hp"] <= 0:
                     gen["destroyed"] = True
-                    gen["respawn_tick"] = self.tick + GENERATOR_RESPAWN_TIME
+                    gen["respawn_tick"] = self.levels[player.depth]["tick"] + GENERATOR_RESPAWN_TIME
                     dungeon[ny][nx] = TILE_FLOOR
                     self._broadcast(
                         nx, ny, player.depth,
@@ -1373,7 +1378,6 @@ class Game:
             player.max_hp += 5
             player.hp = min(player.hp + 5, player.max_hp)
             player.attack += 1
-            player.defense += 1
             player.next_level_xp = int(player.next_level_xp * 1.5)
             self._broadcast(
                 player.x, player.y, player.depth,
@@ -1790,10 +1794,17 @@ class Game:
     def _do_rest(self, player):
         """Rest for a moment.
 
-        Heal HP if wounded.
+        Build up chance to heal 3HP with each contiguous rest.
         """
-        if player.hp < player.max_hp:
+        if player.hp >= player.max_hp:
+            player.consecutive_rests = 0
+            self._broadcast(player.x, player.y, player.depth,
+                            MSG_REST_NO_HEAL, COLOR_GREEN, subject=player)
+            return
+        player.consecutive_rests += 1
+        if random.random() < 0.1:
             player.hp = min(player.hp + 3, player.max_hp)
+            player.consecutive_rests = 0
             self._broadcast(player.x, player.y, player.depth,
                             MSG_REST_HEAL, COLOR_GREEN, subject=player)
         else:

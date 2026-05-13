@@ -413,16 +413,11 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0,
 
     # Player status bar
     dead = " [DEAD]" if my_player["dead"] else ""
-    resting = ""
-    if my_player.get("resting"):
-        remaining = my_player.get("rest_remaining", 0)
-        total = my_player.get("rest_total", 200)
-        resting = f" | Resting ({total - remaining}/{total})"
     bar = (f"{my_player['name']} | Lv{my_player['level']} | "
            f"HP {my_player['hp']}/{my_player['max_hp']} | "
            f"ATK {my_player['attack']} | DEF {my_player['defense']} | "
            f"XP {my_player['xp']}/{my_player['next_level_xp']} | "
-           f"Gold {my_player['gold']}{dead}{resting}")
+           f"Gold {my_player['gold']}{dead}")
     try:
         stdscr.addstr(view_h, 0, bar.ljust(max_x)[:max_x])
     except curses.error:

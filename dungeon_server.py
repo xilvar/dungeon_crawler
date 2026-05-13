@@ -27,7 +27,6 @@ from dungeon_crawler import (
     MAX_SCREEN_X,
     MAX_SCREEN_Y,
     Player,
-    TICK_PLAYER_REST,
 )
 
 SAVE_PATH = "dungeon_server.json"
@@ -98,7 +97,6 @@ class GameServer:
                 "server_id": getattr(p, "_server_id", 0),
                 "client_id": getattr(p, "_client_id", None),
                 "next_tick": p.next_tick,
-                "rest_end_tick": p.rest_end_tick,
                 "explored": {int(d): grid for d, grid in p.explored.items()},
             }
 
@@ -170,7 +168,6 @@ class GameServer:
             p._server_id = pd["server_id"]
             p._client_id = pd.get("client_id")
             p.next_tick = pd["next_tick"]
-            p.rest_end_tick = pd.get("rest_end_tick")
             p.explored = {int(d): grid for d, grid in pd.get("explored", {}).items()}
             return p
 
@@ -445,13 +442,6 @@ class GameServer:
                     "armor_bonus": pl.armor_bonus,
                     "visible": True,
                 }
-                if pl.rest_end_tick and g.tick < pl.rest_end_tick:
-                    remaining = pl.rest_end_tick - g.tick
-                    ps["resting"] = True
-                    ps["rest_remaining"] = remaining
-                    ps["rest_total"] = TICK_PLAYER_REST
-                else:
-                    ps["resting"] = False
                 player_stats.append(ps)
 
             last_tick = self._last_state_tick.get(player_id, 0) if not full else 0

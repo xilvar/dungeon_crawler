@@ -521,7 +521,7 @@ MSG_DRANK_POTION = "{name} drank a potion. Recovered {heal} HP."
 MSG_EQUIPPED_SWORD = "{name} equipped a sword (+{bonus} attack)."
 MSG_EQUIPPED_SHIELD = "{name} equipped a shield (+{bonus} defense)."
 MSG_PICKED_UP_GOLD = "{name} picked up {gold} gold."
-MSG_REST_HEAL = "{name} rested for a moment. (+1 HP)"
+MSG_REST_HEAL = "{name} rested for a moment. (+3 HP)"
 MSG_REST_NO_HEAL = "{name} rested for a moment."
 MSG_ENEMY_APPEARS = "A {enemy} appears!"
 
