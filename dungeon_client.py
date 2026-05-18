@@ -443,7 +443,7 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0,
     max_depth = state.get("max_depth", 10)
     bw_label = f"{bandwidth / 1024:.1f} KB/s" if bandwidth > 0 else "--- KB/s"
     help_text = (
-        f">:Down  <:Up  g:Grab  /:Rest  "
+        f">:Down  <:Up  g:Grab  .:Wait  "
         f"Depth {depth + 1}/{max_depth}  q:Quit  "
         f"↓ {bw_label}"
     )
@@ -582,8 +582,8 @@ def main(stdscr, url, player_id):
             send_action(url, player_id, {"type": "stairs_up"})
         elif key == ord('g'):
             send_action(url, player_id, {"type": "grab"})
-        elif key == ord('/'):
-            send_action(url, player_id, {"type": "rest"})
+        elif key == ord('.'):
+            send_action(url, player_id, {"type": "wait"})
 
 
 if __name__ == "__main__":

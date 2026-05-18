@@ -2,6 +2,7 @@
 """Multiplayer HTTP server that manages game state, player registration,
 actions, visibility-filtered state responses, and smart spawn placement."""
 import asyncio
+import hashlib
 import json
 import os
 import sys
@@ -37,6 +38,10 @@ PLAYERS_SAVE_PATH = "dungeon_players.json"
 def json_response(data, request=None, **kwargs):
     """Return a JSON response."""
     body = json.dumps(data).encode()
+    if request and "gzip" in request.headers.get("Accept-Encoding", ""):
+        body = gzip.compress(body)
+        kwargs["headers"] = {"Content-Encoding": "gzip"}
+        return web.Response(body=body, content_type="application/json", **kwargs)
     return web.Response(body=body, content_type="application/json", **kwargs)
 
 
@@ -59,6 +64,7 @@ class GameServer:
         self.clients = {}
         self.inactive_players = []
         self._last_state_tick = {}
+        self._last_state_hash = {}
         self._last_activity = {}
         self._next_internal_id = 0
         self._init_game()
@@ -280,6 +286,8 @@ class GameServer:
                 p = inactive
                 p._client_id = client_id
                 g.players.append(p)
+                # Clear cached state hash so client gets full state on reconnect
+                self._last_state_hash.pop(client_id, None)
             else:
                 internal_id = self._next_internal_id
                 self._next_internal_id += 1
@@ -493,6 +501,21 @@ class GameServer:
 
             game_win = target.game_win
             game_over = target.dead
+
+            # Compute state hash to detect changes
+            state_key = (chars, visible_hex,
+                         tuple((e["x"], e["y"], e["hp"]) for e in enemies),
+                         tuple((it["x"], it["y"]) for it in items),
+                         tuple((p["x"], p["y"], p["hp"]) for p in player_stats),
+                         tuple(m[0] for m in messages))
+            current_hash = hashlib.md5(json.dumps(state_key, sort_keys=True).encode()).hexdigest()
+
+            if not full and current_hash == self._last_state_hash.get(player_id):
+                # Nothing changed — return minimal response
+                return {"tick": g.tick}
+
+            self._last_state_hash[player_id] = current_hash
+
             return {
                 "tick": g.tick,
                 "depth": depth,

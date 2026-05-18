@@ -30,7 +30,9 @@ from dungeon_messages import (
     MSG_PICKED_UP_GOLD,
     MSG_REST_HEAL,
     MSG_REST_NO_HEAL,
+
     MSG_ENEMY_INTO_VIEW,
+    MSG_PLAYER_INTO_VIEW,
     MSG_GENERATOR_INTO_VIEW,
     MSG_GENERATOR_SPAWNS,
     MSG_HIT_GENERATOR,
@@ -47,6 +49,7 @@ from dungeon_messages import (
     MSG_SEE_PLAYER,
     MSG_OPEN_DOOR,
     MSG_SEE_DOOR_OPEN,
+    MSG_WALK_WALL,
 )
 
 # --- Constants ---
@@ -672,7 +675,7 @@ class Player:
         self.gold = 0
         self.next_tick = random.randint(0, 99)
         self.queued_action = None
-        self.consecutive_rests = 0
+        self.consecutive_waits = 0
         self.dead = False
         self.game_win = False
         self.messages = []
@@ -994,6 +997,19 @@ class Game:
                         p, random.choice(MSG_GENERATOR_INTO_VIEW),
                         COLOR_MAGENTA,
                     )
+            # Detect other players that just came into view
+            for other in self.players:
+                if other is p or other.dead:
+                    continue
+                if other.depth != p.depth:
+                    continue
+                if (new_fov[other.y][other.x]
+                        and not old_fov[other.y][other.x]):
+                    self._tell(
+                        p, random.choice(MSG_PLAYER_INTO_VIEW),
+                        other.color,
+                        ctx={"player": other.name},
+                    )
 
     def _update_explored(self):
         """Mark newly visible tiles as explored for each player."""
@@ -1208,8 +1224,8 @@ class Game:
         if action is None:
             return
         action_type = action["type"]
-        if action_type != "rest":
-            player.consecutive_rests = 0
+        if action_type != "wait":
+            player.consecutive_waits = 0
         if action_type == "move":
             self._do_move(player, action["dx"], action["dy"])
         elif action_type == "grab":
@@ -1221,8 +1237,8 @@ class Game:
         elif action_type == "stairs_up":
             self._do_go_up_stairs(player)
             player.next_tick = self.tick + TICK_MOVE
-        elif action_type == "rest":
-            self._do_rest(player)
+        elif action_type == "wait":
+            self._do_wait(player)
             player.next_tick = self.tick + TICK_MOVE
 
     def _do_move(self, player, dx, dy):
@@ -1285,6 +1301,7 @@ class Game:
             return
         if not self.is_passable(nx, ny, player.depth):
             player.next_tick = self.tick + TICK_WAIT
+            self._tell(player, random.choice(MSG_WALK_WALL), COLOR_WHITE)
             return
         enemy = self.get_enemy_at(nx, ny, player.depth)
         if enemy:
@@ -1791,20 +1808,20 @@ class Game:
             )
         self._get_items(player.depth).pop(idx)
 
-    def _do_rest(self, player):
-        """Rest for a moment.
+    def _do_wait(self, player):
+        """Wait for a moment.
 
-        Build up chance to heal 3HP with each contiguous rest.
+        Build up chance to heal 3HP with each contiguous wait.
         """
         if player.hp >= player.max_hp:
-            player.consecutive_rests = 0
+            player.consecutive_waits = 0
             self._broadcast(player.x, player.y, player.depth,
                             MSG_REST_NO_HEAL, COLOR_GREEN, subject=player)
             return
-        player.consecutive_rests += 1
+        player.consecutive_waits += 1
         if random.random() < 0.1:
             player.hp = min(player.hp + 3, player.max_hp)
-            player.consecutive_rests = 0
+            player.consecutive_waits = 0
             self._broadcast(player.x, player.y, player.depth,
                             MSG_REST_HEAL, COLOR_GREEN, subject=player)
         else:
@@ -1861,7 +1878,7 @@ class Game:
 
         for msg_text, _, _ in self.players[0].messages[-3:]:
             print(msg_text[:view_w])
-        print("P1:Arrows  P2:WASD  >:Down  <:Up  g/G:Grab  /*:Rest  q:Quit")
+        print("P1:Arrows  P2:WASD  >:Down  <:Up  g/G:Grab  .:Wait  q:Quit")
         print(f"{'=' * view_w}")
 
 

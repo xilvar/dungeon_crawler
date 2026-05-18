@@ -49,12 +49,13 @@ canvas{image-rendering:pixelated;display:block}
   </div>
   <div id="status"><span id="status-text">---</span><span id="bw"></span></div>
   <div id="msgs"></div>
-  <div id="help">&gt;:Down  &lt;:Up  g:Grab  /:Rest  Arrows/WASD:Move  q:Quit</div>
+  <div id="help">&gt;:Down  &lt;:Up  g:Grab  .:Wait  Arrows/WASD:Move  q:Quit</div>
 </div>
 <div id="overlay">
   <div class="box" id="start-box">
     <h1>Dungeon Crawler</h1>
     <p>Enter your name to begin</p>
+    <p class="hidden" id="start-err" style="color:#f44;font-size:12px;margin-bottom:8px"></p>
     <input id="name-in" type="text" placeholder="Hero name" maxlength="20" autofocus>
     <div class="hero-list" id="hero-list"></div>
     <div class="btns">
@@ -104,7 +105,7 @@ async function fetch_json(path, opts){
   const r=await fetch(url+path, opts);
   const sz=parseInt(r.headers.get('content-length'))||0;
   const txt=await r.text();
-  byte_log.push({t:performance.now(),b:sz});
+  if(path.startsWith('/state')) byte_log.push({t:performance.now(),b:sz});
   return JSON.parse(txt);
 }
 
@@ -324,6 +325,14 @@ async function poll(){
   try{
     const state=await get_state(player_id);
     last_state=state;
+
+    // Minimal response — nothing changed
+    if(!state.map){
+      render_bw();
+      setTimeout(poll, POLL_MS);
+      return;
+    }
+
     depth=state.depth||0;
 
     if(!local_map||depth!==local_map_depth){
@@ -377,8 +386,13 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(e.key==='Escape'||e.key==='q'){
-    // Don't quit during game, just ignore
-    if(!last_state||last_state.game_over||last_state.game_win) return;
+    e.preventDefault();
+    polling=false;
+    deregister(player_id).then(()=>{
+      player_id=null;
+      show_start();
+    });
+    return;
   }
   keys[e.key]=true;
   if(KEY_MOVE[e.key]){
@@ -394,9 +408,9 @@ document.addEventListener('keydown',e=>{
   } else if(e.key==='g'){
     e.preventDefault();
     send_action(player_id,{type:'grab'});
-  } else if(e.key==='/'){
+  } else if(e.key==='.'){
     e.preventDefault();
-    send_action(player_id,{type:'rest'});
+    send_action(player_id,{type:'wait'});
   }
 });
 document.addEventListener('keyup',e=>{keys[e.key]=false;});
@@ -410,6 +424,7 @@ async function show_start(){
   overlay.classList.remove('hidden');
   startBox.classList.remove('hidden');
   endBox.classList.add('hidden');
+  $('start-err').classList.add('hidden');
   const heroes=await refresh_heroes();
   render_hero_list(heroes);
   nameIn.focus();
@@ -436,16 +451,23 @@ async function start_game(cid, name){
   }
   if(result.error){
     if(cid){
-      // Try new hero
       remove_hero(cid);
-      const n=prompt('Hero not found. Enter new name:');
-      if(!n) return;
-      const r2=await register(null, n.trim());
-      if(r2.error){alert('Failed: '+r2.error);return;}
-      player_id=r2.player_id;
-      save_hero(player_id, n.trim());
+      render_hero_list(load_heroes());
+      overlay.classList.remove('hidden');
+      startBox.classList.remove('hidden');
+      const errEl=$('start-err');
+      errEl.textContent='Hero not found. Enter a new name.';
+      errEl.classList.remove('hidden');
+      nameIn.value='';
+      nameIn.focus();
+      return;
     } else {
-      alert('Failed: '+result.error); return;
+      overlay.classList.remove('hidden');
+      startBox.classList.remove('hidden');
+      const errEl=$('start-err');
+      errEl.textContent='Failed: '+result.error;
+      errEl.classList.remove('hidden');
+      return;
     }
   } else {
     player_id=result.player_id;
@@ -468,8 +490,9 @@ function show_end(dead){
 }
 
 $('btn-new').onclick=()=>{
-  const n=nameIn.value.trim()||prompt('Enter hero name:');
-  if(n) start_game(null, n.trim());
+  $('start-err').classList.add('hidden');
+  const n=nameIn.value.trim();
+  if(n) start_game(null, n);
 };
 $('btn-restart').onclick=()=>{
   deregister(player_id).then(()=>{
@@ -484,6 +507,7 @@ $('btn-quit').onclick=()=>{
   location.reload();
 };
 nameIn.addEventListener('keydown',e=>{
+  $('start-err').classList.add('hidden');
   if(e.key==='Enter'){
     e.stopPropagation();
     const n=nameIn.value.trim();

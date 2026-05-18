@@ -521,8 +521,8 @@ MSG_DRANK_POTION = "{name} drank a potion. Recovered {heal} HP."
 MSG_EQUIPPED_SWORD = "{name} equipped a sword (+{bonus} attack)."
 MSG_EQUIPPED_SHIELD = "{name} equipped a shield (+{bonus} defense)."
 MSG_PICKED_UP_GOLD = "{name} picked up {gold} gold."
-MSG_REST_HEAL = "{name} rested for a moment. (+3 HP)"
-MSG_REST_NO_HEAL = "{name} rested for a moment."
+MSG_REST_HEAL = "{name} waited for a moment. (+3 HP)"
+MSG_REST_NO_HEAL = "{name} waited for a moment."
 MSG_ENEMY_APPEARS = "A {enemy} appears!"
 
 # ---------------------------------------------------------------------------
@@ -534,6 +534,12 @@ MSG_GENERATOR_INTO_VIEW = [
     "A faintly glowing pool catches your eye.",
     "Something eerie glimmers ahead.",
     "You see a swirling rift in the air.",
+]
+MSG_PLAYER_INTO_VIEW = [
+    "You spot {player} lurking in the shadows.",
+    "A faint glimmer reveals {player} ahead.",
+    "You catch sight of {player} in the distance.",
+    "Something moves — it's {player}.",
 ]
 MSG_GENERATOR_SPAWNS = [
     "A {enemy} emerges from a swirling portal!",
@@ -593,4 +599,10 @@ MSG_SEE_DOOR_OPEN = [
     "You step through the open doorway.",
     "You walk across the open door.",
     "You pass through the doorway.",
+]
+MSG_WALK_WALL = [
+    "You bump into the wall.",
+    "The wall stops you in your tracks.",
+    "You press against the stone wall.",
+    "The wall is solid.",
 ]
