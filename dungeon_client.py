@@ -496,6 +496,7 @@ def main(stdscr, url, player_id):
     local_messages = []
     byte_log = deque()
     window = 3.0
+    last_state = None
 
     while True:
         now = time.monotonic()
@@ -517,12 +518,15 @@ def main(stdscr, url, player_id):
 
         depth = state.get("depth", 0)
 
-        # Minimal response — nothing changed, skip rendering but still read input
+        # Minimal response — nothing changed, render with last state to update bandwidth
         if "map" not in state:
             byte_log.append((now, nbytes))
             while byte_log and now - byte_log[0][0] > window:
                 byte_log.popleft()
             bandwidth = sum(b for _, b in byte_log) / window
+            if last_state is not None:
+                render(stdscr, last_state, local_map, player_id, bandwidth,
+                       local_messages)
             key = stdscr.getch()
             if key == -1:
                 continue
@@ -567,7 +571,8 @@ def main(stdscr, url, player_id):
         bandwidth = sum(b for _, b in byte_log) / window
 
         render(stdscr, state, local_map, player_id, bandwidth,
-               local_messages)
+                local_messages)
+        last_state = state
 
         if state.get("game_over") or state.get("game_win"):
             if state.get("game_over"):
@@ -588,6 +593,7 @@ def main(stdscr, url, player_id):
                 add_hero(player_id, hero_name)
                 local_map = LocalMap()
                 local_messages = []
+                last_state = None
                 continue
             continue
 
