@@ -516,6 +516,32 @@ def main(stdscr, url, player_id):
             nbytes = 0
 
         depth = state.get("depth", 0)
+
+        # Minimal response — nothing changed, skip rendering but still read input
+        if "map" not in state:
+            byte_log.append((now, nbytes))
+            while byte_log and now - byte_log[0][0] > window:
+                byte_log.popleft()
+            bandwidth = sum(b for _, b in byte_log) / window
+            key = stdscr.getch()
+            if key == -1:
+                continue
+            if key in (ord('q'), ord('Q'), 27):
+                deregister(url, player_id)
+                break
+            if key in P1_MOVES and key in ACTION_MAP:
+                dx, dy = ACTION_MAP[key]
+                send_action(url, player_id, {"type": "move", "dx": dx, "dy": dy})
+            elif key in (ord('>'), ord('=')):
+                send_action(url, player_id, {"type": "stairs_down"})
+            elif key in (ord('<'), ord('-')):
+                send_action(url, player_id, {"type": "stairs_up"})
+            elif key == ord('g'):
+                send_action(url, player_id, {"type": "grab"})
+            elif key == ord('.'):
+                send_action(url, player_id, {"type": "wait"})
+            continue
+
         full_update = local_map.needs_full_update(depth)
         if full_update:
             local_map.depth = depth

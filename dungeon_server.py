@@ -503,18 +503,18 @@ class GameServer:
             game_over = target.dead
 
             # Compute state hash to detect changes
-            state_key = (chars, visible_hex,
-                         tuple((e["x"], e["y"], e["hp"]) for e in enemies),
-                         tuple((it["x"], it["y"]) for it in items),
-                         tuple((p["x"], p["y"], p["hp"]) for p in player_stats),
-                         tuple(m[0] for m in messages))
-            current_hash = hashlib.md5(json.dumps(state_key, sort_keys=True).encode()).hexdigest()
-
-            if not full and current_hash == self._last_state_hash.get(player_id):
-                # Nothing changed — return minimal response
-                return {"tick": g.tick}
-
-            self._last_state_hash[player_id] = current_hash
+            # Skip optimization if player has a pending action —
+            # state will change once the game loop processes it
+            if not full and not target.queued_action:
+                state_key = (chars, visible_hex,
+                             tuple((e["x"], e["y"], e["hp"]) for e in enemies),
+                             tuple((it["x"], it["y"]) for it in items),
+                             tuple((p["x"], p["y"], p["hp"]) for p in player_stats),
+                             tuple(m[0] for m in messages))
+                current_hash = hashlib.md5(json.dumps(state_key, sort_keys=True).encode()).hexdigest()
+                if current_hash == self._last_state_hash.get(player_id):
+                    return {"tick": g.tick}
+                self._last_state_hash[player_id] = current_hash
 
             return {
                 "tick": g.tick,

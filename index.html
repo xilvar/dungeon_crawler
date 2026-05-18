@@ -326,7 +326,7 @@ async function poll(){
     const state=await get_state(player_id);
     last_state=state;
 
-    // Minimal response — nothing changed
+ // Minimal response — nothing changed
     if(!state.map){
       render_bw();
       setTimeout(poll, POLL_MS);
