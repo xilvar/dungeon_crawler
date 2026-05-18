@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dungeon Crawler</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:#0a0a0a;color:#ccc;font-family:'Courier New',monospace;font-size:14px}
+#app{display:flex;flex-direction:column;height:100vh}
+#canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;min-height:0}
+canvas{image-rendering:pixelated;display:block}
+#noshow{position:absolute;color:#555;font-size:13px;pointer-events:none}
+#status,#msgs,#help{padding:4px 12px;white-space:nowrap;overflow:hidden}
+#status{background:#111;color:#0f0;font-size:13px;border-top:1px solid #333}
+#msgs{background:#0d0d0d;height:80px;overflow-y:auto;font-size:13px;border-top:1px solid #222;border-bottom:1px solid #222}
+.msg{padding:1px 12px}
+.msg-old{color:#555}
+.msg-new{color:#ccc}
+#help{background:#111;color:#666;font-size:12px;text-align:center}
+.hidden{display:none}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;z-index:100}
+#overlay.hidden{display:none}
+.box{background:#111;border:1px solid #444;padding:32px 40px;min-width:340px;text-align:center}
+.box h1{color:#0f0;margin-bottom:6px;font-size:22px}
+.box h2{color:#f80;margin-bottom:12px;font-size:18px}
+.box p{color:#888;margin-bottom:16px;font-size:13px}
+.box input{background:#0a0a0a;color:#ccc;border:1px solid #444;padding:8px 12px;font-family:inherit;font-size:14px;width:220px;text-align:center;outline:none}
+.box input:focus{border-color:#0f0}
+.box .btns{margin-top:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.box button{background:#222;color:#ccc;border:1px solid #555;padding:8px 18px;font-family:inherit;font-size:13px;cursor:pointer}
+.box button:hover{background:#333;border-color:#0f0;color:#0f0}
+.hero-list{text-align:left;margin:12px 0;max-height:180px;overflow-y:auto}
+.hero-item{padding:6px 12px;cursor:pointer;border:1px solid transparent;display:flex;justify-content:space-between;align-items:center}
+.hero-item:hover{background:#1a1a1a;border-color:#0f0;color:#0f0}
+.hero-item .del{color:#633;cursor:pointer;font-size:12px;margin-left:8px}
+.hero-item .del:hover{color:#f44}
+#focus-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);color:#555;font-size:12px;pointer-events:none;transition:opacity .3s}
+#focus-hint.hidden{opacity:0}
+#bw{color:#555;font-size:11px;margin-left:12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvas-wrap">
+    <canvas id="c"></canvas>
+    <div id="noshow">Connecting to server...</div>
+    <div id="focus-hint" class="hidden">Click to focus</div>
+  </div>
+  <div id="status"><span id="status-text">---</span><span id="bw"></span></div>
+  <div id="msgs"></div>
+  <div id="help">&gt;:Down  &lt;:Up  g:Grab  /:Rest  Arrows/WASD:Move  q:Quit</div>
+</div>
+<div id="overlay">
+  <div class="box" id="start-box">
+    <h1>Dungeon Crawler</h1>
+    <p>Enter your name to begin</p>
+    <input id="name-in" type="text" placeholder="Hero name" maxlength="20" autofocus>
+    <div class="hero-list" id="hero-list"></div>
+    <div class="btns">
+      <button id="btn-new">New Game</button>
+    </div>
+  </div>
+  <div class="box hidden" id="end-box">
+    <h2 id="end-title">Game Over</h2>
+    <p id="end-msg"></p>
+    <div class="btns">
+      <button id="btn-restart">New Game</button>
+      <button id="btn-quit">Quit</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- Config ---
+const TILE=16, MAP_W=60, MAP_H=60, POLL_MS=100;
+const COLORS={0:'#000',1:'#f44',2:'#0f0',3:'#ff0',4:'#44f',5:'#f0f',6:'#0ff',7:'#fff'};
+const ITEM_COLOR={'potion':1,'sword':7,'shield':6,'gold':3};
+const TILE_COLORS={'#':'#888','.':'#444','+':'#a85','-':'#666','>':'#0ff','<':'#0ff','~':'#f0f'};
+
+// --- State ---
+let url, player_id, local_map, local_vis, depth=-1, msgs=[];
+let my_player=null, polling=false, byte_log=[];
+const keys={};
+
+// --- DOM ---
+const $=id=>document.getElementById(id);
+const canvas=$('c'), ctx=canvas.getContext('2d');
+const overlay=$('overlay'), startBox=$('start-box'), endBox=$('end-box');
+const nameIn=$('name-in'), heroList=$('hero-list');
+const noshow=$('noshow'), focusHint=$('focus-hint');
+
+// --- Resize ---
+function resize(){
+  const wrap=$('canvas-wrap');
+  const w=wrap.clientWidth, h=wrap.clientHeight;
+  canvas.width=w; canvas.height=h;
+  if(local_map) render();
+}
+window.addEventListener('resize', resize);
+
+// --- Network ---
+async function fetch_json(path, opts){
+  const r=await fetch(url+path, opts);
+  const sz=parseInt(r.headers.get('content-length'))||0;
+  const txt=await r.text();
+  byte_log.push({t:performance.now(),b:sz});
+  return JSON.parse(txt);
+}
+
+async function register(cid, name){
+  const body=cid?{client_id:cid,name:(name||undefined)}:{name};
+  return fetch_json('/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+}
+
+async function deregister(pid){
+  if(!pid) return;
+  try{ await fetch('/deregister',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({player_id:pid})}); }catch(e){}
+}
+
+async function send_action(pid, action){
+  try{ await fetch('/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({player_id:pid,action})}); }catch(e){}
+}
+
+async function get_state(pid, full=false){
+  return fetch_json(`/state?player_id=${pid}&full=${full?1:0}`);
+}
+
+async function validate_hero(cid){
+  try{ const r=await fetch_json(`/validate?client_id=${cid}`); return r.valid; }catch(e){ return false; }
+}
+
+// --- Heroes ---
+function load_heroes(){ try{ return JSON.parse(localStorage.getItem('dc_heroes')||'[]'); }catch(e){ return []; } }
+function save_heroes(h){ localStorage.setItem('dc_heroes',JSON.stringify(h)); }
+
+async function refresh_heroes(){
+  const heroes=load_heroes();
+  const valid=[];
+  for(const h of heroes){
+    if(await validate_hero(h.id)) valid.push(h);
+  }
+  save_heroes(valid);
+  return valid;
+}
+
+function render_hero_list(heroes){
+  heroList.innerHTML='';
+  if(!heroes.length){ heroList.innerHTML='<p style="color:#555;font-size:12px">No saved heroes</p>'; return; }
+  for(const h of heroes){
+    const d=document.createElement('div');
+    d.className='hero-item';
+    d.innerHTML=`<span>${h.name}</span><span class="del" title="Delete">\u00d7</span>`;
+    d.querySelector('.del').onclick=e=>{e.stopPropagation();delete_hero(h.id);};
+    d.onclick=()=>{nameIn.value=h.name;start_game(h.id, h.name);};
+    heroList.appendChild(d);
+  }
+}
+
+async function delete_hero(id){
+  const heroes=load_heroes().filter(h=>h.id!==id);
+  save_heroes(heroes);
+  render_hero_list(heroes);
+}
+
+function save_hero(id, name){
+  const heroes=load_heroes();
+  const ex=heroes.find(h=>h.id===id);
+  if(ex) ex.name=name; else heroes.push({id,name});
+  save_heroes(heroes);
+}
+
+function remove_hero(id){
+  save_heroes(load_heroes().filter(h=>h.id!==id));
+}
+
+// --- Map ---
+function init_map(){
+  local_map=Array.from({length:MAP_H},()=>Array(MAP_W).fill(' '));
+  local_vis=Array.from({length:MAP_H},()=>Array(MAP_W).fill(false));
+}
+
+function merge_map(state){
+  const mx=state.map_x||0, my=state.map_y||0;
+  const mw=state.map_w||0, mh=state.map_h||0;
+  const map=state.map||[], vis=state.visible||[];
+  const hex_w=Math.ceil((mw+3)/4);
+
+  for(let sy=0;sy<mh;sy++){
+    const gy=sy+my;
+    if(gy<0||gy>=MAP_H) continue;
+    const row=map[sy]||'';
+    const vh=vis[sy]||'0';
+    let bits=0;
+    try{ bits=parseInt(vh,16); }catch(e){}
+    for(let sx=0;sx<mw;sx++){
+      const gx=sx+mx;
+      if(gx<0||gx>=MAP_W) continue;
+      local_map[gy][gx]=sx<row.length?row[sx]:' ';
+      local_vis[gy][gx]=!!(bits&(1<<sx));
+    }
+  }
+  // Clear visibility outside window
+  const max_x=mx+mw, max_y=my+mh;
+  for(let y=0;y<MAP_H;y++)
+    for(let x=0;x<MAP_W;x++)
+      if(x<mx||x>=max_x||y<my||y>=max_y) local_vis[y][x]=false;
+}
+
+// --- Render ---
+function render(){
+  if(!my_player) return;
+  const cw=canvas.width, ch=canvas.height;
+  const tw=Math.floor(cw/TILE), th=Math.floor(ch/TILE);
+  if(tw<1||th<1) return;
+
+  const px=my_player.x, py=my_player.y;
+  let sx=Math.max(0,Math.min(px-Math.floor(tw/2),MAP_W-tw));
+  let sy=Math.max(0,Math.min(py-Math.floor(th/2),MAP_H-th));
+
+  ctx.fillStyle='#0a0a0a';
+  ctx.fillRect(0,0,cw,ch);
+  ctx.font=`${TILE}px Courier New,monospace`;
+  ctx.textBaseline='top';
+
+  // Tiles
+  for(let vy=0;vy<th;vy++){
+    const gy=vy+sy; if(gy>=MAP_H) break;
+    for(let vx=0;vx<tw;vx++){
+      const gx=vx+sx; if(gx>=MAP_W) break;
+      const ch2=local_map[gy][gx];
+      const vis=local_vis[gy][gx];
+      if(ch2===' '&&!vis) continue;
+      const tc=TILE_COLORS[ch2]||'#666';
+       ctx.fillStyle=vis?tc:'#333';
+      ctx.fillText(ch2,vx*TILE,vy*TILE);
+    }
+  }
+
+  // Items
+  const state=last_state;
+  if(state){
+    for(const it of (state.items||[])){
+      const ix=it.x-sx, iy=it.y-sy;
+      if(ix<0||ix>=tw||iy<0||iy>=th) continue;
+      ctx.fillStyle=COLORS[ITEM_COLOR[it.kind]||7];
+      ctx.fillText(it.char,ix*TILE,iy*TILE);
+    }
+    // Corpses
+    for(const c of (state.corpses||[])){
+      const ix=c.x-sx, iy=c.y-sy;
+      if(ix<0||ix>=tw||iy<0||iy>=th) continue;
+      ctx.fillStyle='#555';
+      ctx.fillText(c.char,ix*TILE,iy*TILE);
+    }
+    // Enemies
+    for(const e of (state.enemies||[])){
+      const ix=e.x-sx, iy=e.y-sy;
+      if(ix<0||ix>=tw||iy<0||iy>=th) continue;
+      ctx.fillStyle=COLORS[e.color||1];
+      ctx.font=`bold ${TILE}px Courier New,monospace`;
+      ctx.fillText(e.char,ix*TILE,iy*TILE);
+      ctx.font=`${TILE}px Courier New,monospace`;
+    }
+    // Other players
+    for(const pl of (state.players||[])){
+      if(pl.id===player_id||pl.dead) continue;
+      const ix=pl.x-sx, iy=pl.y-sy;
+      if(ix<0||ix>=tw||iy<0||iy>=th) continue;
+      ctx.fillStyle=COLORS[pl.color||7];
+      ctx.font=`bold ${TILE}px Courier New,monospace`;
+      ctx.fillText('@',ix*TILE,iy*TILE);
+      ctx.font=`${TILE}px Courier New,monospace`;
+    }
+    // Self (last so on top)
+    if(!my_player.dead){
+      const ix=px-sx, iy=py-sy;
+      if(ix>=0&&ix<tw&&iy>=0&&iy<th){
+        ctx.fillStyle=COLORS[my_player.color||7];
+        ctx.font=`bold ${TILE}px Courier New,monospace`;
+        ctx.fillText('@',ix*TILE,iy*TILE);
+      }
+    }
+  }
+}
+
+// --- Status ---
+function render_status(){
+  if(!my_player) return;
+  const d=my_player.dead?' [DEAD]':my_player.game_win?' [WIN]':'';
+  $('status-text').textContent=`${my_player.name} | Lv${my_player.level} | HP ${my_player.hp}/${my_player.max_hp} | ATK ${my_player.attack} | DEF ${my_player.defense} | XP ${my_player.xp}/${my_player.next_level_xp} | Gold ${my_player.gold} | Depth ${depth+1}/10${d}`;
+}
+
+// --- Messages ---
+function render_messages(new_msgs){
+  if(new_msgs&&new_msgs.length){
+    msgs.push(...new_msgs.map(m=>typeof m==='string'?m:m[0]));
+    if(msgs.length>100) msgs=msgs.slice(-100);
+  }
+  const el=$('msgs');
+  const show=msg_count||12;
+  const visible=msgs.slice(-show);
+  el.innerHTML=visible.map((m,i)=>`<div class="${i===visible.length-1?'msg-new':'msg-old'}">${esc(m)}</div>`).join('');
+  el.scrollTop=el.scrollHeight;
+}
+let msg_count=12;
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// --- Bandwidth ---
+function render_bw(){
+  const now=performance.now();
+  while(byte_log.length&&now-byte_log[0].t>3000) byte_log.shift();
+  const total=byte_log.reduce((s,b)=>s+b.b,0);
+  const bw=total/3;
+  const el=$('bw');
+  if(el) el.textContent=bw>0?` ${(bw/1024).toFixed(1)} KB/s`:'';
+}
+
+// --- Game loop ---
+let last_state=null;
+async function poll(){
+  if(!polling) return;
+  try{
+    const state=await get_state(player_id);
+    last_state=state;
+    depth=state.depth||0;
+
+    if(!local_map||depth!==local_map_depth){
+      local_map_depth=depth;
+      try{
+        const fs=await get_state(player_id,true);
+        merge_map(fs);
+      }catch(e){}
+    }
+    merge_map(state);
+
+    my_player=null;
+    for(const p of (state.players||[]))
+      if(p.id==player_id) my_player=p;
+
+    if(my_player){
+      noshow.style.display='none';
+      render();
+      render_status();
+    }
+
+    render_messages(state.messages||[]);
+    render_bw();
+
+    if(state.game_over){
+      polling=false;
+      remove_hero(player_id);
+      show_end(true);
+    } else if(state.game_win){
+      polling=false;
+      show_end(false);
+    }
+  }catch(e){
+    console.error('poll error:', e);
+    if(!my_player) noshow.textContent='Connecting... ('+e.message.slice(0,40)+')';
+  }
+  setTimeout(poll, POLL_MS);
+}
+
+let local_map_depth=-1;
+
+// --- Input ---
+const KEY_MOVE={ArrowLeft:[-1,0],ArrowDown:[0,1],ArrowUp:[0,-1],ArrowRight:[1,0],a:[-1,0],s:[0,1],w:[0,-1],d:[1,0]};
+
+document.addEventListener('keydown',e=>{
+  if(overlay&&!overlay.classList.contains('hidden')){
+    if(e.key==='Enter'&&!startBox.classList.contains('hidden')){
+      const n=nameIn.value.trim();
+      if(n) start_game(null, n);
+    }
+    return;
+  }
+  if(e.key==='Escape'||e.key==='q'){
+    // Don't quit during game, just ignore
+    if(!last_state||last_state.game_over||last_state.game_win) return;
+  }
+  keys[e.key]=true;
+  if(KEY_MOVE[e.key]){
+    e.preventDefault();
+    const[dx,dy]=KEY_MOVE[e.key];
+    send_action(player_id,{type:'move',dx,dy});
+  } else if(e.key==='>'||e.key==='='){
+    e.preventDefault();
+    send_action(player_id,{type:'stairs_down'});
+  } else if(e.key==='<'||e.key==='-'){
+    e.preventDefault();
+    send_action(player_id,{type:'stairs_up'});
+  } else if(e.key==='g'){
+    e.preventDefault();
+    send_action(player_id,{type:'grab'});
+  } else if(e.key==='/'){
+    e.preventDefault();
+    send_action(player_id,{type:'rest'});
+  }
+});
+document.addEventListener('keyup',e=>{keys[e.key]=false;});
+
+canvas.addEventListener('click',()=>{canvas.focus();focusHint.classList.add('hidden');});
+canvas.addEventListener('blur',()=>{if(polling) focusHint.classList.remove('hidden');});
+canvas.addEventListener('focus',()=>{focusHint.classList.add('hidden');});
+
+// --- Start / End ---
+async function show_start(){
+  overlay.classList.remove('hidden');
+  startBox.classList.remove('hidden');
+  endBox.classList.add('hidden');
+  const heroes=await refresh_heroes();
+  render_hero_list(heroes);
+  nameIn.focus();
+}
+
+async function start_game(cid, name){
+  if(!name||!name.trim()) return;
+  overlay.classList.add('hidden');
+  init_map();
+  local_map_depth=-1;
+  msgs=[];
+  my_player=null;
+  last_state=null;
+  noshow.style.display='block';
+
+  let result;
+  try{
+    result=await register(cid, name.trim());
+  }catch(e){
+    overlay.classList.remove('hidden');
+    startBox.classList.remove('hidden');
+    alert('Connection failed: '+e.message);
+    return;
+  }
+  if(result.error){
+    if(cid){
+      // Try new hero
+      remove_hero(cid);
+      const n=prompt('Hero not found. Enter new name:');
+      if(!n) return;
+      const r2=await register(null, n.trim());
+      if(r2.error){alert('Failed: '+r2.error);return;}
+      player_id=r2.player_id;
+      save_hero(player_id, n.trim());
+    } else {
+      alert('Failed: '+result.error); return;
+    }
+  } else {
+    player_id=result.player_id;
+    save_hero(player_id, name.trim());
+  }
+
+  polling=true;
+  canvas.focus();
+  poll();
+}
+
+function show_end(dead){
+  overlay.classList.remove('hidden');
+  startBox.classList.add('hidden');
+  endBox.classList.remove('hidden');
+  $('end-title').textContent=dead?'You Have Died':'You Conquered the Dungeon!';
+  $('end-title').style.color=dead?'#f44':'#0f0';
+  const p=my_player;
+  $('end-msg').textContent=p?`${p.name} | Lv${p.level} | Depth ${depth+1} | Gold ${p.gold}`:'';
+}
+
+$('btn-new').onclick=()=>{
+  const n=nameIn.value.trim()||prompt('Enter hero name:');
+  if(n) start_game(null, n.trim());
+};
+$('btn-restart').onclick=()=>{
+  deregister(player_id).then(()=>{
+    player_id=null;
+    show_start();
+  });
+};
+$('btn-quit').onclick=()=>{
+  deregister(player_id);
+  player_id=null;
+  polling=false;
+  location.reload();
+};
+nameIn.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    e.stopPropagation();
+    const n=nameIn.value.trim();
+    if(n) start_game(null, n);
+  }
+});
+
+// --- Init ---
+(function(){
+  url=`http://${location.host}`;
+  resize();
+  canvas.setAttribute('tabindex','0');
+  canvas.style.outline='none';
+  show_start();
+})();
+</script>
+</body>
+</html>

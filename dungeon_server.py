@@ -3,6 +3,7 @@
 actions, visibility-filtered state responses, and smart spawn placement."""
 import asyncio
 import json
+import os
 import sys
 import threading
 import time
@@ -30,22 +31,12 @@ from dungeon_crawler import (
 )
 
 SAVE_PATH = "dungeon_server.json"
+PLAYERS_SAVE_PATH = "dungeon_players.json"
 
 
 def json_response(data, request=None, **kwargs):
-    """Return a JSON response, compressed with gzip if client accepts it."""
+    """Return a JSON response."""
     body = json.dumps(data).encode()
-    if request and "gzip" in request.headers.get("Accept-Encoding", ""):
-        compressed = gzip.compress(body, compresslevel=6)
-        return web.Response(
-            body=compressed,
-            content_type="application/json",
-            headers={
-                "Content-Encoding": "gzip",
-                "Content-Length": str(len(compressed)),
-            },
-            **kwargs,
-        )
     return web.Response(body=body, content_type="application/json", **kwargs)
 
 
@@ -80,6 +71,35 @@ class GameServer:
             self.game.players = []
             self.game.player_visible = []
 
+    @staticmethod
+    def _pack_explored(grid):
+        """Pack a 2D boolean grid into lists of 32-bit integers."""
+        packed = []
+        for row in grid:
+            row_words = []
+            for i in range((len(row) + 31) // 32):
+                word = 0
+                for j in range(32):
+                    if i * 32 + j < len(row) and row[i * 32 + j]:
+                        word |= (1 << j)
+                row_words.append(word)
+            packed.append(row_words)
+        return packed
+
+    @staticmethod
+    def _unpack_explored(packed, width):
+        """Unpack lists of 32-bit integers into a 2D boolean grid."""
+        grid = []
+        for row_words in packed:
+            row = []
+            for word_idx, word in enumerate(row_words):
+                for j in range(32):
+                    pos = word_idx * 32 + j
+                    if pos < width:
+                        row.append(bool((word >> j) & 1))
+            grid.append(row)
+        return grid
+
     def _save_state(self):
         """Serialize game state to JSON file."""
         def serialize_player(p):
@@ -97,15 +117,14 @@ class GameServer:
                 "server_id": getattr(p, "_server_id", 0),
                 "client_id": getattr(p, "_client_id", None),
                 "next_tick": p.next_tick,
-                "explored": {int(d): grid for d, grid in p.explored.items()},
+                "explored": {int(d): self._pack_explored(grid)
+                             for d, grid in p.explored.items()},
             }
 
         state = {
             "tick": self.game.tick,
             "next_internal_id": self._next_internal_id,
             "levels": {},
-            "active_players": [serialize_player(p) for p in self.game.players],
-            "inactive_players": [serialize_player(p) for p in self.inactive_players],
             "last_state_tick": self._last_state_tick,
         }
         for depth, lvl in self.game.levels.items():
@@ -126,6 +145,16 @@ class GameServer:
         try:
             with open(SAVE_PATH, 'w') as f:
                 json.dump(state, f)
+        except OSError:
+            pass
+
+        player_state = {
+            "active_players": [serialize_player(p) for p in self.game.players],
+            "inactive_players": [serialize_player(p) for p in self.inactive_players],
+        }
+        try:
+            with open(PLAYERS_SAVE_PATH, 'w') as f:
+                json.dump(player_state, f)
         except OSError:
             pass
 
@@ -168,17 +197,24 @@ class GameServer:
             p._server_id = pd["server_id"]
             p._client_id = pd.get("client_id")
             p.next_tick = pd["next_tick"]
-            p.explored = {int(d): grid for d, grid in pd.get("explored", {}).items()}
+            p.explored = {int(d): self._unpack_explored(grid, MAP_WIDTH)
+                           for d, grid in pd.get("explored", {}).items()}
             return p
 
-        # Restore players
-        for pd in state["active_players"]:
+        # Restore players from separate file
+        try:
+            with open(PLAYERS_SAVE_PATH, 'r') as f:
+                player_state = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            player_state = {"active_players": [], "inactive_players": []}
+
+        for pd in player_state["active_players"]:
             p = deserialize_player(pd)
             self.game.players.append(p)
             if p._client_id:
                 self.clients[p._client_id] = p
 
-        for pd in state["inactive_players"]:
+        for pd in player_state["inactive_players"]:
             p = deserialize_player(pd)
             self.inactive_players.append(p)
 
@@ -231,6 +267,12 @@ class GameServer:
                             and not candidate.dead and not candidate.game_win:
                         inactive = self.inactive_players.pop(i)
                         break
+                if not inactive:
+                    for i, candidate in enumerate(g.players):
+                        if getattr(candidate, '_client_id', None) == client_id \
+                                and not candidate.dead and not candidate.game_win:
+                            inactive = g.players.pop(i)
+                            break
                 if not inactive:
                     return {"error": "player not found"}
             client_id = client_id or str(uuid.uuid4())
@@ -571,9 +613,22 @@ async def validate_player(request):
     return json_response(result, request)
 
 
+async def serve_index(request):
+    """Serve the web client HTML file."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "index.html")
+    try:
+        with open(path, "rb") as f:
+            body = f.read()
+    except FileNotFoundError:
+        return web.Response(status=404)
+    return web.Response(body=body, content_type="text/html")
+
+
 def create_app():
     """Build and return the aiohttp application with routes."""
     app = web.Application()
+    app.router.add_get("/", serve_index)
     app.router.add_get("/health", health)
     app.router.add_get("/state", get_state)
     app.router.add_post("/register", register_player)

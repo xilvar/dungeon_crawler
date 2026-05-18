@@ -2,3 +2,4 @@ __pycache__
 error.log
 dungeon_client.json
 dungeon_server.json
+dungeon_players.json
