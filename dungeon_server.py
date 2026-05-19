@@ -434,13 +434,20 @@ class GameServer:
             depth = target.depth
             enemies = []
             for e in g._get_enemies(depth):
-                if e["hp"] > 0 and p_visible[e["y"]][e["x"]]:
-                    enemies.append({
-                        "x": e["x"], "y": e["y"],
-                        "name": e["name"], "char": e["char"],
-                        "color": e["color"], "hp": e["hp"],
-                        "max_hp": e["max_hp"],
-                    })
+                if e["hp"] <= 0:
+                    continue
+                if e.get("water"):
+                    if not e.get("visible", False):
+                        continue
+                else:
+                    if not p_visible[e["y"]][e["x"]]:
+                        continue
+                enemies.append({
+                    "x": e["x"], "y": e["y"],
+                    "name": e["name"], "char": e["char"],
+                    "color": e["color"], "hp": e["hp"],
+                    "max_hp": e["max_hp"],
+                })
 
             items = []
             for it in g._get_items(depth):

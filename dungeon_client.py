@@ -336,11 +336,12 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0,
         for sx in range(view_w):
             gx = sx + start_x
             ch = local_map.chars[gy][gx]
-            attr = (
-                curses.A_NORMAL
-                if local_map.visible[gy][gx]
-                else curses.A_DIM
-            )
+            if ch == '~':
+                attr = curses.color_pair(5)
+            elif local_map.visible[gy][gx]:
+                attr = curses.A_NORMAL
+            else:
+                attr = curses.A_DIM
             try:
                 stdscr.addch(sy, sx, ord(ch), attr)
             except curses.error:

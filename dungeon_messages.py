@@ -188,6 +188,31 @@ ENEMY_SOUNDS = {
         "Something enormous shifts with a deep rumble.",
         "A roar echoes through the dungeon with terrifying force.",
     ],
+    "Water Mite": [
+        "You hear a faint splashing in the water.",
+        "Something small ripples across the pool nearby.",
+        "A tiny splash echoes from the dark water.",
+    ],
+    "Water Snake": [
+        "You hear a faint hiss from the water.",
+        "Something slithers beneath the surface nearby.",
+        "A ripple disturbs the still water in the distance.",
+    ],
+    "Deep One": [
+        "You hear gurgling speech from the water.",
+        "Something large moves beneath the dark surface.",
+        "A wet gurgling sound comes from the pool nearby.",
+    ],
+    "Water Elemental": [
+        "You hear water churning and splashing nearby.",
+        "The pool bubbles and swirls with unseen force.",
+        "A rushing sound of water echoes from the darkness.",
+    ],
+    "Kraken": [
+        "You hear massive splashing and gurgling nearby.",
+        "The water trembles as something enormous shifts beneath.",
+        "A deep rumbling roar emanates from the dark depths.",
+    ],
 }
 
 ENEMY_SOUNDS_DEFAULT = [
@@ -410,6 +435,31 @@ ENEMY_HIT_MESSAGES = {
             "for {damage} damage!"
         ),
     ],
+    "Water Mite": [
+        "A Water Mite bursts from the water and bites {name} for {damage} damage!",
+        "Something small and fast strikes {name} from the water for {damage} damage!",
+        "A Water Mite leaps from the pool and stings {name} for {damage} damage!",
+    ],
+    "Water Snake": [
+        "A Water Snake lunges from the water and bites {name} for {damage} damage!",
+        "Cold water erupts as a Water Snake strikes {name} for {damage} damage!",
+        "A Water Snake coils around {name} and bites for {damage} damage!",
+    ],
+    "Deep One": [
+        "A Deep One rises from the water and claws {name} for {damage} damage!",
+        "Something large emerges from the depths and strikes {name} for {damage} damage!",
+        "A Deep One grabs {name} from the water and slashes for {damage} damage!",
+    ],
+    "Water Elemental": [
+        "A Water Elemental surges from the pool and slams {name} for {damage} damage!",
+        "The water boils as a Water Elemental strikes {name} for {damage} damage!",
+        "A torrent of water crashes into {name} for {damage} damage!",
+    ],
+    "Kraken": [
+        "A Kraken tentacle lashes {name} from the water for {damage} damage!",
+        "The water explodes as a Kraken emerges and strikes {name} for {damage} damage!",
+        "A massive Kraken grabs {name} and slams them for {damage} damage!",
+    ],
 }
 
 ENEMY_HIT_DEFAULT = "The {enemy} hits {name} for {damage} damage!"
@@ -605,4 +655,16 @@ MSG_WALK_WALL = [
     "The wall stops you in your tracks.",
     "You press against the stone wall.",
     "The wall is solid.",
+]
+MSG_ENTER_WATER = [
+    "You wade into the water.",
+    "You step into the pool.",
+    "Cold water rises around your legs.",
+    "You splash into the water.",
+]
+MSG_LEAVE_WATER = [
+    "You step out of the water.",
+    "You wade out of the pool.",
+    "Water drips from your clothes as you exit.",
+    "You emerge from the water.",
 ]

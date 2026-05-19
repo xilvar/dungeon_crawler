@@ -3,6 +3,7 @@
 ambient sounds, player state, and a text-mode renderer for debugging."""
 
 import random
+from collections import deque
 
 from dungeon_messages import (
     ENEMY_SOUNDS,
@@ -50,6 +51,8 @@ from dungeon_messages import (
     MSG_OPEN_DOOR,
     MSG_SEE_DOOR_OPEN,
     MSG_WALK_WALL,
+    MSG_ENTER_WATER,
+    MSG_LEAVE_WATER,
 )
 
 # --- Constants ---
@@ -99,6 +102,7 @@ TILE_STAIRS_DOWN = 3
 TILE_STAIRS_UP = 4
 TILE_DOOR_OPEN = 5
 TILE_GENERATOR = 6
+TILE_WATER = 7
 
 # Tile rendering
 TILE_CHAR = {
@@ -108,7 +112,8 @@ TILE_CHAR = {
     TILE_STAIRS_DOWN: ">",
     TILE_STAIRS_UP: "<",
     TILE_DOOR_OPEN: "-",
-    TILE_GENERATOR: "~",
+    TILE_GENERATOR: "*",
+    TILE_WATER: "~",
 }
 
 # Entity types
@@ -145,6 +150,11 @@ ENEMY_GOLEM = "golem"
 ENEMY_SNAKE = "snake"
 ENEMY_DEMON = "demon"
 ENEMY_DRAGON = "dragon"
+ENEMY_WATER_MITE = "water_mite"
+ENEMY_WATER_SNAKE = "water_snake"
+ENEMY_DEEP_ONE = "deep_one"
+ENEMY_WATER_ELEMENTAL = "water_elemental"
+ENEMY_KRAKEN = "kraken"
 
 ENEMY_PROPS = {
     # Tier 1 - vermin/scavengers
@@ -289,6 +299,32 @@ ENEMY_PROPS = {
         "char": "d", "color": COLOR_RED, "name": "Dragon",
         "hp": 50, "attack": 12, "defense": 5, "xp": 50,
     },
+    # Water enemies - hidden in water, cannot leave water
+    ENEMY_WATER_MITE: {
+        "char": ".", "color": COLOR_BLUE, "name": "Water Mite",
+        "hp": 4, "attack": 2, "defense": 0, "xp": 2,
+        "water": True,
+    },
+    ENEMY_WATER_SNAKE: {
+        "char": "N", "color": COLOR_CYAN, "name": "Water Snake",
+        "hp": 10, "attack": 4, "defense": 1, "xp": 6,
+        "water": True,
+    },
+    ENEMY_DEEP_ONE: {
+        "char": "D", "color": COLOR_CYAN, "name": "Deep One",
+        "hp": 30, "attack": 7, "defense": 3, "xp": 25,
+        "water": True,
+    },
+    ENEMY_WATER_ELEMENTAL: {
+        "char": "W", "color": COLOR_BLUE, "name": "Water Elemental",
+        "hp": 40, "attack": 9, "defense": 3, "xp": 35,
+        "water": True,
+    },
+    ENEMY_KRAKEN: {
+        "char": "K", "color": COLOR_MAGENTA, "name": "Kraken",
+        "hp": 55, "attack": 12, "defense": 4, "xp": 55,
+        "water": True,
+    },
 }
 
 
@@ -415,7 +451,8 @@ def create_cave_dungeon(depth):
     """Generate an organic cave dungeon using cellular automata.
 
     Retries until a valid cave is produced.
-    Returns (grid, open_areas) where open_areas is a list of (x, y) floor tiles.
+    Returns (grid, open_areas, water_areas) where open_areas is a list of
+    (x, y) floor tiles and water_areas is a list of (x, y) water tiles.
     """
     while True:
         cave = [[TILE_WALL if random.random() < CAVE_FILL else TILE_FLOOR
@@ -464,18 +501,22 @@ def create_cave_dungeon(depth):
                 if (x, y) not in largest_set:
                     cave[y][x] = TILE_WALL
 
+        _add_water_to_cave(cave)
+
         open_areas = []
+        water_areas = []
         for py in range(1, MAP_HEIGHT - 1):
             for px in range(1, MAP_WIDTH - 1):
-                if cave[py][px] != TILE_FLOOR:
-                    continue
-                neighbors = sum(1 for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]
-                               if cave[py + dy][px + dx] == TILE_FLOOR)
-                if neighbors >= 3:
-                    open_areas.append((px, py))
+                if cave[py][px] == TILE_FLOOR:
+                    neighbors = sum(1 for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]
+                                   if cave[py + dy][px + dx] == TILE_FLOOR)
+                    if neighbors >= 3:
+                        open_areas.append((px, py))
+                elif cave[py][px] == TILE_WATER:
+                    water_areas.append((px, py))
 
         if len(open_areas) >= CAVE_MIN_OPEN:
-            return cave, open_areas
+            return cave, open_areas, water_areas
 
 
 def _flood_fill(grid, visited, sx, sy):
@@ -494,6 +535,40 @@ def _flood_fill(grid, visited, sx, sy):
                 queue.append((nx, ny))
     return component
 
+
+CAVE_WATER_DEPTH = 4
+
+
+def _add_water_to_cave(cave):
+    """Convert floor tiles deep inside open areas to water.
+
+    Uses BFS distance transform from walls. Tiles far from any wall
+    become water, creating natural pools in the center of large caves.
+    """
+    height = len(cave)
+    width = len(cave[0])
+
+    distance = [[-1] * width for _ in range(height)]
+    queue = deque()
+
+    for y in range(height):
+        for x in range(width):
+            if cave[y][x] == TILE_WALL:
+                distance[y][x] = 0
+                queue.append((x, y))
+
+    while queue:
+        x, y = queue.popleft()
+        for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < width and 0 <= ny < height and distance[ny][nx] == -1:
+                distance[ny][nx] = distance[y][x] + 1
+                queue.append((nx, ny))
+
+    for y in range(height):
+        for x in range(width):
+            if cave[y][x] == TILE_FLOOR and distance[y][x] >= CAVE_WATER_DEPTH:
+                cave[y][x] = TILE_WATER
 
 def place_entities(rooms, dungeon, depth):
     """Place enemies and items in rooms.
@@ -747,7 +822,7 @@ class Game:
         weights = [(d + 1) ** 2 for d in distances]  # quadratic weighting
         return random.choices(candidates, weights=weights, k=1)[0]
 
-    def _place_entities_cave(self, open_areas, dungeon, depth):
+    def _place_entities_cave(self, open_areas, water_areas, dungeon, depth):
         """Place player, enemies, and items in a cave dungeon."""
         if not open_areas:
             return 0, 0, [], []
@@ -801,6 +876,45 @@ class Game:
                 "defense": props["defense"] + depth // 2,
                 "xp": props["xp"] + depth * 5,
                 "depth": depth,
+            }
+            enemies.append(e)
+
+        # Place water enemies on water tiles
+        water_enemy_by_depth = {
+            0: [ENEMY_WATER_MITE],
+            1: [ENEMY_WATER_MITE],
+            2: [ENEMY_WATER_MITE, ENEMY_WATER_SNAKE],
+            3: [ENEMY_WATER_SNAKE],
+            4: [ENEMY_WATER_SNAKE, ENEMY_DEEP_ONE],
+            5: [ENEMY_DEEP_ONE],
+            6: [ENEMY_DEEP_ONE, ENEMY_WATER_ELEMENTAL],
+            7: [ENEMY_WATER_ELEMENTAL],
+            8: [ENEMY_WATER_ELEMENTAL, ENEMY_KRAKEN],
+            9: [ENEMY_KRAKEN],
+        }
+        water_pool = water_enemy_by_depth.get(enemy_tier, [ENEMY_WATER_MITE])
+        max_water_enemies = min(2 + depth, 10)
+
+        for _ in range(max_water_enemies):
+            spot = self._pick_open_spot(water_areas, used)
+            if spot is None:
+                break
+            ex, ey = spot
+            used.add(spot)
+            etype = random.choice(water_pool)
+            props = ENEMY_PROPS[etype]
+            e = {
+                "name": props["name"],
+                "char": props["char"],
+                "color": props["color"],
+                "x": ex, "y": ey,
+                "hp": props["hp"] + depth * 2,
+                "max_hp": props["hp"] + depth * 2,
+                "attack": props["attack"] + depth,
+                "defense": props["defense"] + depth // 2,
+                "xp": props["xp"] + depth * 5,
+                "depth": depth,
+                "water": True,
             }
             enemies.append(e)
 
@@ -905,8 +1019,9 @@ class Game:
         """
         dungeon_type = random.choice(DUNGEON_TYPES)
         if dungeon_type == "caves":
-            dungeon, open_areas = create_cave_dungeon(depth)
-            px, py, enemies, items = self._place_entities_cave(open_areas, dungeon, depth)
+            dungeon, open_areas, water_areas = create_cave_dungeon(depth)
+            px, py, enemies, items = self._place_entities_cave(
+                open_areas, water_areas, dungeon, depth)
             stairs_down_x, stairs_down_y = self._pick_cave_spot(open_areas, px, py)
             stairs_up_x, stairs_up_y = self._pick_cave_spot(open_areas, px, py,
                                                              exclude=(stairs_down_x, stairs_down_y))
@@ -1308,8 +1423,18 @@ class Game:
             self._do_combat_attack(player, enemy)
             player.next_tick = self.tick + TICK_ATTACK
         else:
+            current_tile = dungeon[player.y][player.x]
+            in_water = target_tile == TILE_WATER
+            was_in_water = current_tile == TILE_WATER
             player.x, player.y = nx, ny
-            player.next_tick = self.tick + TICK_PLAYER_MOVE
+            if in_water:
+                player.next_tick = self.tick + TICK_PLAYER_MOVE * 2
+            else:
+                player.next_tick = self.tick + TICK_PLAYER_MOVE
+            if in_water and not was_in_water:
+                self._tell(player, random.choice(MSG_ENTER_WATER), COLOR_BLUE)
+            elif was_in_water and not in_water:
+                self._tell(player, random.choice(MSG_LEAVE_WATER), COLOR_BLUE)
             self._ambient_sound(
                 nx, ny, player.depth, PLAYER_MOVE_AMBIENT,
                 COLOR_WHITE, source=player, chance=0.08,
@@ -1351,6 +1476,8 @@ class Game:
 
     def _do_combat_attack(self, player, enemy):
         """Resolve a player attacking an adjacent enemy."""
+        if enemy.get("water"):
+            enemy["visible"] = True
         damage = self.do_attack(
             player.name, player.attack_total(),
             enemy["name"], enemy["defense"])
@@ -1572,18 +1699,37 @@ class Game:
                 best_dist = dist
         return best, best_dist
 
+    def _can_enemy_move_to(self, enemy, x, y, depth):
+        """Check if an enemy can move to (x, y).
+
+        Water enemies can only move to water tiles.
+        """
+        if not self.is_passable(x, y, depth):
+            return False
+        if self.get_enemy_at(x, y, depth):
+            return False
+        if enemy.get("water"):
+            dungeon = self._get_dungeon(depth)
+            if not (0 <= x < MAP_WIDTH and 0 <= y < MAP_HEIGHT):
+                return False
+            return dungeon[y][x] == TILE_WATER
+        return True
+
     def _process_enemy_action(self, enemy, depth, level_tick):
         """Process one action for an enemy: attack, chase, or wander."""
         ex, ey = enemy["x"], enemy["y"]
         target, dist = self._get_nearest_player(ex, ey, depth)
+        is_water = enemy.get("water", False)
+        # Water enemies are only visible when adjacent to a player
+        if is_water:
+            enemy["visible"] = dist <= 1
         if target is None:
             moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
             random.shuffle(moves)
             moved = False
             for wdx, wdy in moves:
                 wx, wy = ex + wdx, ey + wdy
-                if (self.is_passable(wx, wy, depth)
-                        and not self.get_enemy_at(wx, wy, depth)):
+                if self._can_enemy_move_to(enemy, wx, wy, depth):
                     enemy["x"], enemy["y"] = wx, wy
                     moved = True
                     break
@@ -1657,8 +1803,7 @@ class Game:
                 dy = 1 if target.y > ey else -1
             nx, ny = ex + dx, ey + dy
             moved = False
-            if (self.is_passable(nx, ny, depth)
-                    and not self.get_enemy_at(nx, ny, depth)
+            if (self._can_enemy_move_to(enemy, nx, ny, depth)
                     and (nx != target.x or ny != target.y)):
                 enemy["x"], enemy["y"] = nx, ny
                 moved = True
@@ -1667,8 +1812,7 @@ class Game:
                 random.shuffle(moves)
                 for wdx, wdy in moves:
                     wx, wy = ex + wdx, ey + wdy
-                    if (self.is_passable(wx, wy, depth)
-                            and not self.get_enemy_at(wx, wy, depth)):
+                    if self._can_enemy_move_to(enemy, wx, wy, depth):
                         enemy["x"], enemy["y"] = wx, wy
                         moved = True
                         break
@@ -1685,8 +1829,7 @@ class Game:
             moved = False
             for wdx, wdy in moves:
                 wx, wy = ex + wdx, ey + wdy
-                if (self.is_passable(wx, wy, depth)
-                        and not self.get_enemy_at(wx, wy, depth)):
+                if self._can_enemy_move_to(enemy, wx, wy, depth):
                     enemy["x"], enemy["y"] = wx, wy
                     moved = True
                     break
