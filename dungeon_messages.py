@@ -668,3 +668,9 @@ MSG_LEAVE_WATER = [
     "Water drips from your clothes as you exit.",
     "You emerge from the water.",
 ]
+MSG_STEP_TRAP = [
+    "You step on a hidden trap and take damage!",
+    "A trap snaps shut under your foot!",
+    "You trigger a concealed pit trap!",
+    "Sharpened spikes erupt from the floor!",
+]

@@ -53,6 +53,7 @@ from dungeon_messages import (
     MSG_WALK_WALL,
     MSG_ENTER_WATER,
     MSG_LEAVE_WATER,
+    MSG_STEP_TRAP,
 )
 
 # --- Constants ---
@@ -103,6 +104,7 @@ TILE_STAIRS_UP = 4
 TILE_DOOR_OPEN = 5
 TILE_GENERATOR = 6
 TILE_WATER = 7
+TILE_TRAP = 8
 
 # Tile rendering
 TILE_CHAR = {
@@ -114,6 +116,7 @@ TILE_CHAR = {
     TILE_DOOR_OPEN: "-",
     TILE_GENERATOR: "*",
     TILE_WATER: "~",
+    TILE_TRAP: "^",
 }
 
 # Entity types
@@ -440,7 +443,7 @@ def create_dungeon(depth):
     return dungeon, rooms
 
 
-DUNGEON_TYPES = ["rooms", "caves"]
+DUNGEON_TYPES = ["rooms", "caves", "labyrinth", "tower"]
 CAVE_FILL = 0.47
 CAVE_WALL_THRESHOLD = 4
 CAVE_SMOOTH_PASSES = 6
@@ -516,7 +519,12 @@ def create_cave_dungeon(depth):
                     water_areas.append((px, py))
 
         if len(open_areas) >= CAVE_MIN_OPEN:
-            return cave, open_areas, water_areas
+            # Reject if cave is too open (not enough walls)
+            wall_count = sum(1 for y in range(MAP_HEIGHT)
+                             for x in range(MAP_WIDTH)
+                             if cave[y][x] == TILE_WALL)
+            if wall_count >= MAP_WIDTH * MAP_HEIGHT // 10:
+                return cave, open_areas, water_areas
 
 
 def _flood_fill(grid, visited, sx, sy):
@@ -534,6 +542,29 @@ def _flood_fill(grid, visited, sx, sy):
                 visited[ny][nx] = True
                 queue.append((nx, ny))
     return component
+
+
+def _find_reachable_from(dungeon, sx, sy):
+    """Flood fill from (sx, sy) returning set of all reachable passable tiles.
+
+    Passable tiles are anything that is not a wall or closed door.
+    """
+    height = len(dungeon)
+    width = len(dungeon[0])
+    reachable = set()
+    queue = deque([(sx, sy)])
+    reachable.add((sx, sy))
+    while queue:
+        x, y = queue.popleft()
+        for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nx, ny = x + dx, y + dy
+            if (0 <= nx < width and 0 <= ny < height
+                    and (nx, ny) not in reachable):
+                tile = dungeon[ny][nx]
+                if tile not in (TILE_WALL, TILE_DOOR_CLOSED):
+                    reachable.add((nx, ny))
+                    queue.append((nx, ny))
+    return reachable
 
 
 CAVE_WATER_DEPTH = 4
@@ -569,6 +600,227 @@ def _add_water_to_cave(cave):
         for x in range(width):
             if cave[y][x] == TILE_FLOOR and distance[y][x] >= CAVE_WATER_DEPTH:
                 cave[y][x] = TILE_WATER
+
+
+LABYRINTH_LOOP_CHANCE = 0.20
+LABYRINTH_TRAP_CHANCE = 0.15
+
+
+def create_labyrinth_dungeon(depth):
+    """Generate a maze-like labyrinth with tight corridors and dead ends.
+
+    Uses recursive backtracking to create a perfect maze, then removes
+    some walls to create loops. Places traps in dead-end corridors.
+    Returns (grid, open_areas).
+    """
+    while True:
+        maze = [[TILE_WALL] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+
+        # Maze cells are at odd coordinates, walls at even
+        cell_w = MAP_WIDTH // 2
+        cell_h = MAP_HEIGHT // 2
+
+        # Recursive backtracking maze generation
+        visited = [[False] * cell_w for _ in range(cell_h)]
+        stack = []
+        sx, sy = 0, 0
+        visited[sy][sx] = True
+        maze[2 * sy + 1][2 * sx + 1] = TILE_FLOOR
+
+        while True:
+            cx, cy = 2 * sx + 1, 2 * sy + 1
+            neighbors = []
+            for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = sx + dx, sy + dy
+                if 0 <= nx < cell_w and 0 <= ny < cell_h and not visited[ny][nx]:
+                    neighbors.append((nx, ny, dx, dy))
+            if neighbors:
+                nx, ny, dx, dy = random.choice(neighbors)
+                maze[cy + dy][cx + dx] = TILE_FLOOR
+                maze[2 * ny + 1][2 * nx + 1] = TILE_FLOOR
+                visited[ny][nx] = True
+                stack.append((sx, sy))
+                sx, sy = nx, ny
+            elif stack:
+                sx, sy = stack.pop()
+            else:
+                break
+
+        # Remove random internal walls to create loops
+        removed = 0
+        target = int(cell_w * cell_h * LABYRINTH_LOOP_CHANCE)
+        candidates = []
+        for y in range(2, MAP_HEIGHT - 2, 2):
+            for x in range(2, MAP_WIDTH - 2, 2):
+                if maze[y][x] == TILE_WALL:
+                    candidates.append((x, y))
+        random.shuffle(candidates)
+        for x, y in candidates:
+            if removed >= target:
+                break
+            # Only remove if both adjacent cells are floor (internal wall)
+            if (maze[y - 1][x] == TILE_FLOOR and maze[y + 1][x] == TILE_FLOOR) or \
+               (maze[y][x - 1] == TILE_FLOOR and maze[y][x + 1] == TILE_FLOOR):
+                maze[y][x] = TILE_FLOOR
+                removed += 1
+
+         # Find dead ends (floor tiles with only 1 floor neighbor) for traps
+        open_areas = []
+        for py in range(1, MAP_HEIGHT - 1):
+            for px in range(1, MAP_WIDTH - 1):
+                if maze[py][px] != TILE_FLOOR:
+                    continue
+                floor_neighbors = sum(
+                    1 for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]
+                    if maze[py + dy][px + dx] == TILE_FLOOR)
+                if floor_neighbors >= 2:
+                    open_areas.append((px, py))
+                elif floor_neighbors == 1:
+                    # Dead end - place a trap with some probability
+                    if random.random() < LABYRINTH_TRAP_CHANCE:
+                        maze[py][px] = TILE_TRAP
+                    else:
+                        open_areas.append((px, py))
+
+        if len(open_areas) >= CAVE_MIN_OPEN:
+            # Reject if labyrinth is too open (not enough walls)
+            wall_count = sum(1 for y in range(MAP_HEIGHT)
+                             for x in range(MAP_WIDTH)
+                             if maze[y][x] == TILE_WALL)
+            if wall_count >= MAP_WIDTH * MAP_HEIGHT // 10:
+                return maze, open_areas
+
+
+TOWER_MIN_ROOMS = 3
+TOWER_MAX_ROOMS = 6
+
+
+def create_tower_dungeon(depth):
+    """Generate a tower level with concentric rings and chambers.
+
+    Creates 3-5 concentric rectangular rings connected by passages,
+    with chambers carved into each ring. The innermost ring is a
+    boss arena.
+    Returns (grid, open_areas).
+    """
+    while True:
+        tower = [[TILE_WALL] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+
+        cx, cy = MAP_WIDTH // 2, MAP_HEIGHT // 2
+        num_rings = min(3 + depth // 3, 5)
+        ring_width = min(MAP_WIDTH, MAP_HEIGHT) // (2 * num_rings + 2)
+        if ring_width < 3:
+            ring_width = 3
+
+        all_open = []
+
+        for ring in range(num_rings, 0, -1):
+            rx = cx - ring * ring_width
+            ry = cy - ring * ring_width
+            rw = 2 * ring * ring_width
+            rh = 2 * ring * ring_width
+
+            # Carve the ring (hollow rectangle)
+            thickness = max(2, ring_width // 2)
+            for y in range(ry, ry + thickness):
+                for x in range(rx, rx + rw):
+                    if 0 <= x < MAP_WIDTH and 0 <= y < MAP_HEIGHT:
+                        tower[y][x] = TILE_FLOOR
+            for y in range(ry + rh - thickness, ry + rh):
+                for x in range(rx, rx + rw):
+                    if 0 <= x < MAP_WIDTH and 0 <= y < MAP_HEIGHT:
+                        tower[y][x] = TILE_FLOOR
+            for y in range(ry + thickness, ry + rh - thickness):
+                for x in range(rx, rx + thickness):
+                    if 0 <= x < MAP_WIDTH and 0 <= y < MAP_HEIGHT:
+                        tower[y][x] = TILE_FLOOR
+                for x in range(rx + rw - thickness, rx + rw):
+                    if 0 <= x < MAP_WIDTH and 0 <= y < MAP_HEIGHT:
+                        tower[y][x] = TILE_FLOOR
+
+            # Carve chambers into the ring
+            num_rooms = random.randint(TOWER_MIN_ROOMS, TOWER_MAX_ROOMS)
+            for _ in range(num_rooms):
+                # Pick a side of the ring to carve a chamber
+                side = random.randint(0, 3)
+                if side == 0:  # top
+                    room_x = random.randint(rx + 2, rx + rw - 4)
+                    room_y = ry + thickness
+                elif side == 1:  # bottom
+                    room_x = random.randint(rx + 2, rx + rw - 4)
+                    room_y = ry + rh - thickness - 3
+                elif side == 2:  # left
+                    room_x = rx + thickness
+                    room_y = random.randint(ry + 2, ry + rh - 4)
+                else:  # right
+                    room_x = rx + rw - thickness - 3
+                    room_y = random.randint(ry + 2, ry + rh - 4)
+                room_w = random.randint(3, 5)
+                room_h = random.randint(3, 5)
+                for dy in range(room_h):
+                    for dx in range(room_w):
+                        ny, nx = room_y + dy, room_x + dx
+                        if 0 < nx < MAP_WIDTH - 1 and 0 < ny < MAP_HEIGHT - 1:
+                            tower[ny][nx] = TILE_FLOOR
+
+            # Connect to inner ring with passages
+            if ring > 1:
+                num_passages = random.randint(2, 4)
+                for _ in range(num_passages):
+                    side = random.randint(0, 3)
+                    if side == 0:  # top
+                        px = random.randint(rx + 2, rx + rw - 3)
+                        py = ry + thickness - 1
+                    elif side == 1:  # bottom
+                        px = random.randint(rx + 2, rx + rw - 3)
+                        py = ry + rh - thickness
+                    elif side == 2:  # left
+                        px = rx + thickness - 1
+                        py = random.randint(ry + 2, ry + rh - 3)
+                    else:  # right
+                        px = rx + rw - thickness
+                        py = random.randint(ry + 2, ry + rh - 3)
+                    # Carve a narrow passage inward
+                    for step in range(thickness):
+                        ny, nx = py, px
+                        if 0 < nx < MAP_WIDTH - 1 and 0 < ny < MAP_HEIGHT - 1:
+                            tower[ny][nx] = TILE_FLOOR
+                        if side == 0:
+                            ny += 1
+                        elif side == 1:
+                            ny -= 1
+                        elif side == 2:
+                            nx += 1
+                        else:
+                            nx -= 1
+
+        # Innermost ring is a boss arena - clear the center
+        arena_r = ring_width
+        for y in range(cy - arena_r, cy + arena_r + 1):
+            for x in range(cx - arena_r, cx + arena_r + 1):
+                if 0 <= x < MAP_WIDTH and 0 <= y < MAP_HEIGHT:
+                    tower[y][x] = TILE_FLOOR
+
+        # Collect open areas
+        open_areas = []
+        for py in range(1, MAP_HEIGHT - 1):
+            for px in range(1, MAP_WIDTH - 1):
+                if tower[py][px] != TILE_FLOOR:
+                    continue
+                neighbors = sum(
+                    1 for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]
+                    if tower[py + dy][px + dx] == TILE_FLOOR)
+                if neighbors >= 2:
+                    open_areas.append((px, py))
+
+        if len(open_areas) >= CAVE_MIN_OPEN:
+            # Reject if tower is too open (not enough walls)
+            wall_count = sum(1 for y in range(MAP_HEIGHT)
+                             for x in range(MAP_WIDTH)
+                             if tower[y][x] == TILE_WALL)
+            if wall_count >= MAP_WIDTH * MAP_HEIGHT // 10:
+                return tower, open_areas
+
 
 def place_entities(rooms, dungeon, depth):
     """Place enemies and items in rooms.
@@ -1018,13 +1270,44 @@ class Game:
         Populates enemies, items, and stairs.
         """
         dungeon_type = random.choice(DUNGEON_TYPES)
+        if depth == MAX_DEPTH - 1:
+            dungeon_type = "tower"
         if dungeon_type == "caves":
             dungeon, open_areas, water_areas = create_cave_dungeon(depth)
             px, py, enemies, items = self._place_entities_cave(
                 open_areas, water_areas, dungeon, depth)
-            stairs_down_x, stairs_down_y = self._pick_cave_spot(open_areas, px, py)
-            stairs_up_x, stairs_up_y = self._pick_cave_spot(open_areas, px, py,
-                                                             exclude=(stairs_down_x, stairs_down_y))
+            reachable = _find_reachable_from(dungeon, px, py)
+            reachable_open = [(x, y) for x, y in open_areas
+                              if (x, y) in reachable]
+            stairs_down_x, stairs_down_y = self._pick_cave_spot(
+                reachable_open, px, py)
+            stairs_up_x, stairs_up_y = self._pick_cave_spot(
+                reachable_open, px, py,
+                exclude=(stairs_down_x, stairs_down_y))
+        elif dungeon_type == "labyrinth":
+            dungeon, open_areas = create_labyrinth_dungeon(depth)
+            px, py, enemies, items = self._place_entities_cave(
+                open_areas, [], dungeon, depth)
+            reachable = _find_reachable_from(dungeon, px, py)
+            reachable_open = [(x, y) for x, y in open_areas
+                              if (x, y) in reachable]
+            stairs_down_x, stairs_down_y = self._pick_cave_spot(
+                reachable_open, px, py)
+            stairs_up_x, stairs_up_y = self._pick_cave_spot(
+                reachable_open, px, py,
+                exclude=(stairs_down_x, stairs_down_y))
+        elif dungeon_type == "tower":
+            dungeon, open_areas = create_tower_dungeon(depth)
+            px, py, enemies, items = self._place_entities_cave(
+                open_areas, [], dungeon, depth)
+            reachable = _find_reachable_from(dungeon, px, py)
+            reachable_open = [(x, y) for x, y in open_areas
+                              if (x, y) in reachable]
+            stairs_down_x, stairs_down_y = self._pick_cave_spot(
+                reachable_open, px, py)
+            stairs_up_x, stairs_up_y = self._pick_cave_spot(
+                reachable_open, px, py,
+                exclude=(stairs_down_x, stairs_down_y))
         else:
             dungeon, rooms = create_dungeon(depth)
             px, py, enemies, items = place_entities(rooms, dungeon, depth)
@@ -1435,6 +1718,16 @@ class Game:
                 self._tell(player, random.choice(MSG_ENTER_WATER), COLOR_BLUE)
             elif was_in_water and not in_water:
                 self._tell(player, random.choice(MSG_LEAVE_WATER), COLOR_BLUE)
+            if target_tile == TILE_TRAP:
+                trap_damage = 3 + player.depth * 2
+                player.hp -= trap_damage
+                dungeon[ny][nx] = TILE_FLOOR
+                self._tell(
+                    player, random.choice(MSG_STEP_TRAP),
+                    COLOR_RED)
+                if player.hp <= 0:
+                    player.hp = 0
+                    player.dead = True
             self._ambient_sound(
                 nx, ny, player.depth, PLAYER_MOVE_AMBIENT,
                 COLOR_WHITE, source=player, chance=0.08,

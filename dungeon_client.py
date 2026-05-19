@@ -338,6 +338,8 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0,
             ch = local_map.chars[gy][gx]
             if ch == '~':
                 attr = curses.color_pair(5)
+            elif ch == '^':
+                attr = curses.color_pair(2)
             elif local_map.visible[gy][gx]:
                 attr = curses.A_NORMAL
             else:
