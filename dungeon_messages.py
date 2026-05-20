@@ -568,12 +568,75 @@ MSG_CONQUERED = "{name} has conquered the dungeon!"
 MSG_DESCENDED = "{name} descended deeper. (Depth: {depth})"
 MSG_ASCENDED = "{name} went back up. (Depth: {depth})"
 MSG_DRANK_POTION = "{name} drank a potion. Recovered {heal} HP."
-MSG_EQUIPPED_SWORD = "{name} equipped a sword (+{bonus} attack)."
-MSG_EQUIPPED_SHIELD = "{name} equipped a shield (+{bonus} defense)."
+MSG_EQUIPPED_WEAPON = "{name} equipped a {weapon}."
+MSG_EQUIPPED_SHIELD = "{name} equipped a {shield}."
+MSG_DROPPED_WEAPON = "{name} dropped a {weapon}."
+MSG_DROPPED_SHIELD = "{name} dropped a {shield}."
 MSG_PICKED_UP_GOLD = "{name} picked up {gold} gold."
 MSG_REST_HEAL = "{name} waited for a moment. (+3 HP)"
 MSG_REST_NO_HEAL = "{name} waited for a moment."
 MSG_ENEMY_APPEARS = "A {enemy} appears!"
+
+# ---------------------------------------------------------------------------
+# Combat result messages
+# ---------------------------------------------------------------------------
+MSG_CRITICAL_HIT = [
+    "{name} lands a crushing blow on the {enemy} for {damage} damage!",
+    "{name} strikes the {enemy} vitally for {damage} damage!",
+    "{name} devastates the {enemy} with a critical strike for {damage} damage!",
+]
+MSG_GLANCING_HIT = [
+    "{name}'s attack glanced off the {enemy} for {damage} damage.",
+    "{name} barely scratched the {enemy} for {damage} damage.",
+    "{name}'s blow skimmed the {enemy} for {damage} damage.",
+]
+MSG_ENEMY_DODGE = [
+    "The {enemy} dodges {name}'s attack!",
+    "The {enemy} evades {name}'s strike!",
+    "{name}'s attack passes harmlessly by the {enemy}!",
+]
+MSG_SHIELD_BLOCK = [
+    "{name}'s shield absorbs the blow!",
+    "{name}'s shield takes the hit!",
+    "{name} blocks the attack with their shield!",
+]
+MSG_SHIELD_BLOCK_PARTIAL = [
+    "{name}'s shield absorbs some of the blow! ({absorbed} absorbed)",
+    "{name}'s shield takes the hit! ({absorbed} absorbed)",
+    "{name} blocks with their shield! ({absorbed} absorbed)",
+]
+
+# ---------------------------------------------------------------------------
+# Status effect messages
+# ---------------------------------------------------------------------------
+MSG_STATUS_POISON_APPLY = [
+    "{name} is poisoned by the {enemy}!",
+    "Venom courses through {name}'s veins!",
+    "{name} feels poisoned!",
+]
+MSG_STATUS_BURN_APPLY = [
+    "{name} is burned by the {enemy}!",
+    "Flames sear {name}'s flesh!",
+    "{name} catches fire!",
+]
+MSG_STATUS_BLEED_APPLY = [
+    "{name} starts bleeding from the {enemy}'s attack!",
+    "Blood pours from {name}'s wounds!",
+    "{name} is cut deeply!",
+]
+MSG_STATUS_CHILL_APPLY = [
+    "{name} is frozen by the {enemy}'s touch!",
+    "An icy chill slows {name} down!",
+    "{name} shivers as frost covers their body!",
+]
+MSG_STATUS_PARALYSIS_APPLY = [
+    "{name} is paralyzed by the {enemy}!",
+    "{name} can't move, frozen in place!",
+    "Paralysis locks {name}'s muscles!",
+]
+MSG_STATUS_DO_TICK = "{name} takes {damage} damage from {effect}."
+MSG_STATUS_PARALYSIS_TICK = "{name} is paralyzed and cannot move!"
+MSG_STATUS_WEAR_OFF = "{name}'s {effect} wears off."
 
 # ---------------------------------------------------------------------------
 # Direct player messages (_tell)
@@ -669,8 +732,32 @@ MSG_LEAVE_WATER = [
     "You emerge from the water.",
 ]
 MSG_STEP_TRAP = [
-    "You step on a hidden trap and take damage!",
-    "A trap snaps shut under your foot!",
-    "You trigger a concealed pit trap!",
-    "Sharpened spikes erupt from the floor!",
+    "You step on a hidden trap and take {damage} damage!",
+    "A trap snaps shut under your foot for {damage} damage!",
+    "You trigger a concealed pit trap for {damage} damage!",
+    "Sharpened spikes erupt from the floor dealing {damage} damage!",
+]
+
+# ---------------------------------------------------------------------------
+# Dungeon entrance messages (shown once per level on first entry)
+# ---------------------------------------------------------------------------
+MSG_ENTRANCE_ROOMS = [
+    "You step into a network of chambers and corridors.",
+    "Stone rooms stretch before you, connected by narrow passages.",
+    "You find yourself in a dungeon of rooms and hallways.",
+]
+MSG_ENTRANCE_CAVES = [
+    "You descend into a sprawling cave system.",
+    "Natural caverns open before you, their walls slick with moisture.",
+    "You find yourself in a vast underground cave network.",
+]
+MSG_ENTRANCE_LABYRINTH = [
+    "You enter a maze of twisting corridors and dead ends.",
+    "A labyrinth of tight passages stretches in every direction.",
+    "You find yourself in a maze of narrow hallways.",
+]
+MSG_ENTRANCE_TOWER = [
+    "You step into a circular chamber within a dark tower.",
+    "Concentric rings of chambers surround a central arena.",
+    "You find yourself inside an ancient tower, its rooms spiraling inward.",
 ]

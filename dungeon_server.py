@@ -29,6 +29,8 @@ from dungeon_crawler import (
     MAX_SCREEN_X,
     MAX_SCREEN_Y,
     Player,
+    SHIELD_NONE,
+    WEAPON_FISTS,
 )
 
 SAVE_PATH = "dungeon_server.json"
@@ -116,8 +118,8 @@ class GameServer:
                 "attack": p.attack, "defense": p.defense,
                 "level": p.level, "xp": p.xp,
                 "next_level_xp": p.next_level_xp,
-                "weapon_bonus": p.weapon_bonus,
-                "armor_bonus": p.armor_bonus,
+                "equipped_weapon": getattr(p, "equipped_weapon", WEAPON_FISTS),
+                "equipped_shield": getattr(p, "equipped_shield", SHIELD_NONE),
                 "gold": p.gold,
                 "dead": p.dead, "game_win": p.game_win,
                 "server_id": getattr(p, "_server_id", 0),
@@ -125,6 +127,8 @@ class GameServer:
                 "next_tick": p.next_tick,
                 "explored": {int(d): self._pack_explored(grid)
                              for d, grid in p.explored.items()},
+                "entrance_shown": list(getattr(p, "_entrance_shown", set())),
+                "status_effects": dict(getattr(p, "status_effects", {})),
             }
 
         state = {
@@ -141,6 +145,7 @@ class GameServer:
                 "corpses": lvl["corpses"],
                 "generators": lvl.get("generators", []),
                 "tick": lvl["tick"],
+                "dungeon_type": lvl.get("dungeon_type", "rooms"),
                 "spawn_x": lvl["spawn_x"],
                 "spawn_y": lvl["spawn_y"],
                 "stairs_down_x": lvl["stairs_down_x"],
@@ -195,8 +200,8 @@ class GameServer:
             p.level = pd["level"]
             p.xp = pd["xp"]
             p.next_level_xp = pd["next_level_xp"]
-            p.weapon_bonus = pd["weapon_bonus"]
-            p.armor_bonus = pd["armor_bonus"]
+            p.equipped_weapon = pd.get("equipped_weapon", WEAPON_FISTS)
+            p.equipped_shield = pd.get("equipped_shield", SHIELD_NONE)
             p.gold = pd["gold"]
             p.dead = pd["dead"]
             p.game_win = pd["game_win"]
@@ -204,7 +209,9 @@ class GameServer:
             p._client_id = pd.get("client_id")
             p.next_tick = pd["next_tick"]
             p.explored = {int(d): self._unpack_explored(grid, MAP_WIDTH)
-                           for d, grid in pd.get("explored", {}).items()}
+                            for d, grid in pd.get("explored", {}).items()}
+            p._entrance_shown = set(pd.get("entrance_shown", []))
+            p.status_effects = pd.get("status_effects", {})
             return p
 
         # Restore players from separate file
@@ -305,6 +312,7 @@ class GameServer:
                 g.players.append(p)
                 p.x, p.y = g._find_open_spawn(
                     spawn_x, spawn_y, 0, exclude_player=p)
+                g._show_entrance(p)
             self.clients[client_id] = p
             self._last_state_tick[client_id] = 0
             self._last_activity[client_id] = time.time()
@@ -491,12 +499,15 @@ class GameServer:
                     "x": pl.x, "y": pl.y,
                     "depth": pl.depth,
                     "hp": pl.hp, "max_hp": pl.max_hp,
-                    "level": pl.level, "attack": pl.attack_total(),
+                    "level": pl.level, "attack": pl.defense_total(),
                     "defense": pl.defense_total(),
                     "xp": pl.xp, "next_level_xp": pl.next_level_xp,
                     "gold": pl.gold, "dead": pl.dead,
-                    "weapon_bonus": pl.weapon_bonus,
-                    "armor_bonus": pl.armor_bonus,
+                    "equipped_weapon": pl.equipped_weapon,
+                    "equipped_shield": pl.equipped_shield,
+                    "weapon_name": pl.weapon_name(),
+                    "shield_name": pl.shield_name(),
+                    "status_effects": pl.status_effects,
                     "visible": True,
                 }
                 player_stats.append(ps)

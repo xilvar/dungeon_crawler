@@ -289,7 +289,7 @@ function render(){
 function render_status(){
   if(!my_player) return;
   const d=my_player.dead?' [DEAD]':my_player.game_win?' [WIN]':'';
-  $('status-text').textContent=`${my_player.name} | Lv${my_player.level} | HP ${my_player.hp}/${my_player.max_hp} | ATK ${my_player.attack} | DEF ${my_player.defense} | XP ${my_player.xp}/${my_player.next_level_xp} | Gold ${my_player.gold} | Depth ${depth+1}/10${d}`;
+  $('status-text').textContent=`${my_player.name} | Lv${my_player.level} | HP ${my_player.hp}/${my_player.max_hp} | DEF ${my_player.defense} | XP ${my_player.xp}/${my_player.next_level_xp} | Gold ${my_player.gold} | W:${my_player.weapon_name||'Fists'} S:${my_player.shield_name||'None'} | Depth ${depth+1}/10${d}`;
 }
 
 // --- Messages ---

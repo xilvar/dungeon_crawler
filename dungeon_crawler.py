@@ -26,11 +26,26 @@ from dungeon_messages import (
     MSG_DESCENDED,
     MSG_ASCENDED,
     MSG_DRANK_POTION,
-    MSG_EQUIPPED_SWORD,
+    MSG_EQUIPPED_WEAPON,
     MSG_EQUIPPED_SHIELD,
+    MSG_DROPPED_WEAPON,
+    MSG_DROPPED_SHIELD,
     MSG_PICKED_UP_GOLD,
     MSG_REST_HEAL,
     MSG_REST_NO_HEAL,
+    MSG_CRITICAL_HIT,
+    MSG_GLANCING_HIT,
+    MSG_ENEMY_DODGE,
+    MSG_SHIELD_BLOCK,
+    MSG_SHIELD_BLOCK_PARTIAL,
+    MSG_STATUS_POISON_APPLY,
+    MSG_STATUS_BURN_APPLY,
+    MSG_STATUS_BLEED_APPLY,
+    MSG_STATUS_CHILL_APPLY,
+    MSG_STATUS_PARALYSIS_APPLY,
+    MSG_STATUS_DO_TICK,
+    MSG_STATUS_PARALYSIS_TICK,
+    MSG_STATUS_WEAR_OFF,
 
     MSG_ENEMY_INTO_VIEW,
     MSG_PLAYER_INTO_VIEW,
@@ -54,6 +69,10 @@ from dungeon_messages import (
     MSG_ENTER_WATER,
     MSG_LEAVE_WATER,
     MSG_STEP_TRAP,
+    MSG_ENTRANCE_ROOMS,
+    MSG_ENTRANCE_CAVES,
+    MSG_ENTRANCE_LABYRINTH,
+    MSG_ENTRANCE_TOWER,
 )
 
 # --- Constants ---
@@ -116,7 +135,7 @@ TILE_CHAR = {
     TILE_DOOR_OPEN: "-",
     TILE_GENERATOR: "*",
     TILE_WATER: "~",
-    TILE_TRAP: "^",
+    TILE_TRAP: ",",
 }
 
 # Entity types
@@ -159,173 +178,222 @@ ENEMY_DEEP_ONE = "deep_one"
 ENEMY_WATER_ELEMENTAL = "water_elemental"
 ENEMY_KRAKEN = "kraken"
 
+# Status effect definitions (must be before ENEMY_PROPS which references them)
+STATUS_POISON = "poison"
+STATUS_BURN = "burn"
+STATUS_BLEED = "bleed"
+STATUS_CHILL = "chill"
+STATUS_PARALYSIS = "paralysis"
+
+STATUS_EFFECT_DURATION = 200  # 2 seconds at 100 ticks/sec
+STATUS_EFFECT_TICK_INTERVAL = 20  # apply DoT every 20 ticks
+STATUS_EFFECT_CHANCE = 30  # 30% chance per hit
+
 ENEMY_PROPS = {
     # Tier 1 - vermin/scavengers
     ENEMY_RAT: {
         "char": "r", "color": COLOR_YELLOW, "name": "Rat",
         "hp": 3, "attack": 1, "defense": 0, "xp": 1,
+        "dodge": 3,
     },
     ENEMY_BAT: {
         "char": "b", "color": COLOR_YELLOW, "name": "Bat",
         "hp": 2, "attack": 1, "defense": 0, "xp": 1,
+        "dodge": 5,
     },
     ENEMY_SPIDER: {
         "char": "S", "color": COLOR_YELLOW, "name": "Spider",
         "hp": 4, "attack": 2, "defense": 0, "xp": 2,
+        "dodge": 3, "status_effect": STATUS_POISON,
     },
     ENEMY_KOBOLD: {
         "char": "k", "color": COLOR_YELLOW, "name": "Kobold",
         "hp": 5, "attack": 2, "defense": 0, "xp": 2,
+        "dodge": 3,
     },
     ENEMY_GNOME: {
         "char": "g", "color": COLOR_YELLOW, "name": "Goblin",
         "hp": 7, "attack": 2, "defense": 0, "xp": 2,
+        "dodge": 3,
     },
     # Tier 2 - common threats
     ENEMY_IMP: {
         "char": "i", "color": COLOR_RED, "name": "Imp",
         "hp": 6, "attack": 3, "defense": 0, "xp": 4,
+        "dodge": 5,
     },
     ENEMY_SKELETON: {
         "char": "s", "color": COLOR_WHITE, "name": "Skeleton",
         "hp": 8, "attack": 3, "defense": 1, "xp": 4,
+        "dodge": 5,
     },
     ENEMY_ZOMBIE: {
         "char": "Z", "color": COLOR_GREEN, "name": "Zombie",
         "hp": 12, "attack": 2, "defense": 0, "xp": 3,
+        "dodge": 3,
     },
     ENEMY_WOLF: {
         "char": "W", "color": COLOR_WHITE, "name": "Wolf",
         "hp": 8, "attack": 4, "defense": 0, "xp": 3,
+        "dodge": 5,
     },
     # Tier 3 - undead/horrors
     ENEMY_HYDRA: {
         "char": "H", "color": COLOR_GREEN, "name": "Hydra",
         "hp": 35, "attack": 8, "defense": 3, "xp": 30,
+        "dodge": 5, "status_effect": STATUS_POISON,
     },
     ENEMY_MUMMY: {
         "char": "M", "color": COLOR_YELLOW, "name": "Mummy",
         "hp": 18, "attack": 4, "defense": 2, "xp": 10,
+        "dodge": 5,
     },
     ENEMY_WRAITH: {
         "char": "W", "color": COLOR_CYAN, "name": "Wraith",
         "hp": 15, "attack": 5, "defense": 2, "xp": 12,
+        "dodge": 7, "status_effect": STATUS_CHILL,
     },
     ENEMY_TROLL: {
         "char": "T", "color": COLOR_GREEN, "name": "Troll",
         "hp": 25, "attack": 6, "defense": 2, "xp": 20,
+        "dodge": 5, "status_effect": STATUS_BLEED,
     },
     # Tier 4 - formidable beasts
     ENEMY_MINOTAUR: {
         "char": "N", "color": COLOR_YELLOW, "name": "Minotaur",
         "hp": 25, "attack": 7, "defense": 2, "xp": 20,
+        "dodge": 5, "status_effect": STATUS_BLEED,
     },
     ENEMY_MEDUSA: {
         "char": "m", "color": COLOR_GREEN, "name": "Medusa",
         "hp": 24, "attack": 6, "defense": 2, "xp": 20,
+        "dodge": 7, "status_effect": STATUS_PARALYSIS,
     },
     ENEMY_OWLBEAR: {
         "char": "O", "color": COLOR_YELLOW, "name": "Owlbear",
         "hp": 22, "attack": 6, "defense": 1, "xp": 15,
+        "dodge": 5, "status_effect": STATUS_BLEED,
     },
     ENEMY_HOOK_HORROR: {
         "char": "h", "color": COLOR_YELLOW, "name": "Hook Horror",
         "hp": 26, "attack": 7, "defense": 2, "xp": 20,
+        "dodge": 7, "status_effect": STATUS_BLEED,
     },
     # Tier 5 - exotic threats
     ENEMY_PHASE_SPIDER: {
         "char": "P", "color": COLOR_RED, "name": "Phase Spider",
         "hp": 18, "attack": 5, "defense": 1, "xp": 12,
+        "dodge": 10, "status_effect": STATUS_POISON,
     },
     ENEMY_BASILISK: {
         "char": "B", "color": COLOR_GREEN, "name": "Basilisk",
         "hp": 20, "attack": 6, "defense": 3, "xp": 18,
+        "dodge": 8, "status_effect": STATUS_PARALYSIS,
     },
     ENEMY_WYVERN: {
         "char": "Y", "color": COLOR_GREEN, "name": "Wyvern",
         "hp": 32, "attack": 9, "defense": 3, "xp": 25,
+        "dodge": 8, "status_effect": STATUS_BURN,
     },
     # Tier 6 - powerful creatures
     ENEMY_PHOENIX: {
         "char": "F", "color": COLOR_RED, "name": "Phoenix",
         "hp": 28, "attack": 8, "defense": 2, "xp": 22,
+        "dodge": 10, "status_effect": STATUS_BURN,
     },
     ENEMY_GRUE: {
         "char": "X", "color": COLOR_MAGENTA, "name": "Grue",
         "hp": 15, "attack": 5, "defense": 1, "xp": 12,
+        "dodge": 10,
     },
     ENEMY_GELATINOUS_CUBE: {
         "char": "C", "color": COLOR_CYAN,
         "name": "Gelatinous Cube",
         "hp": 28, "attack": 4, "defense": 1, "xp": 15,
+        "dodge": 8,
     },
     ENEMY_REMORHAZ: {
         "char": "R", "color": COLOR_RED, "name": "Remorhaz",
         "hp": 40, "attack": 10, "defense": 4, "xp": 35,
+        "dodge": 10, "status_effect": STATUS_BURN,
     },
     ENEMY_ICE_DEVIL: {
         "char": "I", "color": COLOR_CYAN, "name": "Ice Devil",
         "hp": 35, "attack": 9, "defense": 3, "xp": 30,
+        "dodge": 12, "status_effect": STATUS_CHILL,
     },
     # Tier 7 - legendary threats
     ENEMY_LICH: {
         "char": "L", "color": COLOR_WHITE, "name": "Lich",
         "hp": 45, "attack": 10, "defense": 4, "xp": 45,
+        "dodge": 12, "status_effect": STATUS_POISON,
     },
     ENEMY_BEHOLDER: {
         "char": "E", "color": COLOR_YELLOW, "name": "Beholder",
         "hp": 40, "attack": 9, "defense": 4, "xp": 40,
+        "dodge": 12, "status_effect": STATUS_PARALYSIS,
     },
     # Tier 8 - ultimate bosses
     ENEMY_BALOR: {
         "char": "B", "color": COLOR_RED, "name": "Balor",
         "hp": 60, "attack": 14, "defense": 5, "xp": 60,
+        "dodge": 15, "status_effect": STATUS_BURN,
     },
     # Keep old enemies for compatibility
     ENEMY_ORC: {
         "char": "o", "color": COLOR_GREEN, "name": "Orc",
         "hp": 10, "attack": 3, "defense": 1, "xp": 5,
+        "dodge": 5,
     },
     ENEMY_GOLEM: {
         "char": "G", "color": COLOR_CYAN, "name": "Golem",
         "hp": 20, "attack": 5, "defense": 4, "xp": 15,
+        "dodge": 3,
     },
     ENEMY_SNAKE: {
         "char": "n", "color": COLOR_RED, "name": "Snake",
         "hp": 5, "attack": 2, "defense": 0, "xp": 3,
+        "dodge": 5, "status_effect": STATUS_POISON,
     },
     ENEMY_DEMON: {
         "char": "D", "color": COLOR_RED, "name": "Demon",
         "hp": 30, "attack": 8, "defense": 3, "xp": 30,
+        "dodge": 10,
     },
     ENEMY_DRAGON: {
         "char": "d", "color": COLOR_RED, "name": "Dragon",
         "hp": 50, "attack": 12, "defense": 5, "xp": 50,
+        "dodge": 12, "status_effect": STATUS_BURN,
     },
     # Water enemies - hidden in water, cannot leave water
     ENEMY_WATER_MITE: {
         "char": ".", "color": COLOR_BLUE, "name": "Water Mite",
         "hp": 4, "attack": 2, "defense": 0, "xp": 2,
+        "dodge": 5,
         "water": True,
     },
     ENEMY_WATER_SNAKE: {
         "char": "N", "color": COLOR_CYAN, "name": "Water Snake",
         "hp": 10, "attack": 4, "defense": 1, "xp": 6,
+        "dodge": 7, "status_effect": STATUS_POISON,
         "water": True,
     },
     ENEMY_DEEP_ONE: {
         "char": "D", "color": COLOR_CYAN, "name": "Deep One",
         "hp": 30, "attack": 7, "defense": 3, "xp": 25,
+        "dodge": 10,
         "water": True,
     },
     ENEMY_WATER_ELEMENTAL: {
         "char": "W", "color": COLOR_BLUE, "name": "Water Elemental",
         "hp": 40, "attack": 9, "defense": 3, "xp": 35,
+        "dodge": 12, "status_effect": STATUS_CHILL,
         "water": True,
     },
     ENEMY_KRAKEN: {
         "char": "K", "color": COLOR_MAGENTA, "name": "Kraken",
         "hp": 55, "attack": 12, "defense": 4, "xp": 55,
+        "dodge": 12, "status_effect": STATUS_BLEED,
         "water": True,
     },
 }
@@ -342,6 +410,94 @@ ITEM_PROPS = {
     ITEM_SHIELD: {"char": ")", "color": COLOR_CYAN, "name": "Shield"},
     ITEM_GOLD: {"char": "$", "color": COLOR_YELLOW, "name": "Pile of Gold"},
 }
+
+# Weapon definitions: dice string, crit chance (%), crit multiplier, name, depth range
+WEAPON_FISTS = "fists"
+WEAPON_DAGGER = "dagger"
+WEAPON_SHORT_SWORD = "short_sword"
+WEAPON_LONG_SWORD = "long_sword"
+WEAPON_WAR_AXE = "war_axe"
+WEAPON_GREAT_SWORD = "great_sword"
+WEAPON_VORPAL_BLADE = "vorpal_blade"
+
+WEAPON_PROPS = {
+    WEAPON_FISTS: {"dice": "1d2", "crit": 0, "crit_mult": 1, "name": "Fists", "depth_range": (0, 9)},
+    WEAPON_DAGGER: {"dice": "1d4", "crit": 0, "crit_mult": 1, "name": "Dagger", "depth_range": (0, 3)},
+    WEAPON_SHORT_SWORD: {"dice": "1d6", "crit": 0, "crit_mult": 1, "name": "Short Sword", "depth_range": (1, 4)},
+    WEAPON_LONG_SWORD: {"dice": "1d8", "crit": 5, "crit_mult": 2, "name": "Long Sword", "depth_range": (3, 6)},
+    WEAPON_WAR_AXE: {"dice": "1d10", "crit": 5, "crit_mult": 2, "name": "War Axe", "depth_range": (4, 7)},
+    WEAPON_GREAT_SWORD: {"dice": "2d6", "crit": 8, "crit_mult": 2, "name": "Great Sword", "depth_range": (6, 8)},
+    WEAPON_VORPAL_BLADE: {"dice": "2d8", "crit": 15, "crit_mult": 2.5, "name": "Vorpal Blade", "depth_range": (8, 9)},
+}
+
+# Shield definitions: block chance (%), absorption amount, name, depth range
+SHIELD_NONE = "none"
+SHIELD_LEATHER = "leather_shield"
+SHIELD_WOOD = "wood_shield"
+SHIELD_IRON = "iron_shield"
+SHIELD_TOWER = "tower_shield"
+
+SHIELD_PROPS = {
+    SHIELD_NONE: {"block": 0, "absorb": 0, "name": "None", "depth_range": (0, 9)},
+    SHIELD_LEATHER: {"block": 10, "absorb": 2, "name": "Leather Shield", "depth_range": (0, 3)},
+    SHIELD_WOOD: {"block": 15, "absorb": 3, "name": "Wood Shield", "depth_range": (1, 4)},
+    SHIELD_IRON: {"block": 20, "absorb": 5, "name": "Iron Shield", "depth_range": (3, 6)},
+    SHIELD_TOWER: {"block": 30, "absorb": 7, "name": "Tower Shield", "depth_range": (6, 9)},
+}
+
+# Status effect properties (constants defined above in ENEMY_PROPS section)
+STATUS_EFFECT_PROPS = {
+    STATUS_POISON: {
+        "name": "poison", "color": COLOR_GREEN,
+        "apply_msg": MSG_STATUS_POISON_APPLY,
+    },
+    STATUS_BURN: {
+        "name": "burn", "color": COLOR_RED,
+        "apply_msg": MSG_STATUS_BURN_APPLY,
+    },
+    STATUS_BLEED: {
+        "name": "bleed", "color": COLOR_RED,
+        "apply_msg": MSG_STATUS_BLEED_APPLY,
+    },
+    STATUS_CHILL: {
+        "name": "chill", "color": COLOR_CYAN,
+        "apply_msg": MSG_STATUS_CHILL_APPLY,
+    },
+    STATUS_PARALYSIS: {
+        "name": "paralysis", "color": COLOR_MAGENTA,
+        "apply_msg": MSG_STATUS_PARALYSIS_APPLY,
+    },
+}
+
+
+def roll_dice(dice_str):
+    """Roll dice from a string like '2d6'. Returns total."""
+    parts = dice_str.lower().split("d")
+    count = int(parts[0])
+    sides = int(parts[1])
+    return sum(random.randint(1, sides) for _ in range(count))
+
+
+def pick_weapon_for_depth(depth):
+    """Pick a random weapon appropriate for the given depth."""
+    candidates = [
+        wtype for wtype, props in WEAPON_PROPS.items()
+        if wtype != WEAPON_FISTS and props["depth_range"][0] <= depth <= props["depth_range"][1]
+    ]
+    if not candidates:
+        return WEAPON_DAGGER
+    return random.choice(candidates)
+
+
+def pick_shield_for_depth(depth):
+    """Pick a random shield appropriate for the given depth."""
+    candidates = [
+        stype for stype, props in SHIELD_PROPS.items()
+        if stype != SHIELD_NONE and props["depth_range"][0] <= depth <= props["depth_range"][1]
+    ]
+    if not candidates:
+        return SHIELD_LEATHER
+    return random.choice(candidates)
 
 
 class Room:
@@ -604,6 +760,16 @@ def _add_water_to_cave(cave):
 
 LABYRINTH_LOOP_CHANCE = 0.20
 LABYRINTH_TRAP_CHANCE = 0.15
+TRAP_CHANCE = 0.003
+
+
+def _scatter_traps(dungeon, exclude, chance=TRAP_CHANCE):
+    """Randomly place traps on floor tiles, excluding certain positions."""
+    for y in range(1, MAP_HEIGHT - 1):
+        for x in range(1, MAP_WIDTH - 1):
+            if dungeon[y][x] == TILE_FLOOR and (x, y) not in exclude:
+                if random.random() < chance:
+                    dungeon[y][x] = TILE_TRAP
 
 
 def create_labyrinth_dungeon(depth):
@@ -917,19 +1083,19 @@ def place_entities(rooms, dungeon, depth):
             items.append({
                 "x": ix, "y": iy, "kind": ITEM_GOLD,
                 "value": random.randint(5, 15) * (depth + 1)})
-        if random.random() < 0.15:
+        if random.random() < 0.22:
             ix = random.randint(room.x1 + 1, room.x2 - 1)
             iy = random.randint(room.y1 + 1, room.y2 - 1)
             items.append({
                 "x": ix, "y": iy, "kind": ITEM_SWORD,
-                "bonus": random.randint(1, 3),
+                "weapon": pick_weapon_for_depth(depth),
             })
-        if random.random() < 0.1:
+        if random.random() < 0.15:
             ix = random.randint(room.x1 + 1, room.x2 - 1)
             iy = random.randint(room.y1 + 1, room.y2 - 1)
             items.append({
                 "x": ix, "y": iy, "kind": ITEM_SHIELD,
-                "bonus": random.randint(1, 2),
+                "shield": pick_shield_for_depth(depth),
             })
 
     return player_x, player_y, enemies, items
@@ -997,8 +1163,8 @@ class Player:
         self.level = 1
         self.xp = 0
         self.next_level_xp = 10
-        self.weapon_bonus = 0
-        self.armor_bonus = 0
+        self.equipped_weapon = WEAPON_FISTS
+        self.equipped_shield = SHIELD_NONE
         self.gold = 0
         self.next_tick = random.randint(0, 99)
         self.queued_action = None
@@ -1009,14 +1175,37 @@ class Player:
         self._last_ambient_tick = 0
         # Per-depth explored grids: {depth: 2D boolean grid}
         self.explored = {}
+        # Depths for which the entrance message has already been shown
+        self._entrance_shown = set()
+        # Active status effects: {effect_name: remaining_ticks}
+        self.status_effects = {}
 
-    def attack_total(self):
-        """Return total attack including weapon bonus."""
-        return self.attack + self.weapon_bonus
+    def weapon_damage(self):
+        """Roll weapon dice + level bonus. Returns total damage."""
+        props = WEAPON_PROPS[self.equipped_weapon]
+        return roll_dice(props["dice"]) + self.level
+
+    def crit_info(self):
+        """Return (crit_chance, crit_multiplier) for the equipped weapon."""
+        props = WEAPON_PROPS[self.equipped_weapon]
+        return props["crit"], props["crit_mult"]
+
+    def shield_info(self):
+        """Return (block_chance, absorb) for the equipped shield."""
+        props = SHIELD_PROPS[self.equipped_shield]
+        return props["block"], props["absorb"]
 
     def defense_total(self):
-        """Return total defense including armor bonus."""
-        return self.defense + self.armor_bonus
+        """Return total defense (base only, shields handle block separately)."""
+        return self.defense
+
+    def weapon_name(self):
+        """Return display name of equipped weapon."""
+        return WEAPON_PROPS[self.equipped_weapon]["name"]
+
+    def shield_name(self):
+        """Return display name of equipped shield."""
+        return SHIELD_PROPS[self.equipped_shield]["name"]
 
 
 # --- Game State ---
@@ -1177,11 +1366,11 @@ class Game:
                 break
             used.add(spot)
             roll = random.random()
-            if roll < 0.4:
+            if roll < 0.25:
                 kind = ITEM_POTION
-            elif roll < 0.6:
+            elif roll < 0.55:
                 kind = ITEM_SWORD
-            elif roll < 0.75:
+            elif roll < 0.77:
                 kind = ITEM_SHIELD
             else:
                 kind = ITEM_GOLD
@@ -1193,9 +1382,9 @@ class Game:
             if kind == ITEM_GOLD:
                 item["value"] = random.randint(5, 20) + depth * 5
             elif kind == ITEM_SWORD:
-                item["bonus"] = random.randint(1, 2) + depth // 2
+                item["weapon"] = pick_weapon_for_depth(depth)
             elif kind == ITEM_SHIELD:
-                item["bonus"] = random.randint(1, 2) + depth // 3
+                item["shield"] = pick_shield_for_depth(depth)
             items.append(item)
 
         return px, py, enemies, items
@@ -1272,6 +1461,16 @@ class Game:
         dungeon_type = random.choice(DUNGEON_TYPES)
         if depth == MAX_DEPTH - 1:
             dungeon_type = "tower"
+        elif depth == 8:
+            dungeon_type = "labyrinth"
+        elif depth >= 6:
+            dungeon_type = random.choice(["caves", "labyrinth"])
+        elif depth >= 4:
+            dungeon_type = random.choice(["rooms", "caves", "labyrinth"])
+        elif depth >= 2:
+            dungeon_type = random.choice(["rooms", "caves"])
+        else:
+            dungeon_type = "rooms"
         if dungeon_type == "caves":
             dungeon, open_areas, water_areas = create_cave_dungeon(depth)
             px, py, enemies, items = self._place_entities_cave(
@@ -1323,6 +1522,10 @@ class Game:
         if depth > 0:
             dungeon[stairs_up_y][stairs_up_x] = TILE_STAIRS_UP
 
+        # Scatter traps across the level
+        exclude = {(px, py), (stairs_down_x, stairs_down_y), (stairs_up_x, stairs_up_y)}
+        _scatter_traps(dungeon, exclude, TRAP_CHANCE + depth * 0.006)
+
         # Place monster generators
         generators = self._place_generators(dungeon, depth,
                                             {(px, py), (stairs_down_x, stairs_down_y),
@@ -1335,6 +1538,7 @@ class Game:
             "corpses": [],
             "generators": generators,
             "tick": 0,
+            "dungeon_type": dungeon_type,
             "stairs_down_x": stairs_down_x,
             "stairs_down_y": stairs_down_y,
             "stairs_up_x": stairs_up_x,
@@ -1352,6 +1556,27 @@ class Game:
             player.explored[player.depth] = (
                 [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
             )
+
+    def _show_entrance(self, player):
+        """Show a dungeon-type entrance message on first entry to a level."""
+        depth = player.depth
+        if depth in player._entrance_shown:
+            return
+        player._entrance_shown.add(depth)
+        dungeon_type = self.levels[depth].get("dungeon_type", "rooms")
+        messages = {
+            "rooms": MSG_ENTRANCE_ROOMS,
+            "caves": MSG_ENTRANCE_CAVES,
+            "labyrinth": MSG_ENTRANCE_LABYRINTH,
+            "tower": MSG_ENTRANCE_TOWER,
+        }.get(dungeon_type, MSG_ENTRANCE_ROOMS)
+        colors = {
+            "rooms": COLOR_WHITE,
+            "caves": COLOR_BLUE,
+            "labyrinth": COLOR_YELLOW,
+            "tower": COLOR_MAGENTA,
+        }.get(dungeon_type, COLOR_WHITE)
+        self._tell(player, random.choice(messages), colors)
 
     def _update_visibility(self):
         """Recompute FOV for all players and announce newly visible enemies."""
@@ -1590,17 +1815,81 @@ class Game:
                 return p
         return None
 
-    def do_attack(
-        self, attacker_name, attacker_atk,
-        defender_name, defender_def,
-        damage_variance=2,
-    ):
-        """Calculate damage: (atk - def) +/- random variance, minimum 1."""
-        damage = max(
-            1, attacker_atk - defender_def
-            + random.randint(-damage_variance, damage_variance),
-        )
-        return damage
+    def resolve_attack(self, player, enemy, is_player_attacking):
+        """Resolve a full attack: dodge → dice → crit → shield → defense → status.
+
+        Returns a dict with: damage, dodged, critical, shield_blocked, shield_absorbed,
+        status_applied, message, message_color, message_ctx.
+        """
+        result = {
+            "damage": 0, "dodged": False, "critical": False,
+            "shield_blocked": False, "shield_absorbed": 0,
+            "status_applied": None,
+        }
+
+        if is_player_attacking:
+            # Player attacking enemy
+            dodge_chance = enemy.get("dodge", 0)
+            if dodge_chance and random.randint(1, 100) <= dodge_chance:
+                result["dodged"] = True
+                result["message"] = random.choice(MSG_ENEMY_DODGE)
+                result["message_color"] = COLOR_WHITE
+                result["message_ctx"] = {"enemy": enemy["name"]}
+                return result
+
+            # Roll weapon dice + level
+            damage = player.weapon_damage()
+
+            # Crit check
+            crit_chance, crit_mult = player.crit_info()
+            if crit_chance and random.randint(1, 100) <= crit_chance:
+                damage = int(damage * crit_mult)
+                result["critical"] = True
+
+            # No shield block for enemies, no status effects
+            result["damage"] = max(1, damage - enemy.get("defense", 0))
+            result["message"] = (
+                random.choice(MSG_CRITICAL_HIT) if result["critical"]
+                else None  # use tier-based message later
+            )
+            result["message_color"] = COLOR_YELLOW if result["critical"] else COLOR_WHITE
+            result["message_ctx"] = {"enemy": enemy["name"]}
+            return result
+        else:
+            # Enemy attacking player
+            damage = max(
+                1, enemy["attack"] - player.defense_total()
+                + random.randint(-1, 1),
+            )
+
+            # Shield block check
+            block_chance, absorb = player.shield_info()
+            if block_chance and random.randint(1, 100) <= block_chance:
+                result["shield_blocked"] = True
+                absorbed = min(damage, absorb)
+                result["shield_absorbed"] = absorbed
+                damage = damage - absorbed
+                if damage <= 0:
+                    result["message"] = random.choice(MSG_SHIELD_BLOCK)
+                    result["message_color"] = COLOR_CYAN
+                    result["message_ctx"] = {}
+                    result["damage"] = 0
+                    return result
+                else:
+                    result["message"] = random.choice(MSG_SHIELD_BLOCK_PARTIAL)
+                    result["message_color"] = COLOR_CYAN
+                    result["message_ctx"] = {"absorbed": absorbed}
+
+            # Status effect check
+            status_effect = enemy.get("status_effect")
+            if (status_effect and status_effect in STATUS_EFFECT_PROPS
+                    and random.randint(1, 100) <= STATUS_EFFECT_CHANCE):
+                result["status_applied"] = status_effect
+
+            result["damage"] = max(1, damage)
+            result["message"] = None  # use enemy hit message
+            result["message_color"] = enemy["color"]
+            return result
 
     def queue_player_action(self, player_idx, action):
         """Queue an action for the given player.
@@ -1661,9 +1950,7 @@ class Game:
                 return
             gen = self._get_generator_at(nx, ny, player.depth)
             if gen and not gen["destroyed"]:
-                damage = self.do_attack(
-                    player.name, player.attack_total(),
-                    "portal", gen["defense"])
+                damage = max(1, player.weapon_damage() - gen["defense"])
                 gen["hp"] -= damage
                 self._broadcast(
                     nx, ny, player.depth,
@@ -1721,13 +2008,22 @@ class Game:
             if target_tile == TILE_TRAP:
                 trap_damage = 3 + player.depth * 2
                 player.hp -= trap_damage
-                dungeon[ny][nx] = TILE_FLOOR
                 self._tell(
                     player, random.choice(MSG_STEP_TRAP),
-                    COLOR_RED)
+                    COLOR_RED, ctx={"damage": trap_damage})
                 if player.hp <= 0:
                     player.hp = 0
                     player.dead = True
+                    self.levels[player.depth]["corpses"].append({
+                        "x": player.x,
+                        "y": player.y,
+                        "name": player.name,
+                        "level": player.level,
+                        "killer": "a trap",
+                    })
+                    self._broadcast(
+                        player.x, player.y, player.depth,
+                        MSG_PLAYER_DIED, COLOR_RED, subject=player)
             self._ambient_sound(
                 nx, ny, player.depth, PLAYER_MOVE_AMBIENT,
                 COLOR_WHITE, source=player, chance=0.08,
@@ -1754,7 +2050,12 @@ class Game:
             return
         _, item = self.get_item_at(x, y, depth)
         if item:
-            item_name = ITEM_PROPS[item["kind"]]["name"].lower()
+            if item["kind"] == ITEM_SWORD and "weapon" in item:
+                item_name = WEAPON_PROPS[item["weapon"]]["name"].lower()
+            elif item["kind"] == ITEM_SHIELD and "shield" in item:
+                item_name = SHIELD_PROPS[item["shield"]]["name"].lower()
+            else:
+                item_name = ITEM_PROPS[item["kind"]]["name"].lower()
             self._tell(player, random.choice(MSG_SEE_ITEM),
                        COLOR_WHITE, ctx={"item": item_name})
             return
@@ -1771,21 +2072,35 @@ class Game:
         """Resolve a player attacking an adjacent enemy."""
         if enemy.get("water"):
             enemy["visible"] = True
-        damage = self.do_attack(
-            player.name, player.attack_total(),
-            enemy["name"], enemy["defense"])
-        enemy["hp"] -= damage
-        tier_keys = sorted(MSG_PLAYER_HIT_ENEMY.keys())
-        tier = tier_keys[0]
-        for tk in tier_keys:
-            if damage >= tk:
-                tier = tk
-        hit_msg = random.choice(MSG_PLAYER_HIT_ENEMY[tier])
+        result = self.resolve_attack(player, enemy, is_player_attacking=True)
+
+        if result["dodged"]:
+            self._broadcast(
+                enemy["x"], enemy["y"], player.depth,
+                result["message"], result["message_color"],
+                subject=player, ctx=result["message_ctx"],
+            )
+            return
+
+        enemy["hp"] -= result["damage"]
+
+        if result["critical"]:
+            hit_msg = result["message"]
+            msg_color = result["message_color"]
+        else:
+            tier_keys = sorted(MSG_PLAYER_HIT_ENEMY.keys())
+            tier = tier_keys[0]
+            for tk in tier_keys:
+                if result["damage"] >= tk:
+                    tier = tk
+            hit_msg = random.choice(MSG_PLAYER_HIT_ENEMY[tier])
+            msg_color = COLOR_WHITE
+
         self._broadcast(
             enemy["x"], enemy["y"], player.depth,
-            hit_msg, COLOR_WHITE,
+            hit_msg, msg_color,
             subject=player,
-            ctx={"enemy": enemy["name"], "damage": damage},
+            ctx={"enemy": enemy["name"], "damage": result["damage"]},
         )
         self._ambient_sound(
             enemy["x"], enemy["y"], player.depth,
@@ -1814,13 +2129,53 @@ class Game:
             player.level += 1
             player.max_hp += 5
             player.hp = min(player.hp + 5, player.max_hp)
-            player.attack += 1
             player.next_level_xp = int(player.next_level_xp * 1.5)
             self._broadcast(
                 player.x, player.y, player.depth,
                 MSG_LEVEL_UP, COLOR_YELLOW,
                 subject=player, ctx={"level": player.level},
             )
+
+    def _process_status_effects(self, player):
+        """Process status effect tick-down and DoT damage."""
+        to_remove = []
+        for effect_name, remaining in player.status_effects.items():
+            if remaining <= 0:
+                to_remove.append(effect_name)
+                continue
+            # Apply DoT damage at interval
+            if effect_name != STATUS_PARALYSIS:
+                if remaining % STATUS_EFFECT_TICK_INTERVAL == 0:
+                    dot_damage = self._calculate_dot_damage(player, effect_name)
+                    player.hp -= dot_damage
+                    self._tell(
+                        player, MSG_STATUS_DO_TICK,
+                        STATUS_EFFECT_PROPS[effect_name]["color"],
+                        ctx={"damage": dot_damage,
+                             "effect": STATUS_EFFECT_PROPS[effect_name]["name"]},
+                    )
+                    if player.hp <= 0:
+                        player.hp = 0
+                        player.dead = True
+            player.status_effects[effect_name] = remaining - 1
+
+        for effect_name in to_remove:
+            del player.status_effects[effect_name]
+            self._tell(
+                player, MSG_STATUS_WEAR_OFF,
+                STATUS_EFFECT_PROPS[effect_name]["color"],
+                ctx={"effect": STATUS_EFFECT_PROPS[effect_name]["name"]},
+            )
+
+    def _calculate_dot_damage(self, player, effect_name):
+        """Calculate DoT damage per tick for the given effect."""
+        if effect_name == STATUS_POISON:
+            return random.randint(1, 2)
+        elif effect_name == STATUS_BURN:
+            return 1 + player.depth // 2
+        elif effect_name == STATUS_BLEED:
+            return max(1, player.attack // 3)
+        return 1
 
     def _process_tick(self):
         """Advance the game by one tick.
@@ -1834,7 +2189,19 @@ class Game:
         for i, player in enumerate(self.players):
             if player.dead or player.game_win:
                 continue
+            # Process status effects each tick
+            self._process_status_effects(player)
             if self.tick >= player.next_tick:
+                # Check paralysis - skip action, advance time
+                if STATUS_PARALYSIS in player.status_effects:
+                    player.next_tick = self.tick + TICK_MOVE
+                    if player.depth in self.levels:
+                        self.levels[player.depth]["tick"] += TICK_MOVE
+                    if self.tick % 20 == 0:
+                        self._tell(player, random.choice(MSG_STATUS_PARALYSIS_TICK),
+                                   STATUS_EFFECT_PROPS[STATUS_PARALYSIS]["color"])
+                    player.queued_action = None
+                    continue
                 if player.queued_action is not None:
                     self.execute_player_action(i)
                     # Advance level tick by action cost
@@ -2049,18 +2416,46 @@ class Game:
                    and dist <= FOV_RADIUS + 2)
 
         if dist == 1:
-            damage = self.do_attack(
-                enemy["name"], enemy["attack"],
-                target.name, target.defense_total(), 1)
-            target.hp -= damage
+            result = self.resolve_attack(target, enemy, is_player_attacking=False)
+            target.hp -= result["damage"]
+
+            # Shield block message
+            if result["shield_blocked"]:
+                self._broadcast(
+                    target.x, target.y, depth,
+                    result["message"], result["message_color"],
+                    subject=target, ctx=result["message_ctx"],
+                )
+
+            # Hit message
             hit_template = random.choice(
                 ENEMY_HIT_MESSAGES.get(enemy["name"],
                                        [ENEMY_HIT_DEFAULT]))
             self._broadcast(
                 target.x, target.y, depth,
                 hit_template, enemy["color"],
-                subject=target, ctx={"damage": damage},
+                subject=target, ctx={"damage": result["damage"]},
             )
+
+            # Status effect application
+            if result["status_applied"]:
+                status_name = result["status_applied"]
+                props = STATUS_EFFECT_PROPS[status_name]
+                # Refresh or set duration (paralysis doesn't stack, refresh on hit)
+                if status_name == STATUS_PARALYSIS:
+                    # Paralysis: apply immediately, set duration
+                    target.status_effects[status_name] = STATUS_EFFECT_DURATION
+                else:
+                    # DoT effects: set or refresh duration
+                    target.status_effects[status_name] = STATUS_EFFECT_DURATION
+                self._broadcast(
+                    target.x, target.y, depth,
+                    random.choice(props["apply_msg"]),
+                    props["color"],
+                    subject=target,
+                    ctx={"enemy": enemy["name"]},
+                )
+
             self._ambient_sound(
                 target.x, target.y, depth, COMBAT_CLASH_AMBIENT,
                 COLOR_WHITE, chance=0.5, range=38, flat=True)
@@ -2152,6 +2547,7 @@ class Game:
                 stairs_up_x, stairs_up_y, new_depth,
                 exclude_player=player)
             self._ensure_player_explored(player)
+            self._show_entrance(player)
             self._ambient_sound(
                 old_x, old_y, old_depth, STAIRS_DOWN_AMBIENT,
                 COLOR_CYAN, source=player, chance=1.0,
@@ -2185,6 +2581,7 @@ class Game:
                     stairs_down_x, stairs_down_y, new_depth,
                     exclude_player=player)
                 self._ensure_player_explored(player)
+                self._show_entrance(player)
                 self._ambient_sound(
                     old_x, old_y, old_depth, STAIRS_UP_AMBIENT,
                     COLOR_CYAN, source=player, chance=1.0,
@@ -2222,18 +2619,48 @@ class Game:
                 subject=player, ctx={"heal": heal},
             )
         elif kind == ITEM_SWORD:
-            player.weapon_bonus += item["bonus"]
+            new_weapon = item["weapon"]
+            # Drop old weapon if not fists
+            if player.equipped_weapon != WEAPON_FISTS:
+                old_weapon = player.equipped_weapon
+                self._get_items(player.depth).append({
+                    "x": player.x, "y": player.y,
+                    "kind": ITEM_SWORD, "weapon": old_weapon,
+                })
+                self._broadcast(
+                    player.x, player.y, player.depth,
+                    MSG_DROPPED_WEAPON, COLOR_WHITE,
+                    subject=player,
+                    ctx={"weapon": WEAPON_PROPS[old_weapon]["name"].lower()},
+                )
+            player.equipped_weapon = new_weapon
             self._broadcast(
                 player.x, player.y, player.depth,
-                MSG_EQUIPPED_SWORD, COLOR_WHITE,
-                subject=player, ctx={"bonus": item["bonus"]},
+                MSG_EQUIPPED_WEAPON, COLOR_WHITE,
+                subject=player,
+                ctx={"weapon": WEAPON_PROPS[new_weapon]["name"].lower()},
             )
         elif kind == ITEM_SHIELD:
-            player.armor_bonus += item["bonus"]
+            new_shield = item["shield"]
+            # Drop old shield if not none
+            if player.equipped_shield != SHIELD_NONE:
+                old_shield = player.equipped_shield
+                self._get_items(player.depth).append({
+                    "x": player.x, "y": player.y,
+                    "kind": ITEM_SHIELD, "shield": old_shield,
+                })
+                self._broadcast(
+                    player.x, player.y, player.depth,
+                    MSG_DROPPED_SHIELD, COLOR_CYAN,
+                    subject=player,
+                    ctx={"shield": SHIELD_PROPS[old_shield]["name"].lower()},
+                )
+            player.equipped_shield = new_shield
             self._broadcast(
                 player.x, player.y, player.depth,
                 MSG_EQUIPPED_SHIELD, COLOR_CYAN,
-                subject=player, ctx={"bonus": item["bonus"]},
+                subject=player,
+                ctx={"shield": SHIELD_PROPS[new_shield]["name"].lower()},
             )
         elif kind == ITEM_GOLD:
             player.gold += item["value"]
