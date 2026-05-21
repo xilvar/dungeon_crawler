@@ -38,6 +38,8 @@ from dungeon_messages import (
     MSG_ENEMY_DODGE,
     MSG_SHIELD_BLOCK,
     MSG_SHIELD_BLOCK_PARTIAL,
+    MSG_ENEMY_BLOCK,
+    MSG_ENEMY_BLOCK_PARTIAL,
     MSG_STATUS_POISON_APPLY,
     MSG_STATUS_BURN_APPLY,
     MSG_STATUS_BLEED_APPLY,
@@ -152,7 +154,7 @@ LEVEL_UP_XP_SCALE_FACTOR = 1.5
 POISON_DOT_DAMAGE_MIN = 1
 POISON_DOT_DAMAGE_MAX = 2
 BURN_DOT_DAMAGE_BASE = 1
-BURN_DOT_DEPTH_DIVISOR = 2
+BURN_DOT_DEPTH_DIVISOR = 3
 BLEED_DOT_ATTACK_DIVISOR = 3
 STATUS_DOT_DAMAGE_FALLBACK = 1
 
@@ -167,9 +169,9 @@ START_ROOM_POTIONS_MIN = 1
 START_ROOM_POTIONS_MAX = 3
 
 # Item spawn chances (cave/labyrinth/tower dungeons)
-CAVE_ITEMS_BASE_COUNT = 2
-CAVE_ITEMS_DEPTH_DIVISOR = 2
-CAVE_ITEM_POTION_THRESHOLD = 0.25
+CAVE_ITEMS_BASE_COUNT = 5
+CAVE_ITEMS_DEPTH_DIVISOR = 1
+CAVE_ITEM_POTION_THRESHOLD = 0.35
 CAVE_ITEM_WEAPON_THRESHOLD = 0.55
 CAVE_ITEM_SHIELD_THRESHOLD = 0.77
 CAVE_GOLD_VALUE_MIN = 5
@@ -216,7 +218,9 @@ POTION_HEAL_MAX = 10
 
 # Rest healing
 REST_HEAL_CHANCE = 0.1
-REST_HEAL_AMOUNT = 3
+REST_HEAL_CHANCE_SCALE = 0.05
+REST_HEAL_CHANCE_CAP = 0.6
+REST_HEAL_AMOUNT = 5
 
 # Water movement
 WATER_MOVE_SPEED_PENALTY = 2
@@ -333,206 +337,206 @@ ENEMY_PROPS = {
     # Tier 1 - vermin/scavengers
     ENEMY_RAT: {
         "char": "r", "color": COLOR_YELLOW, "name": "Rat",
-        "hp": 3, "attack": 1, "defense": 0, "xp": 1,
+        "hp": 3, "attack": 1, "block": 0, "absorb": 0, "xp": 1,
         "dodge": 3,
     },
     ENEMY_BAT: {
         "char": "b", "color": COLOR_YELLOW, "name": "Bat",
-        "hp": 2, "attack": 1, "defense": 0, "xp": 1,
+        "hp": 2, "attack": 1, "block": 0, "absorb": 0, "xp": 1,
         "dodge": 5,
     },
     ENEMY_SPIDER: {
         "char": "S", "color": COLOR_YELLOW, "name": "Spider",
-        "hp": 4, "attack": 2, "defense": 0, "xp": 2,
+        "hp": 4, "attack": 2, "block": 0, "absorb": 0, "xp": 2,
         "dodge": 3, "status_effect": STATUS_POISON,
     },
     ENEMY_KOBOLD: {
         "char": "k", "color": COLOR_YELLOW, "name": "Kobold",
-        "hp": 5, "attack": 2, "defense": 0, "xp": 2,
+        "hp": 5, "attack": 2, "block": 0, "absorb": 0, "xp": 2,
         "dodge": 3,
     },
     ENEMY_GNOME: {
         "char": "g", "color": COLOR_YELLOW, "name": "Goblin",
-        "hp": 7, "attack": 2, "defense": 0, "xp": 2,
+        "hp": 7, "attack": 2, "block": 0, "absorb": 0, "xp": 2,
         "dodge": 3,
     },
     # Tier 2 - common threats
     ENEMY_IMP: {
         "char": "i", "color": COLOR_RED, "name": "Imp",
-        "hp": 6, "attack": 3, "defense": 0, "xp": 4,
+        "hp": 6, "attack": 3, "block": 0, "absorb": 0, "xp": 4,
         "dodge": 5,
     },
     ENEMY_SKELETON: {
         "char": "s", "color": COLOR_WHITE, "name": "Skeleton",
-        "hp": 8, "attack": 3, "defense": 1, "xp": 4,
+        "hp": 8, "attack": 3, "block": 6, "absorb": 2, "xp": 4,
         "dodge": 5,
     },
     ENEMY_ZOMBIE: {
         "char": "Z", "color": COLOR_GREEN, "name": "Zombie",
-        "hp": 12, "attack": 2, "defense": 0, "xp": 3,
+        "hp": 12, "attack": 2, "block": 0, "absorb": 0, "xp": 3,
         "dodge": 3,
     },
     ENEMY_WOLF: {
         "char": "W", "color": COLOR_WHITE, "name": "Wolf",
-        "hp": 8, "attack": 4, "defense": 0, "xp": 3,
+        "hp": 8, "attack": 4, "block": 0, "absorb": 0, "xp": 3,
         "dodge": 5,
     },
     # Tier 3 - undead/horrors
     ENEMY_HYDRA: {
         "char": "H", "color": COLOR_GREEN, "name": "Hydra",
-        "hp": 35, "attack": 8, "defense": 3, "xp": 30,
+        "hp": 35, "attack": 8, "block": 18, "absorb": 6, "xp": 30,
         "dodge": 5, "status_effect": STATUS_POISON,
     },
     ENEMY_MUMMY: {
         "char": "M", "color": COLOR_YELLOW, "name": "Mummy",
-        "hp": 18, "attack": 4, "defense": 2, "xp": 10,
+        "hp": 18, "attack": 4, "block": 12, "absorb": 4, "xp": 10,
         "dodge": 5,
     },
     ENEMY_WRAITH: {
         "char": "W", "color": COLOR_CYAN, "name": "Wraith",
-        "hp": 15, "attack": 5, "defense": 2, "xp": 12,
+        "hp": 15, "attack": 5, "block": 12, "absorb": 4, "xp": 12,
         "dodge": 7, "status_effect": STATUS_CHILL,
     },
     ENEMY_TROLL: {
         "char": "T", "color": COLOR_GREEN, "name": "Troll",
-        "hp": 25, "attack": 6, "defense": 2, "xp": 20,
+        "hp": 25, "attack": 6, "block": 12, "absorb": 4, "xp": 20,
         "dodge": 5, "status_effect": STATUS_BLEED,
     },
     # Tier 4 - formidable beasts
     ENEMY_MINOTAUR: {
         "char": "N", "color": COLOR_YELLOW, "name": "Minotaur",
-        "hp": 25, "attack": 7, "defense": 2, "xp": 20,
+        "hp": 25, "attack": 7, "block": 12, "absorb": 4, "xp": 20,
         "dodge": 5, "status_effect": STATUS_BLEED,
     },
     ENEMY_MEDUSA: {
         "char": "m", "color": COLOR_GREEN, "name": "Medusa",
-        "hp": 24, "attack": 6, "defense": 2, "xp": 20,
+        "hp": 24, "attack": 6, "block": 12, "absorb": 4, "xp": 20,
         "dodge": 7, "status_effect": STATUS_PARALYSIS,
     },
     ENEMY_OWLBEAR: {
         "char": "O", "color": COLOR_YELLOW, "name": "Owlbear",
-        "hp": 22, "attack": 6, "defense": 1, "xp": 15,
+        "hp": 22, "attack": 6, "block": 6, "absorb": 2, "xp": 15,
         "dodge": 5, "status_effect": STATUS_BLEED,
     },
     ENEMY_HOOK_HORROR: {
         "char": "h", "color": COLOR_YELLOW, "name": "Hook Horror",
-        "hp": 26, "attack": 7, "defense": 2, "xp": 20,
+        "hp": 26, "attack": 7, "block": 12, "absorb": 4, "xp": 20,
         "dodge": 7, "status_effect": STATUS_BLEED,
     },
     # Tier 5 - exotic threats
     ENEMY_PHASE_SPIDER: {
         "char": "P", "color": COLOR_RED, "name": "Phase Spider",
-        "hp": 18, "attack": 5, "defense": 1, "xp": 12,
+        "hp": 18, "attack": 5, "block": 6, "absorb": 2, "xp": 12,
         "dodge": 10, "status_effect": STATUS_POISON,
     },
     ENEMY_BASILISK: {
         "char": "B", "color": COLOR_GREEN, "name": "Basilisk",
-        "hp": 20, "attack": 6, "defense": 3, "xp": 18,
+        "hp": 20, "attack": 6, "block": 18, "absorb": 6, "xp": 18,
         "dodge": 8, "status_effect": STATUS_PARALYSIS,
     },
     ENEMY_WYVERN: {
         "char": "Y", "color": COLOR_GREEN, "name": "Wyvern",
-        "hp": 32, "attack": 9, "defense": 3, "xp": 25,
+        "hp": 32, "attack": 9, "block": 18, "absorb": 6, "xp": 25,
         "dodge": 8, "status_effect": STATUS_BURN,
     },
     # Tier 6 - powerful creatures
     ENEMY_PHOENIX: {
         "char": "F", "color": COLOR_RED, "name": "Phoenix",
-        "hp": 28, "attack": 8, "defense": 2, "xp": 22,
+        "hp": 28, "attack": 8, "block": 12, "absorb": 4, "xp": 22,
         "dodge": 10, "status_effect": STATUS_BURN,
     },
     ENEMY_GRUE: {
         "char": "X", "color": COLOR_MAGENTA, "name": "Grue",
-        "hp": 15, "attack": 5, "defense": 1, "xp": 12,
+        "hp": 15, "attack": 5, "block": 6, "absorb": 2, "xp": 12,
         "dodge": 10,
     },
     ENEMY_GELATINOUS_CUBE: {
         "char": "C", "color": COLOR_CYAN,
         "name": "Gelatinous Cube",
-        "hp": 28, "attack": 4, "defense": 1, "xp": 15,
+        "hp": 28, "attack": 4, "block": 6, "absorb": 2, "xp": 15,
         "dodge": 8,
     },
     ENEMY_REMORHAZ: {
         "char": "R", "color": COLOR_RED, "name": "Remorhaz",
-        "hp": 40, "attack": 10, "defense": 4, "xp": 35,
+        "hp": 40, "attack": 10, "block": 24, "absorb": 8, "xp": 35,
         "dodge": 10, "status_effect": STATUS_BURN,
     },
     ENEMY_ICE_DEVIL: {
         "char": "I", "color": COLOR_CYAN, "name": "Ice Devil",
-        "hp": 35, "attack": 9, "defense": 3, "xp": 30,
+        "hp": 35, "attack": 9, "block": 18, "absorb": 6, "xp": 30,
         "dodge": 12, "status_effect": STATUS_CHILL,
     },
     # Tier 7 - legendary threats
     ENEMY_LICH: {
         "char": "L", "color": COLOR_WHITE, "name": "Lich",
-        "hp": 45, "attack": 10, "defense": 4, "xp": 45,
+        "hp": 45, "attack": 10, "block": 24, "absorb": 8, "xp": 45,
         "dodge": 12, "status_effect": STATUS_POISON,
     },
     ENEMY_BEHOLDER: {
         "char": "E", "color": COLOR_YELLOW, "name": "Beholder",
-        "hp": 40, "attack": 9, "defense": 4, "xp": 40,
+        "hp": 40, "attack": 9, "block": 24, "absorb": 8, "xp": 40,
         "dodge": 12, "status_effect": STATUS_PARALYSIS,
     },
     # Tier 8 - ultimate bosses
     ENEMY_BALOR: {
         "char": "B", "color": COLOR_RED, "name": "Balor",
-        "hp": 60, "attack": 14, "defense": 5, "xp": 60,
+        "hp": 60, "attack": 14, "block": 30, "absorb": 10, "xp": 60,
         "dodge": 15, "status_effect": STATUS_BURN,
     },
     # Keep old enemies for compatibility
     ENEMY_ORC: {
         "char": "o", "color": COLOR_GREEN, "name": "Orc",
-        "hp": 10, "attack": 3, "defense": 1, "xp": 5,
+        "hp": 10, "attack": 3, "block": 6, "absorb": 2, "xp": 5,
         "dodge": 5,
     },
     ENEMY_GOLEM: {
         "char": "G", "color": COLOR_CYAN, "name": "Golem",
-        "hp": 20, "attack": 5, "defense": 4, "xp": 15,
+        "hp": 20, "attack": 5, "block": 24, "absorb": 8, "xp": 15,
         "dodge": 3,
     },
     ENEMY_SNAKE: {
         "char": "n", "color": COLOR_RED, "name": "Snake",
-        "hp": 5, "attack": 2, "defense": 0, "xp": 3,
+        "hp": 5, "attack": 2, "block": 0, "absorb": 0, "xp": 3,
         "dodge": 5, "status_effect": STATUS_POISON,
     },
     ENEMY_DEMON: {
         "char": "D", "color": COLOR_RED, "name": "Demon",
-        "hp": 30, "attack": 8, "defense": 3, "xp": 30,
+        "hp": 30, "attack": 8, "block": 18, "absorb": 6, "xp": 30,
         "dodge": 10,
     },
     ENEMY_DRAGON: {
         "char": "d", "color": COLOR_RED, "name": "Dragon",
-        "hp": 50, "attack": 12, "defense": 5, "xp": 50,
+        "hp": 50, "attack": 12, "block": 30, "absorb": 10, "xp": 50,
         "dodge": 12, "status_effect": STATUS_BURN,
     },
     # Water enemies - hidden in water, cannot leave water
     ENEMY_WATER_MITE: {
         "char": ".", "color": COLOR_BLUE, "name": "Water Mite",
-        "hp": 4, "attack": 2, "defense": 0, "xp": 2,
+        "hp": 4, "attack": 2, "block": 0, "absorb": 0, "xp": 2,
         "dodge": 5,
         "water": True,
     },
     ENEMY_WATER_SNAKE: {
         "char": "N", "color": COLOR_CYAN, "name": "Water Snake",
-        "hp": 10, "attack": 4, "defense": 1, "xp": 6,
+        "hp": 10, "attack": 4, "block": 6, "absorb": 2, "xp": 6,
         "dodge": 7, "status_effect": STATUS_POISON,
         "water": True,
     },
     ENEMY_DEEP_ONE: {
         "char": "D", "color": COLOR_CYAN, "name": "Deep One",
-        "hp": 30, "attack": 7, "defense": 3, "xp": 25,
+        "hp": 30, "attack": 7, "block": 18, "absorb": 6, "xp": 25,
         "dodge": 10,
         "water": True,
     },
     ENEMY_WATER_ELEMENTAL: {
         "char": "W", "color": COLOR_BLUE, "name": "Water Elemental",
-        "hp": 40, "attack": 9, "defense": 3, "xp": 35,
+        "hp": 40, "attack": 9, "block": 18, "absorb": 6, "xp": 35,
         "dodge": 12, "status_effect": STATUS_CHILL,
         "water": True,
     },
     ENEMY_KRAKEN: {
         "char": "K", "color": COLOR_MAGENTA, "name": "Kraken",
-        "hp": 55, "attack": 12, "defense": 4, "xp": 55,
+        "hp": 55, "attack": 12, "block": 24, "absorb": 8, "xp": 55,
         "dodge": 12, "status_effect": STATUS_BLEED,
         "water": True,
     },
@@ -620,9 +624,10 @@ def _parse_dice(dice_str):
     return 1, int(dice_str)
 
 
-def generate_weapon_variant(weapon_type):
+def generate_weapon_variant(weapon_type, depth=0):
     """Generate a weapon variant with a descriptor and modified stats.
 
+    Depth adds to dice sides and flat bonus, baking power into the item.
     Returns a dict: {weapon, dice, crit, crit_mult, flat_bonus, name}
     """
     if weapon_type == WEAPON_FISTS:
@@ -643,9 +648,10 @@ def generate_weapon_variant(weapon_type):
     crit_delta = random.randint(desc["crit_delta"][0], desc["crit_delta"][1])
     flat_delta = random.randint(desc["flat_delta"][0], desc["flat_delta"][1])
 
-    new_sides = max(2, sides + dice_delta)
+    depth_bonus = depth // 2
+    new_sides = max(2, sides + dice_delta + depth_bonus)
     new_crit = max(0, props["crit"] + crit_delta)
-    new_flat = flat_delta
+    new_flat = flat_delta + depth_bonus
 
     desc_name = desc["name"]
     full_name = f"{desc_name} {props['name']}" if desc_name else props["name"]
@@ -660,9 +666,10 @@ def generate_weapon_variant(weapon_type):
     }
 
 
-def generate_shield_variant(shield_type):
+def generate_shield_variant(shield_type, depth=0):
     """Generate a shield variant with a descriptor and modified stats.
 
+    Depth adds to block chance and absorb, baking power into the item.
     Returns a dict: {shield, block, absorb, name}
     """
     if shield_type == SHIELD_NONE:
@@ -679,8 +686,9 @@ def generate_shield_variant(shield_type):
     block_delta = random.randint(desc["block_delta"][0], desc["block_delta"][1])
     absorb_delta = random.randint(desc["absorb_delta"][0], desc["absorb_delta"][1])
 
-    new_block = max(0, props["block"] + block_delta)
-    new_absorb = max(0, props["absorb"] + absorb_delta)
+    depth_bonus = depth // 2
+    new_block = max(0, props["block"] + block_delta + depth_bonus)
+    new_absorb = max(0, props["absorb"] + absorb_delta + depth_bonus)
 
     desc_name = desc["name"]
     full_name = f"{desc_name} {props['name']}" if desc_name else props["name"]
@@ -700,8 +708,8 @@ def pick_weapon_for_depth(depth):
         if wtype != WEAPON_FISTS and props["depth_range"][0] <= depth <= props["depth_range"][1]
     ]
     if not candidates:
-        return generate_weapon_variant(WEAPON_DAGGER)
-    return generate_weapon_variant(random.choice(candidates))
+        return generate_weapon_variant(WEAPON_DAGGER, depth)
+    return generate_weapon_variant(random.choice(candidates), depth)
 
 
 def pick_shield_for_depth(depth):
@@ -711,8 +719,8 @@ def pick_shield_for_depth(depth):
         if stype != SHIELD_NONE and props["depth_range"][0] <= depth <= props["depth_range"][1]
     ]
     if not candidates:
-        return generate_shield_variant(SHIELD_LEATHER)
-    return generate_shield_variant(random.choice(candidates))
+        return generate_shield_variant(SHIELD_LEATHER, depth)
+    return generate_shield_variant(random.choice(candidates), depth)
 
 
 # Status effect properties (constants defined above in ENEMY_PROPS section)
@@ -1316,7 +1324,8 @@ def place_entities(rooms, dungeon, depth):
                 "hp": int(prop["hp"] * scale),
                 "max_hp": int(prop["hp"] * scale),
                 "attack": int(prop["attack"] * scale),
-                "defense": int(prop["defense"] * scale),
+                "block": min(50, int(prop["block"] * scale) + depth),
+                "absorb": int(prop["absorb"] * scale) + depth // 2,
                 "xp": int(prop["xp"] * scale),
             })
 
@@ -1593,7 +1602,8 @@ class Game:
                 "hp": props["hp"] + depth * ENEMY_HP_SCALE_PER_DEPTH,
                 "max_hp": props["hp"] + depth * ENEMY_HP_SCALE_PER_DEPTH,
                 "attack": props["attack"] + depth * ENEMY_ATTACK_SCALE_PER_DEPTH,
-                "defense": props["defense"] + depth // ENEMY_DEFENSE_DEPTH_DIVISOR,
+                "block": min(50, props["block"] + depth),
+                "absorb": props["absorb"] + depth // 2,
                 "xp": props["xp"] + depth * ENEMY_XP_SCALE_PER_DEPTH,
                 "depth": depth,
             }
@@ -1631,7 +1641,8 @@ class Game:
                 "hp": props["hp"] + depth * ENEMY_HP_SCALE_PER_DEPTH,
                 "max_hp": props["hp"] + depth * ENEMY_HP_SCALE_PER_DEPTH,
                 "attack": props["attack"] + depth * ENEMY_ATTACK_SCALE_PER_DEPTH,
-                "defense": props["defense"] + depth // ENEMY_DEFENSE_DEPTH_DIVISOR,
+                "block": min(50, props["block"] + depth),
+                "absorb": props["absorb"] + depth // 2,
                 "xp": props["xp"] + depth * ENEMY_XP_SCALE_PER_DEPTH,
                 "depth": depth,
                 "water": True,
@@ -1719,7 +1730,8 @@ class Game:
                     GENERATOR_SPAWN_MIN, GENERATOR_SPAWN_MAX),
                 "hp": ENEMY_PROPS[etype]["hp"] * GENERATOR_HP_MULTIPLIER + depth * GENERATOR_HP_PER_DEPTH,
                 "max_hp": ENEMY_PROPS[etype]["hp"] * GENERATOR_HP_MULTIPLIER + depth * GENERATOR_HP_PER_DEPTH,
-                "defense": min(GENERATOR_DEFENSE_MAX, (depth * 3) // 4),
+                "block": min(30, (depth * 3) // 2),
+                "absorb": depth // 2,
                 "destroyed": False,
                 "respawn_tick": 0,
             })
@@ -2208,8 +2220,26 @@ class Game:
                 damage = int(damage * crit_mult)
                 result["critical"] = True
 
-            # No shield block for enemies, no status effects
-            result["damage"] = max(1, damage - enemy.get("defense", 0))
+            # Enemy block/absorb check (mirrors player shield)
+            block_chance = enemy.get("block", 0)
+            absorb = enemy.get("absorb", 0)
+            if block_chance and random.randint(PERCENTILE_ROLL_MIN, PERCENTILE_ROLL_MAX) <= block_chance:
+                absorbed = min(damage, absorb)
+                damage -= absorbed
+                if damage <= 0:
+                    result["damage"] = 0
+                    result["message"] = random.choice(MSG_ENEMY_BLOCK)
+                    result["message_color"] = COLOR_WHITE
+                    result["message_ctx"] = {"enemy": enemy["name"]}
+                    return result
+                else:
+                    result["damage"] = damage
+                    result["message"] = random.choice(MSG_ENEMY_BLOCK_PARTIAL)
+                    result["message_color"] = COLOR_WHITE
+                    result["message_ctx"] = {"enemy": enemy["name"], "absorbed": absorbed}
+                    return result
+
+            result["damage"] = max(0, damage)
             result["message"] = (
                 random.choice(MSG_CRITICAL_HIT) if result["critical"]
                 else None  # use tier-based message later
@@ -2313,7 +2343,12 @@ class Game:
                 return
             gen = self._get_generator_at(nx, ny, player.depth)
             if gen and not gen["destroyed"]:
-                damage = max(1, player.weapon_damage() - gen["defense"])
+                damage = player.weapon_damage()
+                gen_block = gen.get("block", 0)
+                gen_absorb = gen.get("absorb", 0)
+                if gen_block and random.randint(PERCENTILE_ROLL_MIN, PERCENTILE_ROLL_MAX) <= gen_block:
+                    absorbed = min(damage, gen_absorb)
+                    damage = max(0, damage - absorbed)
                 gen["hp"] -= damage
                 self._broadcast(
                     nx, ny, player.depth,
@@ -2679,7 +2714,8 @@ class Game:
             "hp": props["hp"] + depth * 2,
             "max_hp": props["hp"] + depth * 2,
             "attack": props["attack"] + depth,
-            "defense": props["defense"] + depth // 2,
+            "block": min(25, props.get("block", 0) + depth),
+            "absorb": props.get("absorb", 0) + depth // 2,
             "xp": props["xp"] + depth * 5,
             "depth": depth,
             "next_tick": level_tick,
@@ -3077,7 +3113,7 @@ class Game:
     def _do_wait(self, player):
         """Wait for a moment.
 
-        Build up chance to heal 3HP with each contiguous wait.
+        Heal chance increases with each consecutive wait, capped at 60%.
         """
         if player.hp >= player.max_hp:
             player.consecutive_waits = 0
@@ -3085,11 +3121,16 @@ class Game:
                             MSG_REST_NO_HEAL, COLOR_GREEN, subject=player)
             return
         player.consecutive_waits += 1
-        if random.random() < REST_HEAL_CHANCE:
-            player.hp = min(player.hp + REST_HEAL_AMOUNT, player.max_hp)
+        heal_chance = min(
+            REST_HEAL_CHANCE + player.consecutive_waits * REST_HEAL_CHANCE_SCALE,
+            REST_HEAL_CHANCE_CAP)
+        if random.random() < heal_chance:
+            actual_heal = min(REST_HEAL_AMOUNT, player.max_hp - player.hp)
+            player.hp += actual_heal
             player.consecutive_waits = 0
             self._broadcast(player.x, player.y, player.depth,
-                            MSG_REST_HEAL, COLOR_GREEN, subject=player)
+                            MSG_REST_HEAL, COLOR_GREEN,
+                            subject=player, ctx={"heal": actual_heal})
         else:
             self._broadcast(player.x, player.y, player.depth,
                             MSG_REST_NO_HEAL, COLOR_GREEN, subject=player)

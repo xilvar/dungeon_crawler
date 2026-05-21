@@ -573,7 +573,7 @@ MSG_EQUIPPED_SHIELD = "{name} equipped a {shield}."
 MSG_DROPPED_WEAPON = "{name} dropped a {weapon}."
 MSG_DROPPED_SHIELD = "{name} dropped a {shield}."
 MSG_PICKED_UP_GOLD = "{name} picked up {gold} gold."
-MSG_REST_HEAL = "{name} waited for a moment. (+3 HP)"
+MSG_REST_HEAL = "{name} waited for a moment. (+{heal} HP)"
 MSG_REST_NO_HEAL = "{name} waited for a moment."
 MSG_ENEMY_APPEARS = "A {enemy} appears!"
 
@@ -604,6 +604,16 @@ MSG_SHIELD_BLOCK_PARTIAL = [
     "{name}'s shield absorbs some of the blow! ({absorbed} absorbed)",
     "{name}'s shield takes the hit! ({absorbed} absorbed)",
     "{name} blocks with their shield! ({absorbed} absorbed)",
+]
+MSG_ENEMY_BLOCK = [
+    "The {enemy}'s armor absorbs the blow!",
+    "The {enemy} blocks the attack!",
+    "The {enemy}'s defenses repel the strike!",
+]
+MSG_ENEMY_BLOCK_PARTIAL = [
+    "The {enemy}'s armor absorbs some of the blow! ({absorbed} absorbed)",
+    "The {enemy} partially blocks the hit! ({absorbed} absorbed)",
+    "The {enemy}'s defenses lessen the blow! ({absorbed} absorbed)",
 ]
 
 # ---------------------------------------------------------------------------
