@@ -5,7 +5,7 @@ A multiplayer roguelike dungeon crawler with a server-client architecture. Play 
 ## Modules
 
 - **dungeon_messages.py** — All player-facing message strings: enemy sounds, hit messages, ambient sounds, and broadcast/tell templates.
-- **dungeon_crawler.py** — Core game logic: dungeon generation, FOV, combat, entities, items, corpses, monster generators, and a text-mode renderer for debugging.
+- **dungeon_crawler.py** — Core game logic: dungeon generation, FOV, combat, entities, items, corpses, status effects, monster generators, equipment variants, and a text-mode renderer for debugging.
 - **dungeon_server.py** — Multiplayer HTTP server that manages game state, player registration, actions, visibility-filtered state responses, smart spawn placement, and persistent save/load.
 - **dungeon_client.py** — Curses-based terminal client that connects to the server, renders the map with colored overlays, handles player input, and caches hero profiles.
 - **index.html** — Browser-based web client with canvas rendering, served at `/` by the server.
@@ -38,10 +38,12 @@ python3 dungeon_client.py [host] [port]
 - **Field of View** — Raycasted visibility; explored-but-unseen areas render dimmed. Enemies, items, and corpses are overlaid on the map so they never leave stale characters behind.
 - **Combat & Leveling** — Bump enemies to attack. Gain XP, level up, and improve stats. 37 enemy types across 8 tiers, from rats and bats to balors and dragons, plus 5 water-exclusive creatures.
 - **Items** — Collect health potions, swords, shields, and gold. Walk over items, corpses, or stairs to see contextual messages.
+- **Equipment Variants** — Weapons and shields spawn with randomized descriptors (e.g. "Rusty Dagger", "Fortified Tower Shield") that modify base stats. Weapons use dice-based damage with crit chance and crit multiplier; higher-tier weapons (Long Sword, War Axe, Great Sword, Vorpal Blade) introduce increasing crit rates up to 15%. Shields provide block chance and damage absorption.
 - **Monster Generators** — Each level contains pulsing portals (`*`) that periodically spawn new enemies. Attack and destroy them to slow the onslaught; they respawn after 60 seconds at a new location.
 - **Doors** — Corridor-room boundaries may have closed doors (`+`). Walk into them to open (`-`).
 - **Water** — Cave levels contain water tiles (`~`) with hidden aquatic enemies: Water Mites, Water Snakes, Deep Ones, Water Elementals, and Krakens.
 - **Traps** — Labyrinth levels place hidden traps (`^`) in dead-end corridors that deal damage when stepped on.
+- **Status Effects** — Many enemies can inflict harmful conditions on hit: Poison (DoT damage), Burn (depth-scaled DoT), Bleed (attack-scaled DoT), Chill (stat reduction), and Paralysis (movement lock). Each effect lasts a short duration and ticks periodically.
 - **Corpses** — Dead players leave a `_` marker that overlays the terrain. Walk over a corpse to learn who died there and what killed them.
 - **Ambient Sounds** — Hear faint sounds of other players and monsters on the same level: footsteps, combat, death, stair movement, and enemy activity. Sounds from visible players are suppressed; only hidden actions produce ambient hints.
 - **Enemy Awareness** — A message announces when a new enemy or generator comes into view.
