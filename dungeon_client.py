@@ -416,8 +416,8 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0,
 
     # Player status bar
     dead = " [DEAD]" if my_player["dead"] else ""
-    weapon = my_player.get("weapon_name", "Fists")
-    shield = my_player.get("shield_name", "None")
+    weapon = my_player.get("weapon_display", my_player.get("weapon_name", "Fists"))
+    shield = my_player.get("shield_display", my_player.get("shield_name", "None"))
     effects = my_player.get("status_effects", {})
     effect_str = ""
     if effects:
@@ -428,7 +428,6 @@ def render(stdscr, state, local_map, my_player_id, bandwidth=0.0,
         effect_str = f" | {' '.join(parts)}"
     bar = (f"{my_player['name']} | Lv{my_player['level']} | "
            f"HP {my_player['hp']}/{my_player['max_hp']} | "
-           f"DEF {my_player['defense']} | "
            f"XP {my_player['xp']}/{my_player['next_level_xp']} | "
            f"Gold {my_player['gold']}"
            f" | W:{weapon} S:{shield}{effect_str}{dead}")

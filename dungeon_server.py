@@ -125,10 +125,14 @@ class GameServer:
                 "server_id": getattr(p, "_server_id", 0),
                 "client_id": getattr(p, "_client_id", None),
                 "next_tick": p.next_tick,
-                "explored": {int(d): self._pack_explored(grid)
-                             for d, grid in p.explored.items()},
+ "explored": {int(d): self._pack_explored(grid)
+                              for d, grid in p.explored.items()},
                 "entrance_shown": list(getattr(p, "_entrance_shown", set())),
                 "status_effects": dict(getattr(p, "status_effects", {})),
+                "discovered_traps": {
+                    int(d): [list(c) for c in traps]
+                    for d, traps in getattr(p, "discovered_traps", {}).items()
+                },
             }
 
         state = {
@@ -212,6 +216,10 @@ class GameServer:
                             for d, grid in pd.get("explored", {}).items()}
             p._entrance_shown = set(pd.get("entrance_shown", []))
             p.status_effects = pd.get("status_effects", {})
+            p.discovered_traps = {
+                int(d): {tuple(c) for c in traps}
+                for d, traps in pd.get("discovered_traps", {}).items()
+            }
             return p
 
         # Restore players from separate file
@@ -507,6 +515,8 @@ class GameServer:
                     "equipped_shield": pl.equipped_shield,
                     "weapon_name": pl.weapon_name(),
                     "shield_name": pl.shield_name(),
+                    "weapon_display": pl._weapon_display(),
+                    "shield_display": pl._shield_display(),
                     "status_effects": pl.status_effects,
                     "visible": True,
                 }

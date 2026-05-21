@@ -109,6 +109,146 @@ GENERATOR_RESPAWN_TIME = 6000  # 60 seconds to respawn after destruction
 MAX_ENEMIES_BASE = 15
 MAX_ENEMIES_PER_DEPTH = 5
 
+# Dungeon type strings
+DUNGEON_TYPE_ROOMS = "rooms"
+DUNGEON_TYPE_CAVES = "caves"
+DUNGEON_TYPE_LABYRINTH = "labyrinth"
+DUNGEON_TYPE_TOWER = "tower"
+DUNGEON_TYPES = [DUNGEON_TYPE_ROOMS, DUNGEON_TYPE_CAVES, DUNGEON_TYPE_LABYRINTH, DUNGEON_TYPE_TOWER]
+
+# Dungeon type depth thresholds
+DUNGEON_FORCE_TOWER_DEPTH = MAX_DEPTH - 1
+DUNGEON_FORCE_LABYRINTH_DEPTH = 8
+DUNGEON_DEEP_MIX_MIN_DEPTH = 6
+DUNGEON_MIX_MIN_DEPTH = 4
+DUNGEON_CAVES_MIN_DEPTH = 2
+
+# Action type strings
+ACTION_MOVE = "move"
+ACTION_WAIT = "wait"
+ACTION_GRAB = "grab"
+ACTION_STAIRS_DOWN = "stairs_down"
+ACTION_STAIRS_UP = "stairs_up"
+
+# Combat thresholds
+PERCENTILE_ROLL_MIN = 1
+PERCENTILE_ROLL_MAX = 100
+ENEMY_ATTACK_VARIANCE_MIN = -1
+ENEMY_ATTACK_VARIANCE_MAX = 1
+ENEMY_ATTACK_RANGE = 1
+ENEMYCHASE_FOV_EXTENSION = 2
+WATER_ENEMY_ADJACENT_VISIBLE_RANGE = 1
+
+# Trap values
+TRAP_DAMAGE_BASE = 3
+TRAP_DAMAGE_PER_DEPTH = 2
+TRAP_CHANCE_PER_DEPTH = 0.006
+
+# Player level-up
+LEVEL_UP_HP_GAIN = 5
+LEVEL_UP_XP_SCALE_FACTOR = 1.5
+
+# Status effect DoT damage
+POISON_DOT_DAMAGE_MIN = 1
+POISON_DOT_DAMAGE_MAX = 2
+BURN_DOT_DAMAGE_BASE = 1
+BURN_DOT_DEPTH_DIVISOR = 2
+BLEED_DOT_ATTACK_DIVISOR = 3
+STATUS_DOT_DAMAGE_FALLBACK = 1
+
+# Item spawn chances (room-based dungeons)
+ITEM_POTION_SPAWN_CHANCE = 0.5
+ITEM_GOLD_SPAWN_CHANCE = 0.3
+ITEM_WEAPON_SPAWN_CHANCE = 0.22
+ITEM_SHIELD_SPAWN_CHANCE = 0.15
+GOLD_VALUE_MIN = 5
+GOLD_VALUE_MAX = 15
+START_ROOM_POTIONS_MIN = 1
+START_ROOM_POTIONS_MAX = 3
+
+# Item spawn chances (cave/labyrinth/tower dungeons)
+CAVE_ITEMS_BASE_COUNT = 2
+CAVE_ITEMS_DEPTH_DIVISOR = 2
+CAVE_ITEM_POTION_THRESHOLD = 0.25
+CAVE_ITEM_WEAPON_THRESHOLD = 0.55
+CAVE_ITEM_SHIELD_THRESHOLD = 0.77
+CAVE_GOLD_VALUE_MIN = 5
+CAVE_GOLD_VALUE_MAX = 20
+CAVE_GOLD_VALUE_PER_DEPTH = 5
+
+# Cave enemy limits
+CAVE_MAX_ENEMIES_BASE = 16
+CAVE_MAX_ENEMIES_PER_DEPTH = 6
+CAVE_MAX_ENEMIES_CAP = 60
+CAVE_WATER_ENEMIES_BASE = 2
+CAVE_WATER_ENEMIES_CAP = 10
+
+# Enemy stat scaling per depth
+ENEMY_HP_SCALE_PER_DEPTH = 2
+ENEMY_ATTACK_SCALE_PER_DEPTH = 1
+ENEMY_DEFENSE_DEPTH_DIVISOR = 2
+ENEMY_XP_SCALE_PER_DEPTH = 5
+
+# Generator stats
+GENERATOR_HP_MULTIPLIER = 5
+GENERATOR_HP_PER_DEPTH = 10
+GENERATOR_DEFENSE_MAX = 6
+
+# Room-based dungeon enemy scaling
+ENEMY_STATS_BASE_SCALE = 1
+ENEMY_STATS_DEPTH_SCALE_FACTOR = 0.15
+
+# Dungeon generation
+DUNGEON_MIN_ROOMS_REQUIRED = 5
+DUNGEON_MIN_ROOMS_VALID = 2
+DUNGEON_MIN_WALL_FRACTION_DIVISOR = 10
+CAVE_OPEN_TILE_MIN_FLOOR_NEIGHBORS = 3
+LABYRINTH_OPEN_TILE_MIN_FLOOR_NEIGHBORS = 2
+LABYRINTH_DEAD_END_FLOOR_NEIGHBORS = 1
+TOWER_MIN_RING_WIDTH = 3
+TOWER_MIN_RINGS_BASE = 3
+TOWER_RINGS_DEPTH_DIVISOR = 3
+TOWER_MAX_RINGS = 5
+
+# Potion healing
+POTION_HEAL_MIN = 5
+POTION_HEAL_MAX = 10
+
+# Rest healing
+REST_HEAL_CHANCE = 0.1
+REST_HEAL_AMOUNT = 3
+
+# Water movement
+WATER_MOVE_SPEED_PENALTY = 2
+
+# Game tick intervals
+PARALYSIS_STATUS_MSG_INTERVAL = 20
+IDLE_LEVEL_TICK_INTERVAL = 10
+MAX_TICK_ADVANCE_PLAYER_COUNT = 4
+
+# Player initial tick
+PLAYER_INITIAL_TICK_RANGE_MIN = 0
+PLAYER_INITIAL_TICK_RANGE_MAX = 99
+
+# Ambient sound defaults
+AMBIENT_SOUND_DEFAULT_CHANCE = 0.35
+AMBIENT_SOUND_DEFAULT_RANGE = 25
+AMBIENT_DEPTH_DEFAULT_CHANCE = 0.5
+AMBIENT_SOUND_MIN_DIST = 2
+PLAYER_MOVE_AMBIENT_CHANCE = 0.08
+PLAYER_MOVE_AMBIENT_RANGE = 38
+COMBAT_CLASH_AMBIENT_CHANCE = 0.5
+COMBAT_AMBIENT_RANGE = 38
+ENEMY_DEATH_AMBIENT_CHANCE = 1.0
+ENEMY_DEATH_AMBIENT_RANGE = 38
+STAIRS_AMBIENT_RANGE = 38
+ENEMY_MOVE_AMBIENT_CHANCE = 0.09
+ENEMY_MOVE_AMBIENT_RANGE = 37
+
+# Text-mode renderer
+TEXT_MAP_STATUS_LINES = 4
+TEXT_MAP_DISPLAY_MSG_COUNT = 3
+
 
 def max_enemies_for_depth(depth):
     """Return the maximum number of living enemies allowed at a given depth."""
@@ -445,6 +585,136 @@ SHIELD_PROPS = {
     SHIELD_TOWER: {"block": 30, "absorb": 7, "name": "Tower Shield", "depth_range": (6, 9)},
 }
 
+# Weapon descriptors: name variants with stat modifier ranges
+# Each descriptor has a display name and ranges for dice_faces_delta, crit_delta, flat_bonus
+WEAPON_DESCRIPTORS = [
+    {"name": "Rusty",       "dice_delta": (-1, 0),    "crit_delta": (-2, 0), "flat_delta": (-1, 0)},
+    {"name": "Dull",        "dice_delta": (-1, 0),    "crit_delta": (-1, 0), "flat_delta": (0, 0)},
+    {"name": "Worn",        "dice_delta": (0, 0),     "crit_delta": (-1, 1), "flat_delta": (-1, 0)},
+    {"name": "Cracked",     "dice_delta": (-1, 1),    "crit_delta": (-2, 1), "flat_delta": (-1, 1)},
+    {"name": "",            "dice_delta": (-1, 1),    "crit_delta": (-1, 1), "flat_delta": (-1, 1)},
+    {"name": "Well-made",   "dice_delta": (0, 1),     "crit_delta": (0, 2), "flat_delta": (0, 1)},
+    {"name": "Sharp",       "dice_delta": (0, 1),     "crit_delta": (1, 2), "flat_delta": (0, 1)},
+    {"name": "Battle-hardened", "dice_delta": (0, 2), "crit_delta": (0, 1), "flat_delta": (0, 2)},
+    {"name": "Keen",        "dice_delta": (1, 1),     "crit_delta": (2, 3), "flat_delta": (0, 1)},
+]
+
+SHIELD_DESCRIPTORS = [
+    {"name": "Damaged",     "block_delta": (-4, -1), "absorb_delta": (-1, 0)},
+    {"name": "Splintered",  "block_delta": (-3, -1), "absorb_delta": (-1, 0)},
+    {"name": "Worn",        "block_delta": (-2, 0),  "absorb_delta": (0, 0)},
+    {"name": "Scuffed",     "block_delta": (-2, 1),  "absorb_delta": (-1, 1)},
+    {"name": "",            "block_delta": (-2, 2),  "absorb_delta": (-1, 1)},
+    {"name": "Sturdy",      "block_delta": (1, 2),   "absorb_delta": (0, 1)},
+    {"name": "Reinforced",  "block_delta": (2, 4),   "absorb_delta": (1, 2)},
+    {"name": "Solid",       "block_delta": (2, 3),   "absorb_delta": (1, 1)},
+    {"name": "Fortified",   "block_delta": (3, 5),   "absorb_delta": (1, 2)},
+]
+
+
+def _parse_dice(dice_str):
+    """Parse a dice string like '2d8' into (count, sides)."""
+    if 'd' in dice_str:
+        parts = dice_str.split('d')
+        return int(parts[0]), int(parts[1])
+    return 1, int(dice_str)
+
+
+def generate_weapon_variant(weapon_type):
+    """Generate a weapon variant with a descriptor and modified stats.
+
+    Returns a dict: {weapon, dice, crit, crit_mult, flat_bonus, name}
+    """
+    if weapon_type == WEAPON_FISTS:
+        return {
+            "weapon": WEAPON_FISTS,
+            "dice": WEAPON_PROPS[WEAPON_FISTS]["dice"],
+            "crit": 0,
+            "crit_mult": 1,
+            "flat_bonus": 0,
+            "name": "Fists",
+        }
+
+    props = WEAPON_PROPS[weapon_type]
+    desc = random.choice(WEAPON_DESCRIPTORS)
+    count, sides = _parse_dice(props["dice"])
+
+    dice_delta = random.randint(desc["dice_delta"][0], desc["dice_delta"][1])
+    crit_delta = random.randint(desc["crit_delta"][0], desc["crit_delta"][1])
+    flat_delta = random.randint(desc["flat_delta"][0], desc["flat_delta"][1])
+
+    new_sides = max(2, sides + dice_delta)
+    new_crit = max(0, props["crit"] + crit_delta)
+    new_flat = flat_delta
+
+    desc_name = desc["name"]
+    full_name = f"{desc_name} {props['name']}" if desc_name else props["name"]
+
+    return {
+        "weapon": weapon_type,
+        "dice": f"{count}d{new_sides}",
+        "crit": new_crit,
+        "crit_mult": props["crit_mult"],
+        "flat_bonus": new_flat,
+        "name": full_name,
+    }
+
+
+def generate_shield_variant(shield_type):
+    """Generate a shield variant with a descriptor and modified stats.
+
+    Returns a dict: {shield, block, absorb, name}
+    """
+    if shield_type == SHIELD_NONE:
+        return {
+            "shield": SHIELD_NONE,
+            "block": 0,
+            "absorb": 0,
+            "name": "None",
+        }
+
+    props = SHIELD_PROPS[shield_type]
+    desc = random.choice(SHIELD_DESCRIPTORS)
+
+    block_delta = random.randint(desc["block_delta"][0], desc["block_delta"][1])
+    absorb_delta = random.randint(desc["absorb_delta"][0], desc["absorb_delta"][1])
+
+    new_block = max(0, props["block"] + block_delta)
+    new_absorb = max(0, props["absorb"] + absorb_delta)
+
+    desc_name = desc["name"]
+    full_name = f"{desc_name} {props['name']}" if desc_name else props["name"]
+
+    return {
+        "shield": shield_type,
+        "block": new_block,
+        "absorb": new_absorb,
+        "name": full_name,
+    }
+
+
+def pick_weapon_for_depth(depth):
+    """Pick a random weapon variant appropriate for the given depth."""
+    candidates = [
+        wtype for wtype, props in WEAPON_PROPS.items()
+        if wtype != WEAPON_FISTS and props["depth_range"][0] <= depth <= props["depth_range"][1]
+    ]
+    if not candidates:
+        return generate_weapon_variant(WEAPON_DAGGER)
+    return generate_weapon_variant(random.choice(candidates))
+
+
+def pick_shield_for_depth(depth):
+    """Pick a random shield variant appropriate for the given depth."""
+    candidates = [
+        stype for stype, props in SHIELD_PROPS.items()
+        if stype != SHIELD_NONE and props["depth_range"][0] <= depth <= props["depth_range"][1]
+    ]
+    if not candidates:
+        return generate_shield_variant(SHIELD_LEATHER)
+    return generate_shield_variant(random.choice(candidates))
+
+
 # Status effect properties (constants defined above in ENEMY_PROPS section)
 STATUS_EFFECT_PROPS = {
     STATUS_POISON: {
@@ -476,28 +746,6 @@ def roll_dice(dice_str):
     count = int(parts[0])
     sides = int(parts[1])
     return sum(random.randint(1, sides) for _ in range(count))
-
-
-def pick_weapon_for_depth(depth):
-    """Pick a random weapon appropriate for the given depth."""
-    candidates = [
-        wtype for wtype, props in WEAPON_PROPS.items()
-        if wtype != WEAPON_FISTS and props["depth_range"][0] <= depth <= props["depth_range"][1]
-    ]
-    if not candidates:
-        return WEAPON_DAGGER
-    return random.choice(candidates)
-
-
-def pick_shield_for_depth(depth):
-    """Pick a random shield appropriate for the given depth."""
-    candidates = [
-        stype for stype, props in SHIELD_PROPS.items()
-        if stype != SHIELD_NONE and props["depth_range"][0] <= depth <= props["depth_range"][1]
-    ]
-    if not candidates:
-        return SHIELD_LEATHER
-    return random.choice(candidates)
 
 
 class Room:
@@ -566,10 +814,10 @@ def create_dungeon(depth):
 
         rooms.append(new_room)
 
-        if len(rooms) >= 5:
+        if len(rooms) >= DUNGEON_MIN_ROOMS_REQUIRED:
             break
 
-    if len(rooms) < 2:
+    if len(rooms) < DUNGEON_MIN_ROOMS_VALID:
         return create_dungeon(depth)
 
     # Place doors flush with room walls at corridor-room boundaries.
@@ -669,7 +917,7 @@ def create_cave_dungeon(depth):
                 if cave[py][px] == TILE_FLOOR:
                     neighbors = sum(1 for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]
                                    if cave[py + dy][px + dx] == TILE_FLOOR)
-                    if neighbors >= 3:
+                    if neighbors >= CAVE_OPEN_TILE_MIN_FLOOR_NEIGHBORS:
                         open_areas.append((px, py))
                 elif cave[py][px] == TILE_WATER:
                     water_areas.append((px, py))
@@ -679,7 +927,7 @@ def create_cave_dungeon(depth):
             wall_count = sum(1 for y in range(MAP_HEIGHT)
                              for x in range(MAP_WIDTH)
                              if cave[y][x] == TILE_WALL)
-            if wall_count >= MAP_WIDTH * MAP_HEIGHT // 10:
+            if wall_count >= MAP_WIDTH * MAP_HEIGHT // DUNGEON_MIN_WALL_FRACTION_DIVISOR:
                 return cave, open_areas, water_areas
 
 
@@ -839,9 +1087,9 @@ def create_labyrinth_dungeon(depth):
                 floor_neighbors = sum(
                     1 for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]
                     if maze[py + dy][px + dx] == TILE_FLOOR)
-                if floor_neighbors >= 2:
+                if floor_neighbors >= LABYRINTH_OPEN_TILE_MIN_FLOOR_NEIGHBORS:
                     open_areas.append((px, py))
-                elif floor_neighbors == 1:
+                elif floor_neighbors == LABYRINTH_DEAD_END_FLOOR_NEIGHBORS:
                     # Dead end - place a trap with some probability
                     if random.random() < LABYRINTH_TRAP_CHANCE:
                         maze[py][px] = TILE_TRAP
@@ -853,7 +1101,7 @@ def create_labyrinth_dungeon(depth):
             wall_count = sum(1 for y in range(MAP_HEIGHT)
                              for x in range(MAP_WIDTH)
                              if maze[y][x] == TILE_WALL)
-            if wall_count >= MAP_WIDTH * MAP_HEIGHT // 10:
+            if wall_count >= MAP_WIDTH * MAP_HEIGHT // DUNGEON_MIN_WALL_FRACTION_DIVISOR:
                 return maze, open_areas
 
 
@@ -873,10 +1121,10 @@ def create_tower_dungeon(depth):
         tower = [[TILE_WALL] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
 
         cx, cy = MAP_WIDTH // 2, MAP_HEIGHT // 2
-        num_rings = min(3 + depth // 3, 5)
+        num_rings = min(TOWER_MIN_RINGS_BASE + depth // TOWER_RINGS_DEPTH_DIVISOR, TOWER_MAX_RINGS)
         ring_width = min(MAP_WIDTH, MAP_HEIGHT) // (2 * num_rings + 2)
-        if ring_width < 3:
-            ring_width = 3
+        if ring_width < TOWER_MIN_RING_WIDTH:
+            ring_width = TOWER_MIN_RING_WIDTH
 
         all_open = []
 
@@ -984,7 +1232,7 @@ def create_tower_dungeon(depth):
             wall_count = sum(1 for y in range(MAP_HEIGHT)
                              for x in range(MAP_WIDTH)
                              if tower[y][x] == TILE_WALL)
-            if wall_count >= MAP_WIDTH * MAP_HEIGHT // 10:
+            if wall_count >= MAP_WIDTH * MAP_HEIGHT // DUNGEON_MIN_WALL_FRACTION_DIVISOR:
                 return tower, open_areas
 
 
@@ -1043,7 +1291,7 @@ def place_entities(rooms, dungeon, depth):
         if room is start_room or room is end_room:
             # Place some items in start room
             if room is start_room:
-                for _ in range(random.randint(1, 3)):
+                for _ in range(random.randint(START_ROOM_POTIONS_MIN, START_ROOM_POTIONS_MAX)):
                     ix = random.randint(room.x1 + 1, room.x2 - 1)
                     iy = random.randint(room.y1 + 1, room.y2 - 1)
                     items.append({"x": ix, "y": iy, "kind": ITEM_POTION})
@@ -1058,7 +1306,7 @@ def place_entities(rooms, dungeon, depth):
             etype = random.choice(etypes)
             prop = ENEMY_PROPS[etype]
             # Scale with depth
-            scale = 1 + depth * 0.15
+            scale = ENEMY_STATS_BASE_SCALE + depth * ENEMY_STATS_DEPTH_SCALE_FACTOR
             enemies.append({
                 "x": ex, "y": ey,
                 "kind": etype,
@@ -1073,24 +1321,24 @@ def place_entities(rooms, dungeon, depth):
             })
 
         # Items
-        if random.random() < 0.5:
+        if random.random() < ITEM_POTION_SPAWN_CHANCE:
             ix = random.randint(room.x1 + 1, room.x2 - 1)
             iy = random.randint(room.y1 + 1, room.y2 - 1)
             items.append({"x": ix, "y": iy, "kind": ITEM_POTION})
-        if random.random() < 0.3:
+        if random.random() < ITEM_GOLD_SPAWN_CHANCE:
             ix = random.randint(room.x1 + 1, room.x2 - 1)
             iy = random.randint(room.y1 + 1, room.y2 - 1)
             items.append({
                 "x": ix, "y": iy, "kind": ITEM_GOLD,
-                "value": random.randint(5, 15) * (depth + 1)})
-        if random.random() < 0.22:
+                "value": random.randint(GOLD_VALUE_MIN, GOLD_VALUE_MAX) * (depth + 1)})
+        if random.random() < ITEM_WEAPON_SPAWN_CHANCE:
             ix = random.randint(room.x1 + 1, room.x2 - 1)
             iy = random.randint(room.y1 + 1, room.y2 - 1)
             items.append({
                 "x": ix, "y": iy, "kind": ITEM_SWORD,
                 "weapon": pick_weapon_for_depth(depth),
             })
-        if random.random() < 0.15:
+        if random.random() < ITEM_SHIELD_SPAWN_CHANCE:
             ix = random.randint(room.x1 + 1, room.x2 - 1)
             iy = random.randint(room.y1 + 1, room.y2 - 1)
             items.append({
@@ -1166,7 +1414,7 @@ class Player:
         self.equipped_weapon = WEAPON_FISTS
         self.equipped_shield = SHIELD_NONE
         self.gold = 0
-        self.next_tick = random.randint(0, 99)
+        self.next_tick = random.randint(PLAYER_INITIAL_TICK_RANGE_MIN, PLAYER_INITIAL_TICK_RANGE_MAX)
         self.queued_action = None
         self.consecutive_waits = 0
         self.dead = False
@@ -1175,23 +1423,31 @@ class Player:
         self._last_ambient_tick = 0
         # Per-depth explored grids: {depth: 2D boolean grid}
         self.explored = {}
+        # Per-depth discovered trap locations: {depth: set of (x, y)}
+        self.discovered_traps = {}
         # Depths for which the entrance message has already been shown
         self._entrance_shown = set()
         # Active status effects: {effect_name: remaining_ticks}
         self.status_effects = {}
 
     def weapon_damage(self):
-        """Roll weapon dice + level bonus. Returns total damage."""
+        """Roll weapon dice + flat bonus. Returns total damage."""
+        if isinstance(self.equipped_weapon, dict):
+            return roll_dice(self.equipped_weapon["dice"]) + self.equipped_weapon.get("flat_bonus", 0)
         props = WEAPON_PROPS[self.equipped_weapon]
-        return roll_dice(props["dice"]) + self.level
+        return roll_dice(props["dice"])
 
     def crit_info(self):
         """Return (crit_chance, crit_multiplier) for the equipped weapon."""
+        if isinstance(self.equipped_weapon, dict):
+            return self.equipped_weapon["crit"], self.equipped_weapon["crit_mult"]
         props = WEAPON_PROPS[self.equipped_weapon]
         return props["crit"], props["crit_mult"]
 
     def shield_info(self):
         """Return (block_chance, absorb) for the equipped shield."""
+        if isinstance(self.equipped_shield, dict):
+            return self.equipped_shield["block"], self.equipped_shield["absorb"]
         props = SHIELD_PROPS[self.equipped_shield]
         return props["block"], props["absorb"]
 
@@ -1201,11 +1457,34 @@ class Player:
 
     def weapon_name(self):
         """Return display name of equipped weapon."""
+        if isinstance(self.equipped_weapon, dict):
+            return self.equipped_weapon["name"]
         return WEAPON_PROPS[self.equipped_weapon]["name"]
 
     def shield_name(self):
         """Return display name of equipped shield."""
+        if isinstance(self.equipped_shield, dict):
+            return self.equipped_shield["name"]
         return SHIELD_PROPS[self.equipped_shield]["name"]
+
+    def _weapon_display(self):
+        """Return formatted weapon display string with dice and flat bonus."""
+        if isinstance(self.equipped_weapon, dict):
+            w = self.equipped_weapon
+            dice = w['dice']
+            bonus = w.get('flat_bonus', 0)
+            bonus_str = f"{bonus:+d}" if bonus else ""
+            return f"{w['name']}({dice}{bonus_str})"
+        props = WEAPON_PROPS[self.equipped_weapon]
+        return f"{props['name']}({props['dice']})"
+
+    def _shield_display(self):
+        """Return formatted shield display string with block% and absorb."""
+        if isinstance(self.equipped_shield, dict):
+            s = self.equipped_shield
+            return f"{s['name']}({s['block']}%/{s['absorb']}dmg)"
+        props = SHIELD_PROPS[self.equipped_shield]
+        return f"{props['name']}({props['block']}%/{props['absorb']}dmg)"
 
 
 # --- Game State ---
@@ -1296,7 +1575,7 @@ class Game:
         }
         enemy_tier = max(0, min(depth - 1, 9))
         enemy_pool = enemy_types_by_depth[enemy_tier]
-        max_enemies = min(16 + depth * 6, 60)
+        max_enemies = min(CAVE_MAX_ENEMIES_BASE + depth * CAVE_MAX_ENEMIES_PER_DEPTH, CAVE_MAX_ENEMIES_CAP)
 
         for _ in range(max_enemies):
             spot = self._pick_open_spot(open_areas, used)
@@ -1311,11 +1590,11 @@ class Game:
                 "char": props["char"],
                 "color": props["color"],
                 "x": ex, "y": ey,
-                "hp": props["hp"] + depth * 2,
-                "max_hp": props["hp"] + depth * 2,
-                "attack": props["attack"] + depth,
-                "defense": props["defense"] + depth // 2,
-                "xp": props["xp"] + depth * 5,
+                "hp": props["hp"] + depth * ENEMY_HP_SCALE_PER_DEPTH,
+                "max_hp": props["hp"] + depth * ENEMY_HP_SCALE_PER_DEPTH,
+                "attack": props["attack"] + depth * ENEMY_ATTACK_SCALE_PER_DEPTH,
+                "defense": props["defense"] + depth // ENEMY_DEFENSE_DEPTH_DIVISOR,
+                "xp": props["xp"] + depth * ENEMY_XP_SCALE_PER_DEPTH,
                 "depth": depth,
             }
             enemies.append(e)
@@ -1334,7 +1613,7 @@ class Game:
             9: [ENEMY_KRAKEN],
         }
         water_pool = water_enemy_by_depth.get(enemy_tier, [ENEMY_WATER_MITE])
-        max_water_enemies = min(2 + depth, 10)
+        max_water_enemies = min(CAVE_WATER_ENEMIES_BASE + depth, CAVE_WATER_ENEMIES_CAP)
 
         for _ in range(max_water_enemies):
             spot = self._pick_open_spot(water_areas, used)
@@ -1349,28 +1628,28 @@ class Game:
                 "char": props["char"],
                 "color": props["color"],
                 "x": ex, "y": ey,
-                "hp": props["hp"] + depth * 2,
-                "max_hp": props["hp"] + depth * 2,
-                "attack": props["attack"] + depth,
-                "defense": props["defense"] + depth // 2,
-                "xp": props["xp"] + depth * 5,
+                "hp": props["hp"] + depth * ENEMY_HP_SCALE_PER_DEPTH,
+                "max_hp": props["hp"] + depth * ENEMY_HP_SCALE_PER_DEPTH,
+                "attack": props["attack"] + depth * ENEMY_ATTACK_SCALE_PER_DEPTH,
+                "defense": props["defense"] + depth // ENEMY_DEFENSE_DEPTH_DIVISOR,
+                "xp": props["xp"] + depth * ENEMY_XP_SCALE_PER_DEPTH,
                 "depth": depth,
                 "water": True,
             }
             enemies.append(e)
 
         # Items (reduced for caves)
-        for _ in range(2 + depth // 2):
+        for _ in range(CAVE_ITEMS_BASE_COUNT + depth // CAVE_ITEMS_DEPTH_DIVISOR):
             spot = self._pick_open_spot(open_areas, used)
             if spot is None:
                 break
             used.add(spot)
             roll = random.random()
-            if roll < 0.25:
+            if roll < CAVE_ITEM_POTION_THRESHOLD:
                 kind = ITEM_POTION
-            elif roll < 0.55:
+            elif roll < CAVE_ITEM_WEAPON_THRESHOLD:
                 kind = ITEM_SWORD
-            elif roll < 0.77:
+            elif roll < CAVE_ITEM_SHIELD_THRESHOLD:
                 kind = ITEM_SHIELD
             else:
                 kind = ITEM_GOLD
@@ -1380,7 +1659,7 @@ class Game:
                 "depth": depth,
             }
             if kind == ITEM_GOLD:
-                item["value"] = random.randint(5, 20) + depth * 5
+                item["value"] = random.randint(CAVE_GOLD_VALUE_MIN, CAVE_GOLD_VALUE_MAX) + depth * CAVE_GOLD_VALUE_PER_DEPTH
             elif kind == ITEM_SWORD:
                 item["weapon"] = pick_weapon_for_depth(depth)
             elif kind == ITEM_SHIELD:
@@ -1438,9 +1717,9 @@ class Game:
                 "enemy_type": etype,
                 "spawn_tick": level_tick + random.randint(
                     GENERATOR_SPAWN_MIN, GENERATOR_SPAWN_MAX),
-                "hp": ENEMY_PROPS[etype]["hp"] * 5 + depth * 10,
-                "max_hp": ENEMY_PROPS[etype]["hp"] * 5 + depth * 10,
-                "defense": 2 + depth // 2,
+                "hp": ENEMY_PROPS[etype]["hp"] * GENERATOR_HP_MULTIPLIER + depth * GENERATOR_HP_PER_DEPTH,
+                "max_hp": ENEMY_PROPS[etype]["hp"] * GENERATOR_HP_MULTIPLIER + depth * GENERATOR_HP_PER_DEPTH,
+                "defense": min(GENERATOR_DEFENSE_MAX, (depth * 3) // 4),
                 "destroyed": False,
                 "respawn_tick": 0,
             })
@@ -1459,19 +1738,19 @@ class Game:
         Populates enemies, items, and stairs.
         """
         dungeon_type = random.choice(DUNGEON_TYPES)
-        if depth == MAX_DEPTH - 1:
-            dungeon_type = "tower"
-        elif depth == 8:
-            dungeon_type = "labyrinth"
-        elif depth >= 6:
-            dungeon_type = random.choice(["caves", "labyrinth"])
-        elif depth >= 4:
-            dungeon_type = random.choice(["rooms", "caves", "labyrinth"])
-        elif depth >= 2:
-            dungeon_type = random.choice(["rooms", "caves"])
+        if depth == DUNGEON_FORCE_TOWER_DEPTH:
+            dungeon_type = DUNGEON_TYPE_TOWER
+        elif depth == DUNGEON_FORCE_LABYRINTH_DEPTH:
+            dungeon_type = DUNGEON_TYPE_LABYRINTH
+        elif depth >= DUNGEON_DEEP_MIX_MIN_DEPTH:
+            dungeon_type = random.choice([DUNGEON_TYPE_CAVES, DUNGEON_TYPE_LABYRINTH])
+        elif depth >= DUNGEON_MIX_MIN_DEPTH:
+            dungeon_type = random.choice([DUNGEON_TYPE_ROOMS, DUNGEON_TYPE_CAVES, DUNGEON_TYPE_LABYRINTH])
+        elif depth >= DUNGEON_CAVES_MIN_DEPTH:
+            dungeon_type = random.choice([DUNGEON_TYPE_ROOMS, DUNGEON_TYPE_CAVES])
         else:
-            dungeon_type = "rooms"
-        if dungeon_type == "caves":
+            dungeon_type = DUNGEON_TYPE_ROOMS
+        if dungeon_type == DUNGEON_TYPE_CAVES:
             dungeon, open_areas, water_areas = create_cave_dungeon(depth)
             px, py, enemies, items = self._place_entities_cave(
                 open_areas, water_areas, dungeon, depth)
@@ -1483,7 +1762,7 @@ class Game:
             stairs_up_x, stairs_up_y = self._pick_cave_spot(
                 reachable_open, px, py,
                 exclude=(stairs_down_x, stairs_down_y))
-        elif dungeon_type == "labyrinth":
+        elif dungeon_type == DUNGEON_TYPE_LABYRINTH:
             dungeon, open_areas = create_labyrinth_dungeon(depth)
             px, py, enemies, items = self._place_entities_cave(
                 open_areas, [], dungeon, depth)
@@ -1495,7 +1774,7 @@ class Game:
             stairs_up_x, stairs_up_y = self._pick_cave_spot(
                 reachable_open, px, py,
                 exclude=(stairs_down_x, stairs_down_y))
-        elif dungeon_type == "tower":
+        elif dungeon_type == DUNGEON_TYPE_TOWER:
             dungeon, open_areas = create_tower_dungeon(depth)
             px, py, enemies, items = self._place_entities_cave(
                 open_areas, [], dungeon, depth)
@@ -1524,7 +1803,7 @@ class Game:
 
         # Scatter traps across the level
         exclude = {(px, py), (stairs_down_x, stairs_down_y), (stairs_up_x, stairs_up_y)}
-        _scatter_traps(dungeon, exclude, TRAP_CHANCE + depth * 0.006)
+        _scatter_traps(dungeon, exclude, TRAP_CHANCE + depth * TRAP_CHANCE_PER_DEPTH)
 
         # Place monster generators
         generators = self._place_generators(dungeon, depth,
@@ -1565,16 +1844,16 @@ class Game:
         player._entrance_shown.add(depth)
         dungeon_type = self.levels[depth].get("dungeon_type", "rooms")
         messages = {
-            "rooms": MSG_ENTRANCE_ROOMS,
-            "caves": MSG_ENTRANCE_CAVES,
-            "labyrinth": MSG_ENTRANCE_LABYRINTH,
-            "tower": MSG_ENTRANCE_TOWER,
+            DUNGEON_TYPE_ROOMS: MSG_ENTRANCE_ROOMS,
+            DUNGEON_TYPE_CAVES: MSG_ENTRANCE_CAVES,
+            DUNGEON_TYPE_LABYRINTH: MSG_ENTRANCE_LABYRINTH,
+            DUNGEON_TYPE_TOWER: MSG_ENTRANCE_TOWER,
         }.get(dungeon_type, MSG_ENTRANCE_ROOMS)
         colors = {
-            "rooms": COLOR_WHITE,
-            "caves": COLOR_BLUE,
-            "labyrinth": COLOR_YELLOW,
-            "tower": COLOR_MAGENTA,
+            DUNGEON_TYPE_ROOMS: COLOR_WHITE,
+            DUNGEON_TYPE_CAVES: COLOR_BLUE,
+            DUNGEON_TYPE_LABYRINTH: COLOR_YELLOW,
+            DUNGEON_TYPE_TOWER: COLOR_MAGENTA,
         }.get(dungeon_type, COLOR_WHITE)
         self._tell(player, random.choice(messages), colors)
 
@@ -1684,8 +1963,8 @@ class Game:
 
     def _ambient_sound(
         self, x, y, depth, messages, color,
-        source=None, chance=0.35,
-        skip_visible=False, range=25, flat=False,
+        source=None, chance=AMBIENT_SOUND_DEFAULT_CHANCE,
+        skip_visible=False, range=AMBIENT_SOUND_DEFAULT_RANGE, flat=False,
     ):
         """Send a random ambient message to nearby players on the same depth,
         with probability decreasing by distance. Skips the source player.
@@ -1696,7 +1975,7 @@ class Game:
             if p.dead or p.depth != depth or p is source:
                 continue
             dist = abs(p.x - x) + abs(p.y - y)
-            if dist < 2 or dist > range:
+            if dist < AMBIENT_SOUND_MIN_DIST or dist > range:
                 continue
             if skip_visible and source:
                 fov = compute_fov(dungeon, p.x, p.y, FOV_RADIUS)
@@ -1711,7 +1990,7 @@ class Game:
 
     def _ambient_depth(
         self, depth, messages, color,
-        source=None, chance=0.5, skip_visible=False,
+        source=None, chance=AMBIENT_DEPTH_DEFAULT_CHANCE, skip_visible=False,
     ):
         """Send a random ambient message to all alive players on a depth,
         regardless of distance. Skips the source player.
@@ -1830,7 +2109,7 @@ class Game:
         if is_player_attacking:
             # Player attacking enemy
             dodge_chance = enemy.get("dodge", 0)
-            if dodge_chance and random.randint(1, 100) <= dodge_chance:
+            if dodge_chance and random.randint(PERCENTILE_ROLL_MIN, PERCENTILE_ROLL_MAX) <= dodge_chance:
                 result["dodged"] = True
                 result["message"] = random.choice(MSG_ENEMY_DODGE)
                 result["message_color"] = COLOR_WHITE
@@ -1842,7 +2121,7 @@ class Game:
 
             # Crit check
             crit_chance, crit_mult = player.crit_info()
-            if crit_chance and random.randint(1, 100) <= crit_chance:
+            if crit_chance and random.randint(PERCENTILE_ROLL_MIN, PERCENTILE_ROLL_MAX) <= crit_chance:
                 damage = int(damage * crit_mult)
                 result["critical"] = True
 
@@ -1859,12 +2138,12 @@ class Game:
             # Enemy attacking player
             damage = max(
                 1, enemy["attack"] - player.defense_total()
-                + random.randint(-1, 1),
+                + random.randint(ENEMY_ATTACK_VARIANCE_MIN, ENEMY_ATTACK_VARIANCE_MAX),
             )
 
             # Shield block check
             block_chance, absorb = player.shield_info()
-            if block_chance and random.randint(1, 100) <= block_chance:
+            if block_chance and random.randint(PERCENTILE_ROLL_MIN, PERCENTILE_ROLL_MAX) <= block_chance:
                 result["shield_blocked"] = True
                 absorbed = min(damage, absorb)
                 result["shield_absorbed"] = absorbed
@@ -1883,12 +2162,13 @@ class Game:
             # Status effect check
             status_effect = enemy.get("status_effect")
             if (status_effect and status_effect in STATUS_EFFECT_PROPS
-                    and random.randint(1, 100) <= STATUS_EFFECT_CHANCE):
+                    and random.randint(PERCENTILE_ROLL_MIN, PERCENTILE_ROLL_MAX) <= STATUS_EFFECT_CHANCE):
                 result["status_applied"] = status_effect
 
             result["damage"] = max(1, damage)
-            result["message"] = None  # use enemy hit message
-            result["message_color"] = enemy["color"]
+            if not result["shield_blocked"]:
+                result["message"] = None  # use enemy hit message
+                result["message_color"] = enemy["color"]
             return result
 
     def queue_player_action(self, player_idx, action):
@@ -1911,20 +2191,20 @@ class Game:
         if action is None:
             return
         action_type = action["type"]
-        if action_type != "wait":
+        if action_type != ACTION_WAIT:
             player.consecutive_waits = 0
-        if action_type == "move":
+        if action_type == ACTION_MOVE:
             self._do_move(player, action["dx"], action["dy"])
-        elif action_type == "grab":
+        elif action_type == ACTION_GRAB:
             self._do_grab_item(player)
             player.next_tick = self.tick + TICK_MOVE
-        elif action_type == "stairs_down":
+        elif action_type == ACTION_STAIRS_DOWN:
             self._do_go_down_stairs(player)
             player.next_tick = self.tick + TICK_MOVE
-        elif action_type == "stairs_up":
+        elif action_type == ACTION_STAIRS_UP:
             self._do_go_up_stairs(player)
             player.next_tick = self.tick + TICK_MOVE
-        elif action_type == "wait":
+        elif action_type == ACTION_WAIT:
             self._do_wait(player)
             player.next_tick = self.tick + TICK_MOVE
 
@@ -1980,8 +2260,8 @@ class Game:
             self._tell(player, random.choice(MSG_SEE_DOOR_OPEN), COLOR_WHITE)
             self._ambient_sound(
                 nx, ny, player.depth, PLAYER_MOVE_AMBIENT,
-                COLOR_WHITE, source=player, chance=0.08,
-                skip_visible=True, range=38, flat=True,
+                COLOR_WHITE, source=player, chance=PLAYER_MOVE_AMBIENT_CHANCE,
+                skip_visible=True, range=PLAYER_MOVE_AMBIENT_RANGE, flat=True,
             )
             return
         if not self.is_passable(nx, ny, player.depth):
@@ -1998,7 +2278,7 @@ class Game:
             was_in_water = current_tile == TILE_WATER
             player.x, player.y = nx, ny
             if in_water:
-                player.next_tick = self.tick + TICK_PLAYER_MOVE * 2
+                player.next_tick = self.tick + TICK_PLAYER_MOVE * WATER_MOVE_SPEED_PENALTY
             else:
                 player.next_tick = self.tick + TICK_PLAYER_MOVE
             if in_water and not was_in_water:
@@ -2006,7 +2286,23 @@ class Game:
             elif was_in_water and not in_water:
                 self._tell(player, random.choice(MSG_LEAVE_WATER), COLOR_BLUE)
             if target_tile == TILE_TRAP:
-                trap_damage = 3 + player.depth * 2
+                # Reveal trap to the triggering player
+                depth = player.depth
+                if depth not in player.discovered_traps:
+                    player.discovered_traps[depth] = set()
+                player.discovered_traps[depth].add((nx, ny))
+
+                # Reveal trap to other players who can see it
+                for other in self.players:
+                    if other is player or other.dead or other.depth != depth:
+                        continue
+                    fov = compute_fov(dungeon, other.x, other.y, FOV_RADIUS)
+                    if fov[ny][nx]:
+                        if depth not in other.discovered_traps:
+                            other.discovered_traps[depth] = set()
+                        other.discovered_traps[depth].add((nx, ny))
+
+                trap_damage = TRAP_DAMAGE_BASE + player.depth * TRAP_DAMAGE_PER_DEPTH
                 player.hp -= trap_damage
                 self._tell(
                     player, random.choice(MSG_STEP_TRAP),
@@ -2019,15 +2315,15 @@ class Game:
                         "y": player.y,
                         "name": player.name,
                         "level": player.level,
-                        "killer": "a trap",
+                        "killer": "trap",
                     })
                     self._broadcast(
                         player.x, player.y, player.depth,
                         MSG_PLAYER_DIED, COLOR_RED, subject=player)
             self._ambient_sound(
                 nx, ny, player.depth, PLAYER_MOVE_AMBIENT,
-                COLOR_WHITE, source=player, chance=0.08,
-                skip_visible=True, range=38, flat=True,
+                COLOR_WHITE, source=player, chance=PLAYER_MOVE_AMBIENT_CHANCE,
+                skip_visible=True, range=PLAYER_MOVE_AMBIENT_RANGE, flat=True,
             )
             self._show_walk_over_messages(player, nx, ny)
 
@@ -2051,9 +2347,11 @@ class Game:
         _, item = self.get_item_at(x, y, depth)
         if item:
             if item["kind"] == ITEM_SWORD and "weapon" in item:
-                item_name = WEAPON_PROPS[item["weapon"]]["name"].lower()
+                w = item["weapon"]
+                item_name = (w["name"] if isinstance(w, dict) else WEAPON_PROPS[w]["name"]).lower()
             elif item["kind"] == ITEM_SHIELD and "shield" in item:
-                item_name = SHIELD_PROPS[item["shield"]]["name"].lower()
+                s = item["shield"]
+                item_name = (s["name"] if isinstance(s, dict) else SHIELD_PROPS[s]["name"]).lower()
             else:
                 item_name = ITEM_PROPS[item["kind"]]["name"].lower()
             self._tell(player, random.choice(MSG_SEE_ITEM),
@@ -2105,8 +2403,8 @@ class Game:
         self._ambient_sound(
             enemy["x"], enemy["y"], player.depth,
             COMBAT_CLASH_AMBIENT,
-            COLOR_WHITE, source=player, chance=0.5,
-            range=38, flat=True,
+            COLOR_WHITE, source=player, chance=COMBAT_CLASH_AMBIENT_CHANCE,
+            range=COMBAT_AMBIENT_RANGE, flat=True,
         )
         if enemy["hp"] <= 0:
             self._broadcast(
@@ -2117,8 +2415,8 @@ class Game:
             self._ambient_sound(
                 enemy["x"], enemy["y"], player.depth,
                 ENEMY_DEATH_AMBIENT,
-                COLOR_RED, source=player, chance=1.0,
-                range=38, flat=True)
+                COLOR_RED, source=player, chance=ENEMY_DEATH_AMBIENT_CHANCE,
+                range=ENEMY_DEATH_AMBIENT_RANGE, flat=True)
             player.xp += enemy["xp"]
             self._check_level_up(player)
 
@@ -2127,9 +2425,9 @@ class Game:
         while player.xp >= player.next_level_xp:
             player.xp -= player.next_level_xp
             player.level += 1
-            player.max_hp += 5
-            player.hp = min(player.hp + 5, player.max_hp)
-            player.next_level_xp = int(player.next_level_xp * 1.5)
+            player.max_hp += LEVEL_UP_HP_GAIN
+            player.hp = min(player.hp + LEVEL_UP_HP_GAIN, player.max_hp)
+            player.next_level_xp = int(player.next_level_xp * LEVEL_UP_XP_SCALE_FACTOR)
             self._broadcast(
                 player.x, player.y, player.depth,
                 MSG_LEVEL_UP, COLOR_YELLOW,
@@ -2170,12 +2468,12 @@ class Game:
     def _calculate_dot_damage(self, player, effect_name):
         """Calculate DoT damage per tick for the given effect."""
         if effect_name == STATUS_POISON:
-            return random.randint(1, 2)
+            return random.randint(POISON_DOT_DAMAGE_MIN, POISON_DOT_DAMAGE_MAX)
         elif effect_name == STATUS_BURN:
-            return 1 + player.depth // 2
+            return BURN_DOT_DAMAGE_BASE + player.depth // BURN_DOT_DEPTH_DIVISOR
         elif effect_name == STATUS_BLEED:
-            return max(1, player.attack // 3)
-        return 1
+            return max(STATUS_DOT_DAMAGE_FALLBACK, player.attack // BLEED_DOT_ATTACK_DIVISOR)
+        return STATUS_DOT_DAMAGE_FALLBACK
 
     def _process_tick(self):
         """Advance the game by one tick.
@@ -2197,7 +2495,7 @@ class Game:
                     player.next_tick = self.tick + TICK_MOVE
                     if player.depth in self.levels:
                         self.levels[player.depth]["tick"] += TICK_MOVE
-                    if self.tick % 20 == 0:
+                    if self.tick % PARALYSIS_STATUS_MSG_INTERVAL == 0:
                         self._tell(player, random.choice(MSG_STATUS_PARALYSIS_TICK),
                                    STATUS_EFFECT_PROPS[STATUS_PARALYSIS]["color"])
                     player.queued_action = None
@@ -2210,13 +2508,13 @@ class Game:
                         self.levels[player.depth]["tick"] += action_cost
                 else:
                     player.next_tick = self.tick + 1
-          # Slow idle progression: advance level ticks by 1 every 10 wall-clock ticks
-        if self.tick % 10 == 0:
+          # Slow idle progression: advance level ticks by 1 every IDLE_LEVEL_TICK_INTERVAL wall-clock ticks
+        if self.tick % IDLE_LEVEL_TICK_INTERVAL == 0:
             for depth in list(self.levels.keys()):
                 if any(p.depth == depth and not p.dead for p in self.players):
                     self.levels[depth]["tick"] += 1
-        # Cap level tick advancement to max 4 players worth per wall-clock tick
-        _max_tick_advance = 4 * TICK_ATTACK
+        # Cap level tick advancement to max MAX_TICK_ADVANCE_PLAYER_COUNT players worth per wall-clock tick
+        _max_tick_advance = MAX_TICK_ADVANCE_PLAYER_COUNT * TICK_ATTACK
         for depth in list(self.levels.keys()):
             prev = _prev_level_ticks.get(depth, 0)
             advanced = self.levels[depth]["tick"] - prev
@@ -2382,7 +2680,7 @@ class Game:
         is_water = enemy.get("water", False)
         # Water enemies are only visible when adjacent to a player
         if is_water:
-            enemy["visible"] = dist <= 1
+            enemy["visible"] = dist <= WATER_ENEMY_ADJACENT_VISIBLE_RANGE
         if target is None:
             moves = [(-1, 0), (1, 0), (0, -1), (0, 1)]
             random.shuffle(moves)
@@ -2398,7 +2696,7 @@ class Game:
                     enemy["x"], enemy["y"], depth,
                     ENEMY_SOUNDS.get(enemy["name"],
                                      ENEMY_SOUNDS_DEFAULT),
-                    COLOR_WHITE, chance=0.09, range=37)
+                    COLOR_WHITE, chance=ENEMY_MOVE_AMBIENT_CHANCE, range=ENEMY_MOVE_AMBIENT_RANGE)
             enemy["next_tick"] = level_tick + TICK_MOVE
             return
         dungeon = self._get_dungeon(depth)
@@ -2413,9 +2711,9 @@ class Game:
                     if fov[y][x]:
                         combined_visible[y][x] = True
         can_see = (combined_visible[enemy["y"]][enemy["x"]]
-                   and dist <= FOV_RADIUS + 2)
+                   and dist <= FOV_RADIUS + ENEMYCHASE_FOV_EXTENSION)
 
-        if dist == 1:
+        if dist == ENEMY_ATTACK_RANGE:
             result = self.resolve_attack(target, enemy, is_player_attacking=False)
             target.hp -= result["damage"]
 
@@ -2431,10 +2729,14 @@ class Game:
             hit_template = random.choice(
                 ENEMY_HIT_MESSAGES.get(enemy["name"],
                                        [ENEMY_HIT_DEFAULT]))
+            hit_ctx = {"damage": result["damage"]}
+            absorb_suffix = ""
+            if result["shield_blocked"]:
+                absorb_suffix = f" (shield absorbed {result['shield_absorbed']})"
             self._broadcast(
                 target.x, target.y, depth,
-                hit_template, enemy["color"],
-                subject=target, ctx={"damage": result["damage"]},
+                hit_template + absorb_suffix, enemy["color"],
+                subject=target, ctx=hit_ctx,
             )
 
             # Status effect application
@@ -2458,7 +2760,7 @@ class Game:
 
             self._ambient_sound(
                 target.x, target.y, depth, COMBAT_CLASH_AMBIENT,
-                COLOR_WHITE, chance=0.5, range=38, flat=True)
+                COLOR_WHITE, chance=COMBAT_CLASH_AMBIENT_CHANCE, range=COMBAT_AMBIENT_RANGE, flat=True)
             enemy["next_tick"] = level_tick + TICK_ATTACK
             if target.hp <= 0:
                 target.hp = 0
@@ -2474,7 +2776,7 @@ class Game:
                                 MSG_PLAYER_DIED, COLOR_RED, subject=target)
                 self._ambient_sound(
                     target.x, target.y, depth, PLAYER_DEATH_AMBIENT,
-                    COLOR_RED, chance=1.0, range=38, flat=True,
+                    COLOR_RED, chance=ENEMY_DEATH_AMBIENT_CHANCE, range=ENEMY_DEATH_AMBIENT_RANGE, flat=True,
                 )
                 alive = any(
                     p and not p.dead and not p.game_win
@@ -2508,7 +2810,7 @@ class Game:
                 self._ambient_sound(
                     enemy["x"], enemy["y"], depth,
                     ENEMY_SOUNDS.get(enemy["name"], ENEMY_SOUNDS_DEFAULT),
-                    COLOR_WHITE, chance=0.09, range=37,
+                    COLOR_WHITE, chance=ENEMY_MOVE_AMBIENT_CHANCE, range=ENEMY_MOVE_AMBIENT_RANGE,
                 )
             enemy["next_tick"] = level_tick + TICK_MOVE
         else:
@@ -2526,7 +2828,7 @@ class Game:
                     enemy["x"], enemy["y"], depth,
                     ENEMY_SOUNDS.get(enemy["name"],
                                      ENEMY_SOUNDS_DEFAULT),
-                    COLOR_WHITE, chance=0.09, range=37)
+                    COLOR_WHITE, chance=ENEMY_MOVE_AMBIENT_CHANCE, range=ENEMY_MOVE_AMBIENT_RANGE)
             enemy["next_tick"] = level_tick + TICK_MOVE
 
     def _do_go_down_stairs(self, player):
@@ -2550,13 +2852,13 @@ class Game:
             self._show_entrance(player)
             self._ambient_sound(
                 old_x, old_y, old_depth, STAIRS_DOWN_AMBIENT,
-                COLOR_CYAN, source=player, chance=1.0,
-                skip_visible=True, range=38, flat=True,
+                COLOR_CYAN, source=player, chance=ENEMY_DEATH_AMBIENT_CHANCE,
+                skip_visible=True, range=STAIRS_AMBIENT_RANGE, flat=True,
             )
             self._ambient_depth(
                 new_depth, STAIRS_DOWN_DEPTH_AMBIENT,
                 COLOR_CYAN, source=player,
-                chance=1.0, skip_visible=True,
+                chance=ENEMY_DEATH_AMBIENT_CHANCE, skip_visible=True,
             )
             self._broadcast(
                 old_x, old_y, old_depth,
@@ -2584,13 +2886,13 @@ class Game:
                 self._show_entrance(player)
                 self._ambient_sound(
                     old_x, old_y, old_depth, STAIRS_UP_AMBIENT,
-                    COLOR_CYAN, source=player, chance=1.0,
-                    skip_visible=True, range=38, flat=True,
+                    COLOR_CYAN, source=player, chance=ENEMY_DEATH_AMBIENT_CHANCE,
+                    skip_visible=True, range=STAIRS_AMBIENT_RANGE, flat=True,
                 )
                 self._ambient_depth(
                     new_depth, STAIRS_UP_DEPTH_AMBIENT,
                     COLOR_CYAN, source=player,
-                    chance=1.0, skip_visible=True,
+                    chance=ENEMY_DEATH_AMBIENT_CHANCE, skip_visible=True,
                 )
                 self._broadcast(
                     old_x, old_y, old_depth,
@@ -2611,7 +2913,7 @@ class Game:
             return
         kind = item["kind"]
         if kind == ITEM_POTION:
-            heal = random.randint(5, 10)
+            heal = random.randint(POTION_HEAL_MIN, POTION_HEAL_MAX)
             player.hp = min(player.hp + heal, player.max_hp)
             self._broadcast(
                 player.x, player.y, player.depth,
@@ -2627,18 +2929,20 @@ class Game:
                     "x": player.x, "y": player.y,
                     "kind": ITEM_SWORD, "weapon": old_weapon,
                 })
+                old_name = old_weapon["name"] if isinstance(old_weapon, dict) else WEAPON_PROPS[old_weapon]["name"]
                 self._broadcast(
                     player.x, player.y, player.depth,
                     MSG_DROPPED_WEAPON, COLOR_WHITE,
                     subject=player,
-                    ctx={"weapon": WEAPON_PROPS[old_weapon]["name"].lower()},
+                    ctx={"weapon": old_name.lower()},
                 )
             player.equipped_weapon = new_weapon
+            new_name = new_weapon["name"] if isinstance(new_weapon, dict) else WEAPON_PROPS[new_weapon]["name"]
             self._broadcast(
                 player.x, player.y, player.depth,
                 MSG_EQUIPPED_WEAPON, COLOR_WHITE,
                 subject=player,
-                ctx={"weapon": WEAPON_PROPS[new_weapon]["name"].lower()},
+                ctx={"weapon": new_name.lower()},
             )
         elif kind == ITEM_SHIELD:
             new_shield = item["shield"]
@@ -2649,18 +2953,20 @@ class Game:
                     "x": player.x, "y": player.y,
                     "kind": ITEM_SHIELD, "shield": old_shield,
                 })
+                old_name = old_shield["name"] if isinstance(old_shield, dict) else SHIELD_PROPS[old_shield]["name"]
                 self._broadcast(
                     player.x, player.y, player.depth,
                     MSG_DROPPED_SHIELD, COLOR_CYAN,
                     subject=player,
-                    ctx={"shield": SHIELD_PROPS[old_shield]["name"].lower()},
+                    ctx={"shield": old_name.lower()},
                 )
             player.equipped_shield = new_shield
+            new_name = new_shield["name"] if isinstance(new_shield, dict) else SHIELD_PROPS[new_shield]["name"]
             self._broadcast(
                 player.x, player.y, player.depth,
                 MSG_EQUIPPED_SHIELD, COLOR_CYAN,
                 subject=player,
-                ctx={"shield": SHIELD_PROPS[new_shield]["name"].lower()},
+                ctx={"shield": new_name.lower()},
             )
         elif kind == ITEM_GOLD:
             player.gold += item["value"]
@@ -2682,8 +2988,8 @@ class Game:
                             MSG_REST_NO_HEAL, COLOR_GREEN, subject=player)
             return
         player.consecutive_waits += 1
-        if random.random() < 0.1:
-            player.hp = min(player.hp + 3, player.max_hp)
+        if random.random() < REST_HEAL_CHANCE:
+            player.hp = min(player.hp + REST_HEAL_AMOUNT, player.max_hp)
             player.consecutive_waits = 0
             self._broadcast(player.x, player.y, player.depth,
                             MSG_REST_HEAL, COLOR_GREEN, subject=player)
@@ -2708,11 +3014,16 @@ class Game:
         if not explored_grid[my][mx]:
             return ' '
         tile = self._get_dungeon(depth)[my][mx]
+        if tile == TILE_TRAP:
+            discovered = player.discovered_traps.get(depth, set())
+            if (mx, my) in discovered:
+                return TILE_CHAR[TILE_TRAP]
+            return TILE_CHAR[TILE_FLOOR]
         return TILE_CHAR.get(tile, '?')
 
     def print_text_map(self):
         """Print the current map view as plain text for debugging."""
-        view_h = MAX_SCREEN_Y - 4
+        view_h = MAX_SCREEN_Y - TEXT_MAP_STATUS_LINES
         view_w = MAX_SCREEN_X
         p = self.players[0] if self.players else None
         if p is None:
@@ -2739,7 +3050,7 @@ class Game:
                 row.append(self.get_char_at(mx, my))
             print(''.join(row))
 
-        for msg_text, _, _ in self.players[0].messages[-3:]:
+        for msg_text, _, _ in self.players[0].messages[-TEXT_MAP_DISPLAY_MSG_COUNT:]:
             print(msg_text[:view_w])
         print("P1:Arrows  P2:WASD  >:Down  <:Up  g/G:Grab  .:Wait  q:Quit")
         print(f"{'=' * view_w}")
