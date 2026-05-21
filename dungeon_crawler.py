@@ -2085,6 +2085,89 @@ class Game:
                 return c
         return None
 
+    def _find_nearby_free_tile(self, x, y, depth, exclude_positions):
+        """Find a passable tile near (x, y) not occupied by enemies, items,
+        players, corpses, or positions in exclude_positions. Searches in
+        expanding rings up to 4 tiles away. Returns (fx, fy) or None."""
+        if 0 <= x < MAP_WIDTH and 0 <= y < MAP_HEIGHT:
+            tile = self._get_dungeon(depth)[y][x]
+            if (tile not in (TILE_WALL, TILE_DOOR_CLOSED)
+                    and (x, y) not in exclude_positions
+                    and not self.get_enemy_at(x, y, depth)
+                    and not self.get_item_at(x, y, depth)[1]
+                    and not self.get_corpse_at(x, y, depth)
+                    and not any(
+                        p.depth == depth and p.x == x and p.y == y
+                        and not p.dead for p in self.players)):
+                return (x, y)
+        for radius in range(1, 5):
+            candidates = []
+            for dx in range(-radius, radius + 1):
+                for dy in range(-radius, radius + 1):
+                    if abs(dx) != radius and abs(dy) != radius:
+                        continue
+                    nx, ny = x + dx, y + dy
+                    if not (0 <= nx < MAP_WIDTH and 0 <= ny < MAP_HEIGHT):
+                        continue
+                    tile = self._get_dungeon(depth)[ny][nx]
+                    if (tile not in (TILE_WALL, TILE_DOOR_CLOSED)
+                            and (nx, ny) not in exclude_positions
+                            and not self.get_enemy_at(nx, ny, depth)
+                            and not self.get_item_at(nx, ny, depth)[1]
+                            and not self.get_corpse_at(nx, ny, depth)
+                            and not any(
+                                p.depth == depth and p.x == nx and p.y == ny
+                                and not p.dead for p in self.players)):
+                        candidates.append((nx, ny))
+            if candidates:
+                return random.choice(candidates)
+        return None
+
+    def _drop_player_items(self, player, depth):
+        """Drop the player's equipped weapon, shield, and gold as items
+        near their death position. Items are placed on separate free tiles
+        that do not overlap with the corpse, each other, or existing entities."""
+        items = self._get_items(depth)
+        occupied = {(player.x, player.y)}
+
+        # Drop weapon if not fists
+        if player.equipped_weapon != WEAPON_FISTS:
+            weapon = player.equipped_weapon
+            player.equipped_weapon = WEAPON_FISTS
+            spot = self._find_nearby_free_tile(
+                player.x, player.y, depth, occupied)
+            if spot:
+                occupied.add(spot)
+                items.append({
+                    "x": spot[0], "y": spot[1],
+                    "kind": ITEM_SWORD, "weapon": weapon,
+                })
+
+        # Drop shield if not none
+        if player.equipped_shield != SHIELD_NONE:
+            shield = player.equipped_shield
+            player.equipped_shield = SHIELD_NONE
+            spot = self._find_nearby_free_tile(
+                player.x, player.y, depth, occupied)
+            if spot:
+                occupied.add(spot)
+                items.append({
+                    "x": spot[0], "y": spot[1],
+                    "kind": ITEM_SHIELD, "shield": shield,
+                })
+
+        # Drop gold if any
+        if player.gold > 0:
+            gold_value = player.gold
+            player.gold = 0
+            spot = self._find_nearby_free_tile(
+                player.x, player.y, depth, occupied)
+            if spot:
+                items.append({
+                    "x": spot[0], "y": spot[1],
+                    "kind": ITEM_GOLD, "value": gold_value,
+                })
+
     def _get_player_at(self, x, y, depth, exclude):
         """Return another player at (x, y) on the given depth, or None."""
         for p in self.players:
@@ -2310,6 +2393,7 @@ class Game:
                 if player.hp <= 0:
                     player.hp = 0
                     player.dead = True
+                    self._drop_player_items(player, player.depth)
                     self.levels[player.depth]["corpses"].append({
                         "x": player.x,
                         "y": player.y,
@@ -2455,6 +2539,18 @@ class Game:
                     if player.hp <= 0:
                         player.hp = 0
                         player.dead = True
+                        killer_name = STATUS_EFFECT_PROPS[effect_name]["name"]
+                        self._drop_player_items(player, player.depth)
+                        self.levels[player.depth]["corpses"].append({
+                            "x": player.x,
+                            "y": player.y,
+                            "name": player.name,
+                            "level": player.level,
+                            "killer": killer_name,
+                        })
+                        self._broadcast(
+                            player.x, player.y, player.depth,
+                            MSG_PLAYER_DIED, COLOR_RED, subject=player)
             player.status_effects[effect_name] = remaining - 1
 
         for effect_name in to_remove:
@@ -2765,6 +2861,7 @@ class Game:
             if target.hp <= 0:
                 target.hp = 0
                 target.dead = True
+                self._drop_player_items(target, depth)
                 self.levels[depth]["corpses"].append({
                     "x": target.x,
                     "y": target.y,
