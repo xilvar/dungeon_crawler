@@ -18,6 +18,8 @@ from dungeon_messages import (
     STAIRS_DOWN_DEPTH_AMBIENT,
     STAIRS_UP_AMBIENT,
     STAIRS_UP_DEPTH_AMBIENT,
+    REPOP_ENEMY_AMBIENT,
+    REPOP_ITEM_AMBIENT,
     MSG_PLAYER_HIT_ENEMY,
     MSG_ENEMY_DIES,
     MSG_LEVEL_UP,
@@ -110,6 +112,7 @@ GENERATORS_PER_LEVEL = 3
 GENERATOR_RESPAWN_TIME = 6000  # 60 seconds to respawn after destruction
 MAX_ENEMIES_BASE = 15
 MAX_ENEMIES_PER_DEPTH = 5
+LEVEL_REGEN_TICKS = 60000  # Ticks to fully regenerate a level from empty (~10 min)
 
 # Dungeon type strings
 DUNGEON_TYPE_ROOMS = "rooms"
@@ -583,10 +586,10 @@ SHIELD_TOWER = "tower_shield"
 
 SHIELD_PROPS = {
     SHIELD_NONE: {"block": 0, "absorb": 0, "name": "None", "depth_range": (0, 9)},
-    SHIELD_LEATHER: {"block": 10, "absorb": 2, "name": "Leather Shield", "depth_range": (0, 3)},
-    SHIELD_WOOD: {"block": 15, "absorb": 3, "name": "Wood Shield", "depth_range": (1, 4)},
-    SHIELD_IRON: {"block": 20, "absorb": 5, "name": "Iron Shield", "depth_range": (3, 6)},
-    SHIELD_TOWER: {"block": 30, "absorb": 7, "name": "Tower Shield", "depth_range": (6, 9)},
+    SHIELD_LEATHER: {"block": 20, "absorb": 2, "name": "Leather Shield", "depth_range": (0, 3)},
+    SHIELD_WOOD: {"block": 25, "absorb": 3, "name": "Wood Shield", "depth_range": (1, 4)},
+    SHIELD_IRON: {"block": 30, "absorb": 5, "name": "Iron Shield", "depth_range": (3, 6)},
+    SHIELD_TOWER: {"block": 40, "absorb": 7, "name": "Tower Shield", "depth_range": (6, 9)},
 }
 
 # Weapon descriptors: name variants with stat modifier ranges
@@ -1717,7 +1720,12 @@ class Game:
 
         generators = []
         used = set()
-        for _ in range(GENERATORS_PER_LEVEL):
+        num_generators = (
+            0 if depth <= 1 else
+            1 if depth <= 3 else
+            GENERATORS_PER_LEVEL
+        )
+        for _ in range(num_generators):
             spot = self._pick_open_spot(floor_tiles, used | occupied)
             if spot is None:
                 break
@@ -1836,10 +1844,195 @@ class Game:
             "stairs_up_y": stairs_up_y,
             "spawn_x": px,
             "spawn_y": py,
+            "baseline_enemies": sum(1 for e in enemies if not e.get("water")),
+            "baseline_water_enemies": sum(1 for e in enemies if e.get("water")),
+            "baseline_items": len(items),
+            "populated": True,
+            "next_regen_tick": 0,
+            "regen_interval": 0,
         }
 
         for e in enemies:
             e["next_tick"] = 0
+
+    def _mark_level_unpopulated(self, depth):
+        """Mark a level as needing regeneration."""
+        if depth in self.levels:
+            lvl = self.levels[depth]
+            living = sum(1 for e in lvl["enemies"] if e["hp"] > 0 and not e.get("water"))
+            living_water = sum(1 for e in lvl["enemies"] if e["hp"] > 0 and e.get("water"))
+            items_count = len(lvl["items"])
+            total_deficit = (lvl["baseline_enemies"] - living) + \
+                            (lvl["baseline_water_enemies"] - living_water) + \
+                            (lvl["baseline_items"] - items_count)
+            if total_deficit > 0:
+                lvl["regen_interval"] = LEVEL_REGEN_TICKS // total_deficit
+            lvl["populated"] = False
+            lvl["next_regen_tick"] = self.tick
+
+    def _check_level_repopulated(self, depth):
+        """Check if a level has returned to baseline counts and mark populated."""
+        lvl = self.levels.get(depth)
+        if not lvl or lvl["populated"]:
+            return
+        living = sum(1 for e in lvl["enemies"] if e["hp"] > 0 and not e.get("water"))
+        living_water = sum(1 for e in lvl["enemies"] if e["hp"] > 0 and e.get("water"))
+        items_count = len(lvl["items"])
+        if (living >= lvl["baseline_enemies"] and
+                living_water >= lvl["baseline_water_enemies"] and
+                items_count >= lvl["baseline_items"]):
+            lvl["populated"] = True
+
+    def _regenerate_level(self, depth, level_tick):
+        """Regenerate one enemy or item on a level, gated by wall-clock tick.
+
+        Spawns at most one entity per call.  The interval between spawns is
+        LEVEL_REGEN_TICKS / total_deficit wall-clock ticks, so a fully-empty
+        level with N missing entities takes roughly LEVEL_REGEN_TICKS ticks
+        (~10 min) to recover.
+        """
+        lvl = self.levels.get(depth)
+        if not lvl or lvl["populated"]:
+            return
+        if self.tick < lvl["next_regen_tick"]:
+            return
+        dungeon = lvl["dungeon"]
+        living = sum(1 for e in lvl["enemies"] if e["hp"] > 0 and not e.get("water"))
+        living_water = sum(1 for e in lvl["enemies"] if e["hp"] > 0 and e.get("water"))
+        items_count = len(lvl["items"])
+        enemy_deficit = lvl["baseline_enemies"] - living
+        water_deficit = lvl["baseline_water_enemies"] - living_water
+        item_deficit = lvl["baseline_items"] - items_count
+        total_deficit = enemy_deficit + water_deficit + item_deficit
+        if total_deficit <= 0:
+            lvl["populated"] = True
+            return
+        interval = lvl["regen_interval"]
+        occupied = set()
+        for e in lvl["enemies"]:
+            if e["hp"] > 0:
+                occupied.add((e["x"], e["y"]))
+        for item in lvl["items"]:
+            occupied.add((item["x"], item["y"]))
+        for gen in lvl.get("generators", []):
+            occupied.add((gen["x"], gen["y"]))
+        if lvl["stairs_down_x"] is not None:
+            occupied.add((lvl["stairs_down_x"], lvl["stairs_down_y"]))
+        if lvl["stairs_up_x"] is not None:
+            occupied.add((lvl["stairs_up_x"], lvl["stairs_up_y"]))
+        for p in self.players:
+            if not p.dead and p.depth == depth:
+                occupied.add((p.x, p.y))
+        enemy_types_by_depth = {
+            0: [ENEMY_RAT, ENEMY_RAT, ENEMY_BAT, ENEMY_SPIDER, ENEMY_SNAKE],
+            1: [ENEMY_RAT, ENEMY_SPIDER, ENEMY_KOBOLD, ENEMY_GNOME, ENEMY_SNAKE],
+            2: [ENEMY_KOBOLD, ENEMY_GNOME, ENEMY_IMP, ENEMY_SKELETON, ENEMY_ZOMBIE, ENEMY_WOLF],
+            3: [ENEMY_GNOME, ENEMY_SKELETON, ENEMY_ZOMBIE, ENEMY_WOLF, ENEMY_MUMMY, ENEMY_WRAITH],
+            4: [ENEMY_SKELETON, ENEMY_WOLF, ENEMY_MUMMY, ENEMY_TROLL, ENEMY_MINOTAUR, ENEMY_MEDUSA],
+            5: [ENEMY_MUMMY, ENEMY_TROLL, ENEMY_MINOTAUR, ENEMY_OWLBEAR, ENEMY_HOOK_HORROR, ENEMY_PHASE_SPIDER],
+            6: [ENEMY_TROLL, ENEMY_MEDUSA, ENEMY_BASILISK, ENEMY_WYVERN, ENEMY_GELATINOUS_CUBE, ENEMY_REMORHAZ],
+            7: [ENEMY_MINOTAUR, ENEMY_OWLBEAR, ENEMY_WYVERN, ENEMY_ICE_DEVIL, ENEMY_LICH, ENEMY_BEHOLDER],
+            8: [ENEMY_LICH, ENEMY_BEHOLDER, ENEMY_BALOR, ENEMY_HYDRA],
+            9: [ENEMY_LICH, ENEMY_BEHOLDER, ENEMY_BALOR, ENEMY_DRAGON],
+        }
+        water_enemy_by_depth = {
+            0: [ENEMY_WATER_MITE], 1: [ENEMY_WATER_MITE],
+            2: [ENEMY_WATER_MITE, ENEMY_WATER_SNAKE], 3: [ENEMY_WATER_SNAKE],
+            4: [ENEMY_WATER_SNAKE, ENEMY_DEEP_ONE], 5: [ENEMY_DEEP_ONE],
+            6: [ENEMY_DEEP_ONE, ENEMY_WATER_ELEMENTAL], 7: [ENEMY_WATER_ELEMENTAL],
+            8: [ENEMY_WATER_ELEMENTAL, ENEMY_KRAKEN], 9: [ENEMY_KRAKEN],
+        }
+        enemy_pool = enemy_types_by_depth.get(depth, [ENEMY_ORC])
+        enemy_tier = max(0, min(depth - 1, 9))
+        water_pool = water_enemy_by_depth.get(enemy_tier, [ENEMY_WATER_MITE])
+        spawned = False
+        if enemy_deficit > 0:
+            spot = self._find_free_floor_tile(dungeon, depth, occupied)
+            if spot:
+                ex, ey = spot
+                occupied.add((ex, ey))
+                etype = random.choice(enemy_pool)
+                props = ENEMY_PROPS[etype]
+                scale = ENEMY_STATS_BASE_SCALE + depth * ENEMY_STATS_DEPTH_SCALE_FACTOR
+                e = {
+                    "x": ex, "y": ey, "kind": etype,
+                    "name": props["name"], "char": props["char"], "color": props["color"],
+                    "hp": int(props["hp"] * scale), "max_hp": int(props["hp"] * scale),
+                    "attack": int(props["attack"] * scale),
+                    "block": min(50, int(props["block"] * scale) + depth),
+                    "absorb": int(props["absorb"] * scale) + depth // 2,
+                    "xp": int(props["xp"] * scale), "next_tick": level_tick,
+                }
+                lvl["enemies"].append(e)
+                self._ambient_sound(ex, ey, depth, REPOP_ENEMY_AMBIENT,
+                                   COLOR_WHITE, chance=0.4, range=30, flat=True)
+                spawned = True
+        if not spawned and water_deficit > 0:
+            spot = self._find_free_water_tile(dungeon, occupied)
+            if spot:
+                ex, ey = spot
+                occupied.add((ex, ey))
+                etype = random.choice(water_pool)
+                props = ENEMY_PROPS[etype]
+                e = {
+                    "x": ex, "y": ey, "kind": etype,
+                    "name": props["name"], "char": props["char"], "color": props["color"],
+                    "hp": props["hp"] + depth * ENEMY_HP_SCALE_PER_DEPTH,
+                    "max_hp": props["hp"] + depth * ENEMY_HP_SCALE_PER_DEPTH,
+                    "attack": props["attack"] + depth * ENEMY_ATTACK_SCALE_PER_DEPTH,
+                    "block": min(50, props["block"] + depth),
+                    "absorb": props["absorb"] + depth // 2,
+                    "xp": props["xp"] + depth * ENEMY_XP_SCALE_PER_DEPTH,
+                    "next_tick": level_tick, "water": True, "visible": False,
+                }
+                lvl["enemies"].append(e)
+                self._ambient_sound(ex, ey, depth, REPOP_ENEMY_AMBIENT,
+                                   COLOR_WHITE, chance=0.4, range=30, flat=True)
+                spawned = True
+        if not spawned and item_deficit > 0:
+            spot = self._find_free_floor_tile(dungeon, depth, occupied)
+            if spot:
+                occupied.add((spot[0], spot[1]))
+                roll = random.random()
+                if roll < 0.5:
+                    item = {"kind": ITEM_POTION, "x": spot[0], "y": spot[1]}
+                elif roll < 0.8:
+                    item = {"kind": ITEM_GOLD, "x": spot[0], "y": spot[1],
+                            "value": random.randint(GOLD_VALUE_MIN, GOLD_VALUE_MAX) * (depth + 1)}
+                elif roll < 0.92:
+                    item = {"kind": ITEM_SWORD, "x": spot[0], "y": spot[1],
+                            "weapon": pick_weapon_for_depth(depth)}
+                else:
+                    item = {"kind": ITEM_SHIELD, "x": spot[0], "y": spot[1],
+                            "shield": pick_shield_for_depth(depth)}
+                lvl["items"].append(item)
+                self._ambient_sound(spot[0], spot[1], depth, REPOP_ITEM_AMBIENT,
+                                   COLOR_YELLOW, chance=0.35, range=25, flat=True)
+                spawned = True
+        lvl["next_regen_tick"] = self.tick + interval
+        self._check_level_repopulated(depth)
+
+    def _find_free_floor_tile(self, dungeon, depth, occupied):
+        """Find a free floor tile not in occupied set."""
+        candidates = []
+        for y in range(MAP_HEIGHT):
+            for x in range(MAP_WIDTH):
+                if dungeon[y][x] == TILE_FLOOR and (x, y) not in occupied:
+                    candidates.append((x, y))
+        if not candidates:
+            return None
+        return random.choice(candidates)
+
+    def _find_free_water_tile(self, dungeon, occupied):
+        """Find a free water tile not in occupied set."""
+        candidates = []
+        for y in range(MAP_HEIGHT):
+            for x in range(MAP_WIDTH):
+                if dungeon[y][x] == TILE_WATER and (x, y) not in occupied:
+                    candidates.append((x, y))
+        if not candidates:
+            return None
+        return random.choice(candidates)
 
     def _ensure_player_explored(self, player):
         """Ensure the player has an explored grid for their current depth."""
@@ -2538,6 +2731,7 @@ class Game:
                 range=ENEMY_DEATH_AMBIENT_RANGE, flat=True)
             player.xp += enemy["xp"]
             self._check_level_up(player)
+            self._mark_level_unpopulated(player.depth)
 
     def _check_level_up(self, player):
         """Process level-ups while the player has enough XP."""
@@ -2642,8 +2836,7 @@ class Game:
           # Slow idle progression: advance level ticks by 1 every IDLE_LEVEL_TICK_INTERVAL wall-clock ticks
         if self.tick % IDLE_LEVEL_TICK_INTERVAL == 0:
             for depth in list(self.levels.keys()):
-                if any(p.depth == depth and not p.dead for p in self.players):
-                    self.levels[depth]["tick"] += 1
+                self.levels[depth]["tick"] += 1
         # Cap level tick advancement to max MAX_TICK_ADVANCE_PLAYER_COUNT players worth per wall-clock tick
         _max_tick_advance = MAX_TICK_ADVANCE_PLAYER_COUNT * TICK_ATTACK
         for depth in list(self.levels.keys()):
@@ -2675,6 +2868,11 @@ class Game:
             for gen in lvl.get("generators", []):
                 if not gen["destroyed"] and level_tick >= gen["spawn_tick"]:
                     self._spawn_from_generator(gen, depth, level_tick)
+        # Regenerate enemies and items on depleted levels
+        for depth in list(self.levels.keys()):
+            lvl = self.levels[depth]
+            if not lvl["populated"]:
+                self._regenerate_level(depth, lvl["tick"])
         self._update_visibility()
         self._update_explored()
 
@@ -3108,6 +3306,7 @@ class Game:
                 MSG_PICKED_UP_GOLD, COLOR_YELLOW,
                 subject=player, ctx={"gold": item["value"]},
             )
+        self._mark_level_unpopulated(player.depth)
         self._get_items(player.depth).pop(idx)
 
     def _do_wait(self, player):

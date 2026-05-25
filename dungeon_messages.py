@@ -521,6 +521,26 @@ ENEMY_SPAWN_AMBIENT = [
     "A cold chill runs down your spine.",
 ]
 
+REPOP_ENEMY_AMBIENT = [
+    "You hear a low growl fade into existence nearby.",
+    "The air shimmers as something materializes in the dark.",
+    "A new presence stirs in the shadows.",
+    "You sense something coalescing from the darkness.",
+    "Distant footsteps echo where none were before.",
+    "A faint snarl drifts through the corridors.",
+    "Something shifts in the darkness and you feel eyes on you.",
+    "The dungeon seems to breathe as new life takes shape.",
+]
+
+REPOP_ITEM_AMBIENT = [
+    "You catch a faint glint of light from somewhere nearby.",
+    "A soft metallic clink echoes through the stone.",
+    "Something catches the light in a distant corridor.",
+    "You hear a faint tinkle as if something landed on stone.",
+    "A glimmer of light appears where there was none before.",
+    "The faint chime of metal on stone drifts through the air.",
+]
+
 # ---------------------------------------------------------------------------
 # Broadcast messages (visible to all players who can see the event)
 # ---------------------------------------------------------------------------
