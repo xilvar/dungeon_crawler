@@ -442,13 +442,15 @@ canvas.addEventListener('focus',()=>{focusHint.classList.add('hidden');});
 
 // --- Mobile D-pad ---
 const DPAD_MOVE={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
-$('dpad').addEventListener('touchstart',e=>{
+function handle_dpad(e){
   e.preventDefault();
   const btn=e.target.closest('.dpad-btn');
   if(!btn||!player_id) return;
   if(btn.dataset.action) send_action(player_id,{type:btn.dataset.action});
   else if(btn.dataset.dir){const[dx,dy]=DPAD_MOVE[btn.dataset.dir];send_action(player_id,{type:'move',dx,dy});}
-},{passive:false});
+}
+$('dpad').addEventListener('touchstart',handle_dpad,{passive:false});
+$('dpad').addEventListener('mousedown',handle_dpad);
 
 // --- Start / End ---
 async function show_start(){
