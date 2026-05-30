@@ -4,6 +4,7 @@ actions, visibility-filtered state responses, and smart spawn placement."""
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import sys
 import threading
@@ -12,6 +13,8 @@ import uuid
 
 from aiohttp import web
 import gzip
+
+logger = logging.getLogger("dungeon_server")
 
 PLAYER_TIMEOUT = 30  # seconds of inactivity before considering a player disconnected
 
@@ -69,15 +72,24 @@ class GameServer:
         self._last_state_hash = {}
         self._last_activity = {}
         self._next_internal_id = 0
+        # Snapshot of precomputed per-player views (game loop writes, handlers read)
+        self._latest_views = {}
+        self._views_tick = 0
         self._init_game()
 
     def _init_game(self):
         """Initialize game in headless mode, loading from file if available."""
-        if not self._load_state():
+        loaded = self._load_state()
+        if not loaded:
+            logger.info("Started fresh game (no save data found)")
             self.game = Game()
             self.game.tick = 0
             self.game.players = []
             self.game.player_visible = []
+        else:
+            logger.info("Loaded game state: tick=%d, levels=%d, active_players=%d, inactive_players=%d",
+                        self.game.tick, len(self.game.levels),
+                        len(self.game.players), len(self.inactive_players))
 
     @staticmethod
     def _pack_explored(grid):
@@ -107,6 +119,149 @@ class GameServer:
                         row.append(bool((word >> j) & 1))
             grid.append(row)
         return grid
+
+    def _build_player_view(self, player, player_idx):
+        """Build a visibility-filtered game state view for one player.
+
+        Called from the game loop under the lock. The resulting dict is
+        stored in ``_latest_views`` so HTTP handlers can read it without
+        holding the lock.
+        """
+        g = self.game
+        depth = player.depth
+
+        p_visible = (
+            g.player_visible[player_idx]
+            if 0 <= player_idx < len(g.player_visible)
+            else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+        )
+
+        # Compute visible-window bounds
+        min_x, min_y = MAP_WIDTH, MAP_HEIGHT
+        max_x, max_y = -1, -1
+        for y in range(MAP_HEIGHT):
+            for x in range(MAP_WIDTH):
+                if p_visible[y][x]:
+                    if x < min_x:
+                        min_x = x
+                    if x > max_x:
+                        max_x = x
+                    if y < min_y:
+                        min_y = y
+                    if y > max_y:
+                        max_y = y
+        if max_x < 0:
+            min_x = min_y = max_x = max_y = 0
+        map_x, map_y = min_x, min_y
+        map_w, map_h = max_x - min_x + 1, max_y - min_y + 1
+
+        # Build map characters and visibility hex
+        chars = []
+        visible_hex = []
+        hex_digits = (map_w + 3) // 4
+        for sy in range(map_h):
+            row = []
+            vis_bits = 0
+            for sx in range(map_w):
+                mx, my = sx + map_x, sy + map_y
+                row.append(g.get_char_at(mx, my, player_idx))
+                if p_visible[my][mx]:
+                    vis_bits |= 1 << sx
+            chars.append("".join(row))
+            visible_hex.append(f"{vis_bits:0{hex_digits}x}")
+
+        # Filter enemies (only visible ones)
+        enemies = []
+        for e in g._get_enemies(depth):
+            if e["hp"] <= 0:
+                continue
+            if e.get("water"):
+                if not e.get("visible", False):
+                    continue
+            else:
+                if not p_visible[e["y"]][e["x"]]:
+                    continue
+            enemies.append(
+                {"x": e["x"], "y": e["y"], "name": e["name"],
+                 "char": e["char"], "color": e["color"],
+                 "hp": e["hp"], "max_hp": e["max_hp"]}
+            )
+
+        # Filter items (only visible ones)
+        items = []
+        for it in g._get_items(depth):
+            if not p_visible[it["y"]][it["x"]]:
+                continue
+            items.append(
+                {"x": it["x"], "y": it["y"], "kind": it["kind"],
+                 "char": ITEM_PROPS[it["kind"]]["char"]}
+            )
+
+        # Corpses are visible on explored tiles
+        explored_grid = player.explored.get(
+            depth, [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+        )
+        corpses = []
+        for c in g._get_corpses(depth):
+            if explored_grid[c["y"]][c["x"]]:
+                corpses.append(
+                    {"x": c["x"], "y": c["y"], "char": "_",
+                     "name": c["name"], "level": c["level"],
+                     "killer": c["killer"]}
+                )
+
+        # Other players visible in FOV
+        player_stats = []
+        for pl in g.players:
+            if pl is player:
+                visible_to_me = True
+            else:
+                visible_to_me = (
+                    p_visible[pl.y][pl.x] if pl.depth == depth else False
+                )
+            if not visible_to_me:
+                continue
+            player_stats.append({
+                "id": pl._client_id, "name": pl.name, "char": pl.char,
+                "color": pl.color, "x": pl.x, "y": pl.y,
+                "depth": pl.depth,
+                "hp": pl.hp, "max_hp": pl.max_hp,
+                "level": pl.level, "attack": pl.defense_total(),
+                "defense": pl.defense_total(),
+                "xp": pl.xp, "next_level_xp": pl.next_level_xp,
+                "gold": pl.gold, "dead": pl.dead,
+                "equipped_weapon": pl.equipped_weapon,
+                "equipped_shield": pl.equipped_shield,
+                "weapon_name": pl.weapon_name(),
+                "shield_name": pl.shield_name(),
+                "weapon_display": pl._weapon_display(),
+                "shield_display": pl._shield_display(),
+                "status_effects": pl.status_effects,
+                "visible": True,
+            })
+
+        # Messages since last tick for this player (read-only — do NOT
+        # update _last_state_tick here; that happens in get_state() when
+        # the client actually receives the state).
+        last_tick = self._last_state_tick.get(player._client_id, 0)
+        messages = [
+            (m[0], m[1]) for m in player.messages if m[2] > last_tick
+        ]
+
+        return {
+            "tick": g.tick,
+            "depth": depth,
+            "map_x": map_x, "map_y": map_y,
+            "map_w": map_w, "map_h": map_h,
+            "map": chars, "visible": visible_hex,
+            "players": player_stats,
+            "enemies": enemies, "items": items, "corpses": corpses,
+            "messages": messages,
+            "game_over": player.dead,
+            "game_win": player.game_win,
+            "max_depth": MAX_DEPTH,
+            "map_width": MAP_WIDTH, "map_height": MAP_HEIGHT,
+        }
 
     def _save_state(self):
         """Serialize game state to JSON file."""
@@ -160,8 +315,10 @@ class GameServer:
         try:
             with open(SAVE_PATH, 'w') as f:
                 json.dump(state, f)
+            logger.info("Saved game state: tick=%d, levels=%d",
+                        state["tick"], len(state["levels"]))
         except OSError:
-            pass
+            logger.exception("Failed to save game state")
 
         player_state = {
             "active_players": [serialize_player(p) for p in self.game.players],
@@ -171,13 +328,15 @@ class GameServer:
             with open(PLAYERS_SAVE_PATH, 'w') as f:
                 json.dump(player_state, f)
         except OSError:
-            pass
+            logger.exception("Failed to save player state")
 
     def _load_state(self):
         """Restore game state from JSON file."""
         try:
             with open(SAVE_PATH, 'r') as f:
                 state = json.load(f)
+            logger.info("Found save file: tick=%d, levels=%d",
+                        state.get("tick", 0), len(state.get("levels", {})))
         except (FileNotFoundError, json.JSONDecodeError):
             return False
 
@@ -239,6 +398,8 @@ class GameServer:
             p = deserialize_player(pd)
             self.inactive_players.append(p)
 
+        logger.info("Loaded players: %d active, %d inactive",
+                    len(self.game.players), len(self.inactive_players))
         self._update_visibility(self.game)
         return True
 
@@ -247,22 +408,40 @@ class GameServer:
         self.running = True
         self.thread = threading.Thread(target=self._loop, daemon=True)
         self.thread.start()
+        logger.info("Game loop started")
 
     def _loop(self):
-        """Main game loop: advance ticks and process game state."""
+        """Main game loop: advance ticks, process game state, and precompute player views."""
+        last_log_tick = 0
         while self.running:
             with self.lock:
                 if self.game.players:
                     self.game.tick += 1
                     self.game._process_tick()
+                    # Precompute visibility-filtered views for all players
+                    views = {}
+                    for idx, p in enumerate(self.game.players):
+                        if p._client_id:
+                            views[p._client_id] = self._build_player_view(p, idx)
+                    self._latest_views = views
+                    self._views_tick = self.game.tick
                     if self.game.tick % 500 == 0:
                         self._save_state()
+                    # Log every 500 ticks (every ~5 seconds)
+                    if self.game.tick - last_log_tick >= 500:
+                        active = sum(1 for p in self.game.players if not p.dead)
+                        dead = sum(1 for p in self.game.players if p.dead)
+                        logger.debug("Tick %d: %d active, %d dead, %d levels",
+                                     self.game.tick, active, dead, len(self.game.levels))
+                        last_log_tick = self.game.tick
                 # Detect and remove stale players
                 now = time.time()
                 stale = [pid for pid, t in self._last_activity.items()
                          if now - t > PLAYER_TIMEOUT]
                 for pid in stale:
                     self.deregister_player(pid)
+                    logger.info("Stale player removed: client_id=%s (%.0fs idle)",
+                                pid[:12], now - self._last_activity.get(pid, now))
             time.sleep(0.01)
 
     def stop(self):
@@ -295,6 +474,8 @@ class GameServer:
                             inactive = g.players.pop(i)
                             break
                 if not inactive:
+                    logger.warning("Re-registration failed: client_id=%s not found",
+                                   client_id[:12] if client_id else "None")
                     return {"error": "player not found"}
             client_id = client_id or str(uuid.uuid4())
             if inactive:
@@ -322,11 +503,13 @@ class GameServer:
                     spawn_x, spawn_y, 0, exclude_player=p)
                 g._show_entrance(p)
             self.clients[client_id] = p
-            self._last_state_tick[client_id] = 0
             self._last_activity[client_id] = time.time()
             self._update_visibility(g)
             g._update_explored()
             g.game_over = False
+            status = "re-activated" if inactive else "new"
+            logger.info("Player registered (%s): name=%s, client_id=%s, total_players=%d",
+                        status, p.name, client_id[:12], len(g.players))
             return {"client_id": client_id, "player_id": client_id}
 
     def deregister_player(self, player_id):
@@ -347,6 +530,8 @@ class GameServer:
                     self.inactive_players.append(target)
                     g.players.pop(target_idx)
                     self._update_visibility(g)
+                    logger.info("Player deregistered: name=%s, client_id=%s, remaining=%d",
+                                target.name, player_id[:12], len(g.players))
                 self.clients.pop(player_id, None)
                 self._last_state_tick.pop(player_id, None)
                 self._last_activity.pop(player_id, None)
@@ -357,80 +542,96 @@ class GameServer:
     def get_state(self, player_id=0, full=False):
         """Return the visibility-filtered game state for the given player.
 
-        When full is True, sends the complete explored map.
-        When full is False, sends only the bounding box of visible tiles.
+        Reads from a precomputed snapshot built by the game loop, so the
+        global lock is not held during state delivery.
+
+        When full is True, sends the complete explored map (computed
+        on-demand since the snapshot only stores windowed views).
+        """
+        self._last_activity[player_id] = time.time()
+        g = self.game
+
+        # No players registered yet
+        if not g.players:
+            return {
+                "tick": g.tick,
+                "depth": 0,
+                "map_x": 0, "map_y": 0,
+                "map_w": MAX_SCREEN_X, "map_h": MAX_SCREEN_Y - 4,
+                "map": [" " * MAX_SCREEN_X for _ in range(MAX_SCREEN_Y - 4)],
+                "visible": ["0" * ((MAX_SCREEN_X + 3) // 4)
+                            for _ in range(MAX_SCREEN_Y - 4)],
+                "players": [], "enemies": [], "items": [], "corpses": [],
+                "messages": [("Waiting for players...", 7)],
+                "game_over": False, "game_win": False,
+                "max_depth": MAX_DEPTH,
+                "map_width": MAP_WIDTH, "map_height": MAP_HEIGHT,
+            }
+
+       # Is this player still registered?
+        target = self.clients.get(player_id)
+        if target is None:
+            return {"tick": g.tick}
+
+        # --- full map requested: compute on-demand ---
+        if full:
+            return self._build_full_view(target)
+
+        # --- read from precomputed snapshot ---
+        views = self._latest_views
+        view = views.get(player_id)
+
+        # Player not yet in snapshot (e.g. just registered, or snapshot
+        # is from a stale tick).  Compute on-demand as a fallback.
+        if view is None:
+            with self.lock:
+                idx = None
+                for i, p in enumerate(g.players):
+                    if p is target:
+                        idx = i
+                        break
+                if idx is None:
+                    return {"tick": g.tick}
+                view = self._build_player_view(target, idx)
+            # Store it so the next poll hits the fast path
+            views[player_id] = view
+            self._latest_views = views
+
+        # Delta check: if the view tick matches what we last sent,
+        # nothing changed — return a minimal response.
+        last_sent = self._last_state_tick.get(player_id, -1)
+        if view["tick"] == last_sent:
+            return {"tick": view["tick"]}
+
+        # Mark this tick as sent so the next poll can do delta detection.
+        self._last_state_tick[player_id] = view["tick"]
+        return view
+
+    def _build_full_view(self, player):
+        """Build a *full* (explored-map) view for one player.
+
+        Called on-demand when the client requests ``full=1`` (typically
+        after changing depth).  Holds the lock because it reads game state.
         """
         with self.lock:
-            self._last_activity[player_id] = time.time()
             g = self.game
-            if not g.players:
-                return {
-                    "tick": g.tick,
-                    "depth": 0,
-                    "map_x": 0,
-                    "map_y": 0,
-                    "map_w": MAX_SCREEN_X,
-                    "map_h": MAX_SCREEN_Y - 4,
-                    "map": [
-                        " " * MAX_SCREEN_X
-                        for _ in range(MAX_SCREEN_Y - 4)
-                    ],
-                    "visible": [
-                        "0" * ((MAX_SCREEN_X + 3) // 4)
-                        for _ in range(MAX_SCREEN_Y - 4)
-                    ],
-                    "players": [],
-                    "enemies": [],
-                    "items": [],
-                    "corpses": [],
-                    "messages": [("Waiting for players...", 7)],
-                    "game_over": False,
-                    "game_win": False,
-                    "max_depth": MAX_DEPTH,
-                   "map_width": MAP_WIDTH,
-                    "map_height": MAP_HEIGHT,
-                }
-            target = self.clients.get(player_id)
             target_idx = None
-            if target:
-                for i, pl in enumerate(g.players):
-                    if pl is target:
-                        target_idx = i
-                        break
-            if target is None:
-                target_idx = 0
-                target = g.players[target_idx]
+            for i, p in enumerate(g.players):
+                if p is player:
+                    target_idx = i
+                    break
+            if target_idx is None:
+                return {"tick": g.tick}
 
             p_visible = (
                 g.player_visible[target_idx]
                 if 0 <= target_idx < len(g.player_visible)
-                else [[False] * MAP_WIDTH
-                      for _ in range(MAP_HEIGHT)]
+                else [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
             )
 
-            if full:
-                map_x, map_y = 0, 0
-                map_w, map_h = MAP_WIDTH, MAP_HEIGHT
-            else:
-                min_x, min_y = MAP_WIDTH, MAP_HEIGHT
-                max_x, max_y = -1, -1
-                for y in range(MAP_HEIGHT):
-                    for x in range(MAP_WIDTH):
-                        if p_visible[y][x]:
-                            if x < min_x:
-                                min_x = x
-                            if x > max_x:
-                                max_x = x
-                            if y < min_y:
-                                min_y = y
-                            if y > max_y:
-                                max_y = y
-                if max_x < 0:
-                    min_x = min_y = max_x = max_y = 0
-                map_x = min_x
-                map_y = min_y
-                map_w = max_x - min_x + 1
-                map_h = max_y - min_y + 1
+            map_x, map_y = 0, 0
+            map_w, map_h = MAP_WIDTH, MAP_HEIGHT
+            depth = player.depth
 
             chars = []
             visible_hex = []
@@ -439,15 +640,13 @@ class GameServer:
                 row = []
                 vis_bits = 0
                 for sx in range(map_w):
-                    mx = sx + map_x
-                    my = sy + map_y
+                    mx, my = sx + map_x, sy + map_y
                     row.append(g.get_char_at(mx, my, target_idx))
                     if p_visible[my][mx]:
-                        vis_bits |= (1 << sx)
-                chars.append(''.join(row))
+                        vis_bits |= 1 << sx
+                chars.append("".join(row))
                 visible_hex.append(f"{vis_bits:0{hex_digits}x}")
 
-            depth = target.depth
             enemies = []
             for e in g._get_enemies(depth):
                 if e["hp"] <= 0:
@@ -475,36 +674,31 @@ class GameServer:
                     "char": ITEM_PROPS[it["kind"]]["char"],
                 })
 
-            explored_grid = target.explored.get(
-                depth, [[False] * MAP_WIDTH
-                        for _ in range(MAP_HEIGHT)])
+            explored_grid = player.explored.get(
+                depth, [[False] * MAP_WIDTH for _ in range(MAP_HEIGHT)]
+            )
             corpses = []
             for c in g._get_corpses(depth):
                 if explored_grid[c["y"]][c["x"]]:
                     corpses.append({
                         "x": c["x"], "y": c["y"],
-                        "char": "_",
-                        "name": c["name"],
-                        "level": c["level"],
-                        "killer": c["killer"],
+                        "char": "_", "name": c["name"],
+                        "level": c["level"], "killer": c["killer"],
                     })
 
             player_stats = []
             for pl in g.players:
-                if pl is target:
+                if pl is player:
                     visible_to_me = True
                 else:
                     visible_to_me = (
-                        p_visible[pl.y][pl.x]
-                        if pl.depth == depth else False
+                        p_visible[pl.y][pl.x] if pl.depth == depth else False
                     )
                 if not visible_to_me:
                     continue
-                ps = {
-                    "id": pl._client_id,
-                    "name": pl.name, "char": pl.char,
-                    "color": pl.color,
-                    "x": pl.x, "y": pl.y,
+                player_stats.append({
+                    "id": pl._client_id, "name": pl.name, "char": pl.char,
+                    "color": pl.color, "x": pl.x, "y": pl.y,
                     "depth": pl.depth,
                     "hp": pl.hp, "max_hp": pl.max_hp,
                     "level": pl.level, "attack": pl.defense_total(),
@@ -519,50 +713,25 @@ class GameServer:
                     "shield_display": pl._shield_display(),
                     "status_effects": pl.status_effects,
                     "visible": True,
-                }
-                player_stats.append(ps)
+                })
 
-            last_tick = self._last_state_tick.get(player_id, 0) if not full else 0
-            messages = [(m[0], m[1]) for m in target.messages if m[2] > last_tick]
-            if not full:
-                self._last_state_tick[player_id] = g.tick
-
-            game_win = target.game_win
-            game_over = target.dead
-
-            # Compute state hash to detect changes
-            # Skip optimization if player has a pending action —
-            # state will change once the game loop processes it
-            if not full and not target.queued_action:
-                state_key = (chars, visible_hex,
-                             tuple((e["x"], e["y"], e["hp"]) for e in enemies),
-                             tuple((it["x"], it["y"]) for it in items),
-                             tuple((p["x"], p["y"], p["hp"]) for p in player_stats),
-                             tuple(m[0] for m in messages))
-                current_hash = hashlib.md5(json.dumps(state_key, sort_keys=True).encode()).hexdigest()
-                if current_hash == self._last_state_hash.get(player_id):
-                    return {"tick": g.tick}
-                self._last_state_hash[player_id] = current_hash
+            messages = [(m[0], m[1]) for m in player.messages]
+            game_over = player.dead
+            game_win = player.game_win
 
             return {
                 "tick": g.tick,
                 "depth": depth,
-                "map_x": map_x,
-                "map_y": map_y,
-                "map_w": map_w,
-                "map_h": map_h,
-                "map": chars,
-                "visible": visible_hex,
+                "map_x": map_x, "map_y": map_y,
+                "map_w": map_w, "map_h": map_h,
+                "map": chars, "visible": visible_hex,
                 "players": player_stats,
-                "enemies": enemies,
-                "items": items,
-                "corpses": corpses,
+                "enemies": enemies, "items": items, "corpses": corpses,
                 "messages": messages,
                 "game_over": game_over,
                 "game_win": game_win,
                 "max_depth": MAX_DEPTH,
-                "map_width": MAP_WIDTH,
-                "map_height": MAP_HEIGHT,
+                "map_width": MAP_WIDTH, "map_height": MAP_HEIGHT,
             }
 
     def send_action(self, player_id, action):
@@ -575,6 +744,7 @@ class GameServer:
             g = self.game
             target = self.clients.get(player_id)
             if not target or target.dead:
+                logger.debug("Action from invalid/dead player: %s", player_id[:12])
                 return {"error": "invalid player"}
             target_idx = None
             for i, pl in enumerate(g.players):
@@ -692,9 +862,23 @@ def create_app():
 def main():
     """Start the aiohttp server and game loop.
 
-   Uses the given port (default 9999).
+   Uses the given port (default 9999) and optional log level.
+   Usage: dungeon_server.py [port] [log_level]
+   Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
    """
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 9999
+    log_level = sys.argv[2].upper() if len(sys.argv) > 2 else "INFO"
+
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    logger.info("Starting dungeon server on port %d (log_level=%s)", port, log_level)
+
+    # Disable aiohttp's default access log (too verbose for a game server)
+    logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
 
     gs = GameServer()
     gs.start()
@@ -706,7 +890,7 @@ def main():
         await runner.setup()
         site = web.TCPSite(runner, "0.0.0.0", port)
         await site.start()
-        print(f"Dungeon server on port {port}")
+        logger.info("HTTP server listening on port %d", port)
         try:
             await asyncio.Event().wait()
         finally:
@@ -715,9 +899,10 @@ def main():
     try:
         asyncio.run(run())
     except KeyboardInterrupt:
-        print("\nShutting down.")
+        logger.info("Shutting down...")
         gs._save_state()
         gs.stop()
+        logger.info("Server stopped")
 
 
 if __name__ == '__main__':

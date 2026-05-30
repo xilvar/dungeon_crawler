@@ -582,9 +582,9 @@ MSG_PLAYER_HIT_ENEMY = {
     ],
 }
 MSG_ENEMY_DIES = "The {enemy} dies!"
-MSG_LEVEL_UP = "{name} is now level {level}!"
-MSG_PLAYER_DIED = "{name} has died!"
-MSG_CONQUERED = "{name} has conquered the dungeon!"
+MSG_LEVEL_UP = "{name} leveled up to level {level}!"
+MSG_PLAYER_DIED = "{name} fell!"
+MSG_CONQUERED = "{name} conquered the dungeon!"
 MSG_DESCENDED = "{name} descended deeper. (Depth: {depth})"
 MSG_ASCENDED = "{name} went back up. (Depth: {depth})"
 MSG_DRANK_POTION = "{name} drank a potion. Recovered {heal} HP."
@@ -664,9 +664,9 @@ MSG_STATUS_PARALYSIS_APPLY = [
     "{name} can't move, frozen in place!",
     "Paralysis locks {name}'s muscles!",
 ]
-MSG_STATUS_DO_TICK = "{name} takes {damage} damage from {effect}."
-MSG_STATUS_PARALYSIS_TICK = "{name} is paralyzed and cannot move!"
-MSG_STATUS_WEAR_OFF = "{name}'s {effect} wears off."
+MSG_STATUS_DO_TICK = "{name} took {damage} damage from {effect}."
+MSG_STATUS_PARALYSIS_TICK = "{name} became paralyzed and cannot move!"
+MSG_STATUS_WEAR_OFF = "{effect} fades from {name}."
 
 # ---------------------------------------------------------------------------
 # Direct player messages (_tell)
@@ -690,7 +690,7 @@ MSG_GENERATOR_SPAWNS = [
     "A {enemy} crawls out of a dark rift!",
     "Reality tears open and a {enemy} steps through!",
 ]
-MSG_HIT_GENERATOR = "{name} strikes the portal for {damage} damage!"
+MSG_HIT_GENERATOR = "{name} struck the portal for {damage} damage!"
 MSG_GENERATOR_DESTROYED = "The portal collapses in a flash of light!"
 MSG_GENERATOR_RESPAWN = "A new portal begins to form in the distance."
 MSG_CORPSE_INFO = (

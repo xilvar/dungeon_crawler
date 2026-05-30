@@ -2,8 +2,11 @@
 """Core game logic: dungeon generation, FOV, combat, entities, items, corpses,
 ambient sounds, player state, and a text-mode renderer for debugging."""
 
+import logging
 import random
 from collections import deque
+
+logger = logging.getLogger(__name__)
 
 from dungeon_messages import (
     ENEMY_SOUNDS,
@@ -2490,35 +2493,47 @@ class Game:
         player.queued_action = action
 
     def execute_player_action(self, player_idx):
-        """Execute the queued action for the given player."""
+        """Execute the queued action for the given player.
+
+        Returns True if the action was executed, False if rejected.
+        """
         player = self.players[player_idx]
         action = player.queued_action
         player.queued_action = None
         if action is None:
-            return
+            return False
         action_type = action["type"]
         if action_type != ACTION_WAIT:
             player.consecutive_waits = 0
         if action_type == ACTION_MOVE:
-            self._do_move(player, action["dx"], action["dy"])
+            dx, dy = action["dx"], action["dy"]
+            executed = self._do_move(player, dx, dy)
+            return executed
         elif action_type == ACTION_GRAB:
             self._do_grab_item(player)
             player.next_tick = self.tick + TICK_MOVE
+            return True
         elif action_type == ACTION_STAIRS_DOWN:
             self._do_go_down_stairs(player)
             player.next_tick = self.tick + TICK_MOVE
+            return True
         elif action_type == ACTION_STAIRS_UP:
             self._do_go_up_stairs(player)
             player.next_tick = self.tick + TICK_MOVE
+            return True
         elif action_type == ACTION_WAIT:
             self._do_wait(player)
             player.next_tick = self.tick + TICK_MOVE
+            return True
 
     def _do_move(self, player, dx, dy):
-        """Move the player by (dx, dy). Rejects diagonal movement."""
+        """Move the player by (dx, dy). Rejects diagonal movement.
+
+        Returns True if executed, False if rejected.
+        """
         if dx != 0 and dy != 0:
             player.next_tick = self.tick + TICK_WAIT
-            return
+            return False
         nx, ny = player.x + dx, player.y + dy
         dungeon = self._get_dungeon(player.depth)
         in_bounds = (0 <= nx < MAP_WIDTH and 0 <= ny < MAP_HEIGHT)
@@ -2527,13 +2542,15 @@ class Game:
             dungeon[ny][nx] = TILE_DOOR_OPEN
             player.next_tick = self.tick + TICK_PLAYER_MOVE
             self._tell(player, random.choice(MSG_OPEN_DOOR), COLOR_WHITE)
-            return
+            logger.info("%s move %s → opened door", player.name, self._move_dir(dx, dy))
+            return True
         if target_tile == TILE_GENERATOR:
             enemy = self.get_enemy_at(nx, ny, player.depth)
             if enemy:
                 self._do_combat_attack(player, enemy)
                 player.next_tick = self.tick + TICK_ATTACK
-                return
+                logger.info("%s move %s → attacked %s", player.name, self._move_dir(dx, dy), enemy["name"])
+                return True
             gen = self._get_generator_at(nx, ny, player.depth)
             if gen and not gen["destroyed"]:
                 damage = player.weapon_damage()
@@ -2559,13 +2576,17 @@ class Game:
                         MSG_GENERATOR_DESTROYED, COLOR_MAGENTA,
                         subject=player,
                     )
-                return
+                    logger.info("%s move %s → destroyed portal", player.name, self._move_dir(dx, dy))
+                else:
+                    logger.info("%s move %s → attacked portal, dealt %d damage", player.name, self._move_dir(dx, dy), damage)
+                return True
         if target_tile == TILE_DOOR_OPEN:
             enemy = self.get_enemy_at(nx, ny, player.depth)
             if enemy:
                 self._do_combat_attack(player, enemy)
                 player.next_tick = self.tick + TICK_ATTACK
-                return
+                logger.info("%s move %s → attacked %s", player.name, self._move_dir(dx, dy), enemy["name"])
+                return True
             player.x, player.y = nx, ny
             player.next_tick = self.tick + TICK_PLAYER_MOVE
             self._tell(player, random.choice(MSG_SEE_DOOR_OPEN), COLOR_WHITE)
@@ -2574,15 +2595,17 @@ class Game:
                 COLOR_WHITE, source=player, chance=PLAYER_MOVE_AMBIENT_CHANCE,
                 skip_visible=True, range=PLAYER_MOVE_AMBIENT_RANGE, flat=True,
             )
-            return
+            logger.info("%s move %s → moved through door", player.name, self._move_dir(dx, dy))
+            return True
         if not self.is_passable(nx, ny, player.depth):
             player.next_tick = self.tick + TICK_WAIT
             self._tell(player, random.choice(MSG_WALK_WALL), COLOR_WHITE)
-            return
+            return False
         enemy = self.get_enemy_at(nx, ny, player.depth)
         if enemy:
             self._do_combat_attack(player, enemy)
             player.next_tick = self.tick + TICK_ATTACK
+            logger.info("%s move %s → attacked %s", player.name, self._move_dir(dx, dy), enemy["name"])
         else:
             current_tile = dungeon[player.y][player.x]
             in_water = target_tile == TILE_WATER
@@ -2594,8 +2617,10 @@ class Game:
                 player.next_tick = self.tick + TICK_PLAYER_MOVE
             if in_water and not was_in_water:
                 self._tell(player, random.choice(MSG_ENTER_WATER), COLOR_BLUE)
+                logger.info("%s move %s → entered water", player.name, self._move_dir(dx, dy))
             elif was_in_water and not in_water:
                 self._tell(player, random.choice(MSG_LEAVE_WATER), COLOR_BLUE)
+                logger.info("%s move %s → left water", player.name, self._move_dir(dx, dy))
             if target_tile == TILE_TRAP:
                 # Reveal trap to the triggering player
                 depth = player.depth
@@ -2632,12 +2657,30 @@ class Game:
                     self._broadcast(
                         player.x, player.y, player.depth,
                         MSG_PLAYER_DIED, COLOR_RED, subject=player)
+                    logger.info("%s move %s → stepped on trap, killed (took %d damage)", player.name, self._move_dir(dx, dy), trap_damage)
+                else:
+                    logger.info("%s move %s → stepped on trap, took %d damage", player.name, self._move_dir(dx, dy), trap_damage)
+            else:
+                logger.info("%s move %s → moved to (%d,%d)", player.name, self._move_dir(dx, dy), nx, ny)
             self._ambient_sound(
                 nx, ny, player.depth, PLAYER_MOVE_AMBIENT,
                 COLOR_WHITE, source=player, chance=PLAYER_MOVE_AMBIENT_CHANCE,
                 skip_visible=True, range=PLAYER_MOVE_AMBIENT_RANGE, flat=True,
             )
             self._show_walk_over_messages(player, nx, ny)
+        return True
+
+    def _move_dir(self, dx, dy):
+        """Return a direction string for logging."""
+        if dx == 1 and dy == 0:
+            return "right"
+        elif dx == -1 and dy == 0:
+            return "left"
+        elif dx == 0 and dy == 1:
+            return "down"
+        elif dx == 0 and dy == -1:
+            return "up"
+        return "diag"
 
     def _show_walk_over_messages(self, player, x, y):
         """Show a message when the player walks over an entity."""
@@ -2690,6 +2733,7 @@ class Game:
                 result["message"], result["message_color"],
                 subject=player, ctx=result["message_ctx"],
             )
+            logger.info("%s attack %s → dodged", player.name, enemy["name"])
             return
 
         enemy["hp"] -= result["damage"]
@@ -2732,6 +2776,21 @@ class Game:
             player.xp += enemy["xp"]
             self._check_level_up(player)
             self._mark_level_unpopulated(player.depth)
+            level_msg = ""
+            if player.level > 1:
+                level_msg = f", leveled up to {player.level}"
+            if result["critical"]:
+                logger.info("%s attack %s → CRITICAL for %d damage, killed%s", player.name, enemy["name"], result["damage"], level_msg)
+            elif result["damage"] == 0:
+                logger.info("%s attack %s → blocked, killed%s", player.name, enemy["name"], level_msg)
+            else:
+                logger.info("%s attack %s → dealt %d damage, killed%s", player.name, enemy["name"], result["damage"], level_msg)
+        elif result["critical"]:
+            logger.info("%s attack %s → CRITICAL for %d damage", player.name, enemy["name"], result["damage"])
+        elif result["damage"] == 0:
+            logger.info("%s attack %s → blocked", player.name, enemy["name"])
+        else:
+            logger.info("%s attack %s → dealt %d damage", player.name, enemy["name"], result["damage"])
 
     def _check_level_up(self, player):
         """Process level-ups while the player has enough XP."""
@@ -3171,6 +3230,7 @@ class Game:
                 self._broadcast(player.x, player.y, player.depth,
                                 MSG_CONQUERED, COLOR_YELLOW, subject=player)
                 player.game_win = True
+                logger.info("%s stairs_down → conquered the dungeon!", player.name)
                 return
             self._ensure_level(new_depth)
             stairs_up_x, stairs_up_y = self._get_stairs_up(new_depth)
@@ -3197,8 +3257,10 @@ class Game:
                 subject=player,
                 ctx={"depth": new_depth + 1},
             )
+            logger.info("%s stairs_down → descended to depth %d", player.name, new_depth)
         else:
             self._tell(player, MSG_NO_STAIRS_DOWN, COLOR_CYAN)
+            logger.info("%s stairs_down → no stairs here", player.name)
 
     def _do_go_up_stairs(self, player):
         """Move the player up one level via stairs-up tile."""
@@ -3231,16 +3293,20 @@ class Game:
                     subject=player,
                     ctx={"depth": new_depth + 1},
                 )
+                logger.info("%s stairs_up → ascended to depth %d", player.name, new_depth)
             else:
                 self._tell(player, MSG_CANNOT_GO_UP, COLOR_CYAN)
+                logger.info("%s stairs_up → can't go up further", player.name)
         else:
             self._tell(player, MSG_NO_STAIRS_UP, COLOR_CYAN)
+            logger.info("%s stairs_up → no stairs here", player.name)
 
     def _do_grab_item(self, player):
         """Pick up and apply the item at the player's position."""
         idx, item = self.get_item_at(player.x, player.y, player.depth)
         if item is None:
             self._tell(player, MSG_NOTHING_TO_GRAB, COLOR_CYAN)
+            logger.info("%s grab → nothing to grab", player.name)
             return
         kind = item["kind"]
         if kind == ITEM_POTION:
@@ -3251,6 +3317,7 @@ class Game:
                 MSG_DRANK_POTION, COLOR_RED,
                 subject=player, ctx={"heal": heal},
             )
+            logger.info("%s grab → drank potion, healed %d HP", player.name, heal)
         elif kind == ITEM_SWORD:
             new_weapon = item["weapon"]
             # Drop old weapon if not fists
@@ -3267,14 +3334,24 @@ class Game:
                     subject=player,
                     ctx={"weapon": old_name.lower()},
                 )
+                new_name = new_weapon["name"] if isinstance(new_weapon, dict) else WEAPON_PROPS[new_weapon]["name"]
+                self._broadcast(
+                    player.x, player.y, player.depth,
+                    MSG_EQUIPPED_WEAPON, COLOR_WHITE,
+                    subject=player,
+                    ctx={"weapon": new_name.lower()},
+                )
+                logger.info("%s grab → dropped %s, equipped %s", player.name, old_name.lower(), new_name.lower())
+            else:
+                new_name = new_weapon["name"] if isinstance(new_weapon, dict) else WEAPON_PROPS[new_weapon]["name"]
+                self._broadcast(
+                    player.x, player.y, player.depth,
+                    MSG_EQUIPPED_WEAPON, COLOR_WHITE,
+                    subject=player,
+                    ctx={"weapon": new_name.lower()},
+                )
+                logger.info("%s grab → equipped %s", player.name, new_name.lower())
             player.equipped_weapon = new_weapon
-            new_name = new_weapon["name"] if isinstance(new_weapon, dict) else WEAPON_PROPS[new_weapon]["name"]
-            self._broadcast(
-                player.x, player.y, player.depth,
-                MSG_EQUIPPED_WEAPON, COLOR_WHITE,
-                subject=player,
-                ctx={"weapon": new_name.lower()},
-            )
         elif kind == ITEM_SHIELD:
             new_shield = item["shield"]
             # Drop old shield if not none
@@ -3291,14 +3368,24 @@ class Game:
                     subject=player,
                     ctx={"shield": old_name.lower()},
                 )
+                new_name = new_shield["name"] if isinstance(new_shield, dict) else SHIELD_PROPS[new_shield]["name"]
+                self._broadcast(
+                    player.x, player.y, player.depth,
+                    MSG_EQUIPPED_SHIELD, COLOR_CYAN,
+                    subject=player,
+                    ctx={"shield": new_name.lower()},
+                )
+                logger.info("%s grab → dropped %s, equipped %s", player.name, old_name.lower(), new_name.lower())
+            else:
+                new_name = new_shield["name"] if isinstance(new_shield, dict) else SHIELD_PROPS[new_shield]["name"]
+                self._broadcast(
+                    player.x, player.y, player.depth,
+                    MSG_EQUIPPED_SHIELD, COLOR_CYAN,
+                    subject=player,
+                    ctx={"shield": new_name.lower()},
+                )
+                logger.info("%s grab → equipped %s", player.name, new_name.lower())
             player.equipped_shield = new_shield
-            new_name = new_shield["name"] if isinstance(new_shield, dict) else SHIELD_PROPS[new_shield]["name"]
-            self._broadcast(
-                player.x, player.y, player.depth,
-                MSG_EQUIPPED_SHIELD, COLOR_CYAN,
-                subject=player,
-                ctx={"shield": new_name.lower()},
-            )
         elif kind == ITEM_GOLD:
             player.gold += item["value"]
             self._broadcast(
@@ -3306,6 +3393,7 @@ class Game:
                 MSG_PICKED_UP_GOLD, COLOR_YELLOW,
                 subject=player, ctx={"gold": item["value"]},
             )
+            logger.info("%s grab → picked up %d gold", player.name, item["value"])
         self._mark_level_unpopulated(player.depth)
         self._get_items(player.depth).pop(idx)
 
@@ -3318,6 +3406,7 @@ class Game:
             player.consecutive_waits = 0
             self._broadcast(player.x, player.y, player.depth,
                             MSG_REST_NO_HEAL, COLOR_GREEN, subject=player)
+            logger.info("%s wait → rested, no healing (full HP)", player.name)
             return
         player.consecutive_waits += 1
         heal_chance = min(
@@ -3330,9 +3419,11 @@ class Game:
             self._broadcast(player.x, player.y, player.depth,
                             MSG_REST_HEAL, COLOR_GREEN,
                             subject=player, ctx={"heal": actual_heal})
+            logger.info("%s wait → rested, healed %d HP", player.name, actual_heal)
         else:
             self._broadcast(player.x, player.y, player.depth,
                             MSG_REST_NO_HEAL, COLOR_GREEN, subject=player)
+            logger.info("%s wait → rested, no healing", player.name)
 
     def get_char_at(self, mx, my, player_idx=0):
         """Return the display character at (mx, my).
