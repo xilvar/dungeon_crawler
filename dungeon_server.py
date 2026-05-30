@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import queue
 import sys
 import threading
 import time
@@ -75,6 +76,12 @@ class GameServer:
         # Snapshot of precomputed per-player views (game loop writes, handlers read)
         self._latest_views = {}
         self._views_tick = 0
+        # Lock-free action queue: (player_id, action, timestamp)
+        self._action_queue = queue.Queue()
+        # Dict-based player lookup: client_id -> index in g.players
+        self._client_to_idx = {}
+        # Throttle stale/dead player cleanup
+        self._last_cleanup = 0
         self._init_game()
 
     def _init_game(self):
@@ -400,6 +407,7 @@ class GameServer:
 
         logger.info("Loaded players: %d active, %d inactive",
                     len(self.game.players), len(self.inactive_players))
+        self._rebuild_client_to_idx()
         self._update_visibility(self.game)
         return True
 
@@ -415,40 +423,74 @@ class GameServer:
         last_log_tick = 0
         while self.running:
             with self.lock:
-                if self.game.players:
-                    self.game.tick += 1
-                    self.game._process_tick()
-                    # Precompute visibility-filtered views for all players
+                g = self.game
+                # Drain lock-free action queue
+                while not self._action_queue.empty():
+                    player_id, action, ts = self._action_queue.get()
+                    self._last_activity[player_id] = ts
+                    target = self.clients.get(player_id)
+                    if target and not target.dead:
+                        target_idx = self._client_to_idx.get(player_id)
+                        if target_idx is not None:
+                            g.queue_player_action(target_idx, action)
+                if g.players:
+                    g.tick += 1
+                    alive_before = {id(p) for p in g.players if not p.dead}
+                    g._process_tick()
+                    # Build death views before deregistering
+                    newly_dead = []
+                    for p in g.players:
+                        if id(p) in alive_before and p.dead and p._client_id:
+                            idx = self._client_to_idx.get(p._client_id)
+                            if idx is not None:
+                                self._latest_views[p._client_id] = self._build_player_view(p, idx)
+                            newly_dead.append(p._client_id)
+                    for pid in newly_dead:
+                        result = self.deregister_player(pid)
+                        if result.get("ok"):
+                            logger.info("Player died and deregistered: client_id=%s",
+                                        pid[:12])
+                    # Rebuild index dict after player list changes
+                    self._rebuild_client_to_idx()
+                    # Precompute visibility-filtered views for surviving players
                     views = {}
-                    for idx, p in enumerate(self.game.players):
+                    for idx, p in enumerate(g.players):
                         if p._client_id:
                             views[p._client_id] = self._build_player_view(p, idx)
-                    self._latest_views = views
-                    self._views_tick = self.game.tick
-                    if self.game.tick % 500 == 0:
+                    self._latest_views.update(views)
+                    self._views_tick = g.tick
+                    if g.tick % 500 == 0 and any(not p.dead for p in g.players):
                         self._save_state()
                     # Log every 500 ticks (every ~5 seconds)
-                    if self.game.tick - last_log_tick >= 500:
-                        active = sum(1 for p in self.game.players if not p.dead)
-                        dead = sum(1 for p in self.game.players if p.dead)
+                    if g.tick - last_log_tick >= 500:
+                        active = sum(1 for p in g.players if not p.dead)
+                        dead = sum(1 for p in g.players if p.dead)
                         logger.debug("Tick %d: %d active, %d dead, %d levels",
-                                     self.game.tick, active, dead, len(self.game.levels))
-                        last_log_tick = self.game.tick
-                # Detect and remove stale players
+                                     g.tick, active, dead, len(g.levels))
+                        last_log_tick = g.tick
+                # Throttle stale player cleanup to every 500ms
                 now = time.time()
-                stale = [(pid, t) for pid, t in self._last_activity.items()
-                          if now - t > PLAYER_TIMEOUT]
-                for pid, t in stale:
-                    self._last_activity.pop(pid, None)
-                    result = self.deregister_player(pid)
-                    if result.get("ok"):
-                        logger.info("Stale player removed: client_id=%s (%.0fs idle)",
-                                    pid[:12], now - t)
+                if now - self._last_cleanup > 0.5:
+                    self._last_cleanup = now
+                    stale = [(pid, t) for pid, t in self._last_activity.items()
+                              if now - t > PLAYER_TIMEOUT]
+                    for pid, t in stale:
+                        self._last_activity.pop(pid, None)
+                        result = self.deregister_player(pid)
+                        if result.get("ok"):
+                            logger.info("Stale player removed: client_id=%s (%.0fs idle)",
+                                        pid[:12], now - t)
             time.sleep(0.01)
 
     def stop(self):
         """Signal the game loop thread to stop."""
         self.running = False
+
+    def _rebuild_client_to_idx(self):
+        """Rebuild the client_id -> player index mapping."""
+        self._client_to_idx = {p._client_id: i
+                               for i, p in enumerate(self.game.players)
+                               if p._client_id}
 
     def _update_visibility(self, g):
         """Recompute visibility from all alive players."""
@@ -509,6 +551,7 @@ class GameServer:
             self._update_visibility(g)
             g._update_explored()
             g.game_over = False
+            self._rebuild_client_to_idx()
             status = "re-activated" if inactive else "new"
             logger.info("Player registered (%s): name=%s, client_id=%s, total_players=%d",
                         status, p.name, client_id[:12], len(g.players))
@@ -523,11 +566,7 @@ class GameServer:
             g = self.game
             target = self.clients.get(player_id)
             if target is not None:
-                target_idx = None
-                for i, pl in enumerate(g.players):
-                    if pl is target:
-                        target_idx = i
-                        break
+                target_idx = self._client_to_idx.get(player_id)
                 if target_idx is not None:
                     self.inactive_players.append(target)
                     g.players.pop(target_idx)
@@ -537,6 +576,7 @@ class GameServer:
                 self.clients.pop(player_id, None)
                 self._last_state_tick.pop(player_id, None)
                 self._last_activity.pop(player_id, None)
+                self._client_to_idx.pop(player_id, None)
                 self._save_state()
                 return {"ok": True}
             return {"error": "player not found"}
@@ -552,6 +592,15 @@ class GameServer:
         """
         self._last_activity[player_id] = time.time()
         g = self.game
+
+        # Check for cached death view before empty-players fallback
+        cached_view = self._latest_views.get(player_id)
+        if cached_view and cached_view.get("game_over"):
+            last_sent = self._last_state_tick.get(player_id, -1)
+            if cached_view["tick"] == last_sent:
+                return {"tick": cached_view["tick"]}
+            self._last_state_tick[player_id] = cached_view["tick"]
+            return cached_view
 
         # No players registered yet
         if not g.players:
@@ -739,24 +788,11 @@ class GameServer:
     def send_action(self, player_id, action):
         """Queue an action for the given player.
 
-        Returns {"ok": True} or an error.
+        Lock-free: appends to the action queue. Validation happens in the
+        game loop when the queue is drained. Returns {"queued": True}.
         """
-        with self.lock:
-            self._last_activity[player_id] = time.time()
-            g = self.game
-            target = self.clients.get(player_id)
-            if not target or target.dead:
-                logger.debug("Action from invalid/dead player: %s", player_id[:12])
-                return {"error": "invalid player"}
-            target_idx = None
-            for i, pl in enumerate(g.players):
-                if pl is target:
-                    target_idx = i
-                    break
-            if target_idx is None:
-                return {"error": "invalid player"}
-            g.queue_player_action(target_idx, action)
-            return {"ok": True}
+        self._action_queue.put((player_id, action, time.time()))
+        return {"queued": True}
 
     def validate_player(self, client_id):
         """Check if a client_id corresponds to a valid (active or inactive) player."""

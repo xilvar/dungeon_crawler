@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Dungeon Crawler</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -13,7 +13,12 @@ canvas{image-rendering:pixelated;display:block}
 #noshow{position:absolute;color:#555;font-size:13px;pointer-events:none}
 #status,#msgs,#help{padding:4px 12px;white-space:nowrap;overflow:hidden}
 #status{background:#111;color:#0f0;font-size:13px;border-top:1px solid #333}
-#msgs{background:#0d0d0d;height:80px;overflow-y:auto;font-size:13px;border-top:1px solid #222;border-bottom:1px solid #222}
+#msgs{background:#0d0d0d;height:25vh;overflow-y:auto;font-size:13px;border-top:1px solid #222;border-bottom:1px solid #222;position:relative}
+#dpad{position:absolute;bottom:8px;right:8px;display:none;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:2px;opacity:0.55;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+@media(max-width:768px),(max-aspect-ratio:1/1){#dpad{display:grid}#status{white-space:normal;font-size:11px}#msg-list{padding-bottom:20px}}
+.dpad-btn{background:#222;color:#aaa;border:1px solid #444;border-radius:6px;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.dpad-btn:active{background:#444;color:#fff}
+.dpad-empty{visibility:hidden}
 .msg{padding:1px 12px}
 .msg-old{color:#555}
 .msg-new{color:#ccc}
@@ -48,7 +53,14 @@ canvas{image-rendering:pixelated;display:block}
     <div id="focus-hint" class="hidden">Click to focus</div>
   </div>
   <div id="status"><span id="status-text">---</span><span id="bw"></span></div>
-  <div id="msgs"></div>
+  <div id="msgs">
+    <div id="msg-list"></div>
+    <div id="dpad">
+      <div class="dpad-btn act-btn" data-action="grab">G</div><div class="dpad-btn" data-dir="up">▲</div><div class="dpad-btn" data-action="stairs_up">&lt;</div>
+      <div class="dpad-btn" data-dir="left">◀</div><div class="dpad-empty"></div><div class="dpad-btn" data-dir="right">▶</div>
+      <div class="dpad-btn act-btn" data-action="wait">·</div><div class="dpad-btn" data-dir="down">▼</div><div class="dpad-btn" data-action="stairs_down">&gt;</div>
+    </div>
+  </div>
   <div id="help">&gt;:Down  &lt;:Up  g:Grab  .:Wait  Arrows/WASD:Move  q:Quit</div>
 </div>
 <div id="overlay">
@@ -118,6 +130,15 @@ async function deregister(pid){
   if(!pid) return;
   try{ await fetch('/deregister',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({player_id:pid})}); }catch(e){}
 }
+
+function deregister_on_exit(pid){
+  if(!pid) return;
+  const body=JSON.stringify({player_id:pid});
+  if(navigator.sendBeacon) navigator.sendBeacon('/deregister', new Blob([body],{type:'application/json'}));
+}
+
+window.addEventListener('beforeunload',()=>deregister_on_exit(player_id));
+window.addEventListener('pagehide',()=>deregister_on_exit(player_id));
 
 async function send_action(pid, action){
   try{ await fetch('/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({player_id:pid,action})}); }catch(e){}
@@ -298,11 +319,11 @@ function render_messages(new_msgs){
     msgs.push(...new_msgs.map(m=>typeof m==='string'?m:m[0]));
     if(msgs.length>100) msgs=msgs.slice(-100);
   }
-  const el=$('msgs');
-  const show=msg_count||12;
-  const visible=msgs.slice(-show);
-  el.innerHTML=visible.map((m,i)=>`<div class="${i===visible.length-1?'msg-new':'msg-old'}">${esc(m)}</div>`).join('');
-  el.scrollTop=el.scrollHeight;
+   const el=$('msg-list');
+    const show=msg_count||12;
+   const visible=msgs.slice(-show);
+   el.innerHTML=visible.map((m,i)=>`<div class="${i===visible.length-1?'msg-new':'msg-old'}">${esc(m)}</div>`).join('');
+   $('msgs').scrollTop=$('msgs').scrollHeight;
 }
 let msg_count=12;
 
@@ -418,6 +439,16 @@ document.addEventListener('keyup',e=>{keys[e.key]=false;});
 canvas.addEventListener('click',()=>{canvas.focus();focusHint.classList.add('hidden');});
 canvas.addEventListener('blur',()=>{if(polling) focusHint.classList.remove('hidden');});
 canvas.addEventListener('focus',()=>{focusHint.classList.add('hidden');});
+
+// --- Mobile D-pad ---
+const DPAD_MOVE={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
+$('dpad').addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const btn=e.target.closest('.dpad-btn');
+  if(!btn||!player_id) return;
+  if(btn.dataset.action) send_action(player_id,{type:btn.dataset.action});
+  else if(btn.dataset.dir){const[dx,dy]=DPAD_MOVE[btn.dataset.dir];send_action(player_id,{type:'move',dx,dy});}
+},{passive:false});
 
 // --- Start / End ---
 async function show_start(){

@@ -1869,9 +1869,10 @@ class Game:
                             (lvl["baseline_water_enemies"] - living_water) + \
                             (lvl["baseline_items"] - items_count)
             if total_deficit > 0:
-                lvl["regen_interval"] = LEVEL_REGEN_TICKS // total_deficit
+                interval = LEVEL_REGEN_TICKS // total_deficit
+                lvl["regen_interval"] = interval
+                lvl["next_regen_tick"] = self.tick + interval
             lvl["populated"] = False
-            lvl["next_regen_tick"] = self.tick
 
     def _check_level_repopulated(self, depth):
         """Check if a level has returned to baseline counts and mark populated."""
@@ -1969,6 +1970,11 @@ class Game:
                 lvl["enemies"].append(e)
                 self._ambient_sound(ex, ey, depth, REPOP_ENEMY_AMBIENT,
                                    COLOR_WHITE, chance=0.4, range=30, flat=True)
+                logger.info("Level %d regen +1 enemy %s (enemies=%d/%d, water=%d/%d, items=%d/%d)",
+                            depth, e["name"],
+                            living + 1, lvl["baseline_enemies"],
+                            living_water, lvl["baseline_water_enemies"],
+                            items_count, lvl["baseline_items"])
                 spawned = True
         if not spawned and water_deficit > 0:
             spot = self._find_free_water_tile(dungeon, occupied)
@@ -1991,6 +1997,11 @@ class Game:
                 lvl["enemies"].append(e)
                 self._ambient_sound(ex, ey, depth, REPOP_ENEMY_AMBIENT,
                                    COLOR_WHITE, chance=0.4, range=30, flat=True)
+                logger.info("Level %d regen +1 water enemy %s (enemies=%d/%d, water=%d/%d, items=%d/%d)",
+                            depth, e["name"],
+                            living, lvl["baseline_enemies"],
+                            living_water + 1, lvl["baseline_water_enemies"],
+                            items_count, lvl["baseline_items"])
                 spawned = True
         if not spawned and item_deficit > 0:
             spot = self._find_free_floor_tile(dungeon, depth, occupied)
@@ -2011,6 +2022,11 @@ class Game:
                 lvl["items"].append(item)
                 self._ambient_sound(spot[0], spot[1], depth, REPOP_ITEM_AMBIENT,
                                    COLOR_YELLOW, chance=0.35, range=25, flat=True)
+                logger.info("Level %d regen +1 %s (enemies=%d/%d, water=%d/%d, items=%d/%d)",
+                            depth, ITEM_PROPS[item["kind"]]["name"],
+                            living, lvl["baseline_enemies"],
+                            living_water, lvl["baseline_water_enemies"],
+                            items_count + 1, lvl["baseline_items"])
                 spawned = True
         lvl["next_regen_tick"] = self.tick + interval
         self._check_level_repopulated(depth)
@@ -3394,8 +3410,8 @@ class Game:
                 subject=player, ctx={"gold": item["value"]},
             )
             logger.info("%s grab → picked up %d gold", player.name, item["value"])
-        self._mark_level_unpopulated(player.depth)
         self._get_items(player.depth).pop(idx)
+        self._mark_level_unpopulated(player.depth)
 
     def _do_wait(self, player):
         """Wait for a moment.
