@@ -436,12 +436,14 @@ class GameServer:
                         last_log_tick = self.game.tick
                 # Detect and remove stale players
                 now = time.time()
-                stale = [pid for pid, t in self._last_activity.items()
-                         if now - t > PLAYER_TIMEOUT]
-                for pid in stale:
-                    self.deregister_player(pid)
-                    logger.info("Stale player removed: client_id=%s (%.0fs idle)",
-                                pid[:12], now - self._last_activity.get(pid, now))
+                stale = [(pid, t) for pid, t in self._last_activity.items()
+                          if now - t > PLAYER_TIMEOUT]
+                for pid, t in stale:
+                    self._last_activity.pop(pid, None)
+                    result = self.deregister_player(pid)
+                    if result.get("ok"):
+                        logger.info("Stale player removed: client_id=%s (%.0fs idle)",
+                                    pid[:12], now - t)
             time.sleep(0.01)
 
     def stop(self):
